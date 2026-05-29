@@ -15,6 +15,11 @@ namespace ArmSmith
     public class GameBootstrap : MonoBehaviour
     {
         public ArmConfig config;
+        // STL skinning needs the real SO-ARM100 joint frames (URDF) to align; until that's wired,
+        // Procedural arm is the stable shipping default (clean look + approved mouse control work well).
+        // The URDF/STL-accurate arm (BuildFromKinematics) is wired but its mesh frame-conversion still
+        // needs tuning (tracked: ROADMAP R1) — set true to work on it.
+        public bool useRealStlMeshes = false;
         ProceduralArm arm;
         ArmController controller;
         CameraRig rig;
@@ -132,7 +137,30 @@ namespace ArmSmith
             var armGo = new GameObject("Arm");
             armGo.transform.position = Vector3.zero;       // base on table worktop (y=0)
             arm = armGo.AddComponent<ProceduralArm>();
-            arm.Build(config);
+
+            if (useRealStlMeshes)
+            {
+                // Build from real SO-101 URDF kinematics + STL meshes.
+                // Populates baseBody, jointBodies (6), jointSpecs (6), servos (6),
+                // endEffector, leftJaw, rightJaw, gripper — same public contract as Build(config).
+                string kinPath = System.IO.Path.Combine(
+                    Application.dataPath, "Meshes", "SOARM100", "kinematics.json");
+                arm.BuildFromKinematics(kinPath);
+                // If kinematics build failed (missing file), fall back to procedural.
+                if (arm.baseBody == null)
+                {
+                    Debug.LogWarning("[GameBootstrap] BuildFromKinematics failed; falling back to Build(config).");
+                    arm.useStlMeshes = false;
+                    arm.Build(config);
+                }
+                else if (arm.config == null)
+                    arm.config = config;  // ensure TotalReach() / AxisVector() have a valid config
+            }
+            else
+            {
+                arm.useStlMeshes = false;   // procedural visuals only
+                arm.Build(config);
+            }
 
             // IK target gizmo
             var tgt = GameObject.CreatePrimitive(PrimitiveType.Sphere);

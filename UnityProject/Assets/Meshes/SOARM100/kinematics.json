@@ -1,0 +1,417 @@
+{
+  "_comment": "SO-ARM100 / SO-101 Follower arm kinematics — extracted from URDF + MJCF",
+  "units": "metres / radians (URDF convention). Degrees equivalents provided in every *_deg field.",
+  "source_urdf": "https://raw.githubusercontent.com/TheRobotStudio/SO-ARM100/main/Simulation/SO101/so101_new_calib.urdf",
+  "source_mjcf": "https://raw.githubusercontent.com/TheRobotStudio/SO-ARM100/main/Simulation/SO101/so101_new_calib.xml",
+  "generated": "2026-05-30",
+  "arm_variant": "SO-101 Follower (6-DOF, STS3215 servo-based)",
+  "coordinate_frame": "URDF/MJCF use right-hand Z-up. Unity uses left-hand Y-up. See KINEMATICS_NOTES.md for conversion.",
+  "dof_count": 6,
+  "servo_model": "Feetech STS3215",
+
+  "_note_link_meshes": "Each link can have MULTIPLE visual meshes (structural part + servo + mounting brackets). Primary kinematic mesh listed first.",
+
+  "links": [
+    {
+      "name": "base_link",
+      "urdf_name": "base_link",
+      "mjcf_name": "base",
+      "description": "Static base — bolts to table. Contains servo-1 (shoulder_pan), waveshare plate, and motor holder.",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "base_so101_v2.stl",
+          "alt_file": "Base_SO101.stl",
+          "mesh_xyz_m": [-0.00636471, -0.000000009, -0.0024],
+          "mesh_rpy_rad": [1.5708, 0.0, 1.5708],
+          "mesh_rpy_deg": [90.0, 0.0, 90.0]
+        },
+        {
+          "role": "motor_housing",
+          "file": "base_motor_holder_so101_v1.stl",
+          "alt_file": "Base_motor_holder_SO101.stl",
+          "mesh_xyz_m": [-0.00636471, -0.00009944, -0.0024],
+          "mesh_rpy_rad": [1.5708, 0.0, 1.5708],
+          "mesh_rpy_deg": [90.0, 0.0, 90.0]
+        },
+        {
+          "role": "servo_body",
+          "file": "sts3215_03a_v1.stl",
+          "mesh_xyz_m": [0.0263353, -0.000000009, 0.0437],
+          "mesh_rpy_rad": [0.0, 0.0, 0.0],
+          "mesh_rpy_deg": [0.0, 0.0, 0.0]
+        },
+        {
+          "role": "controller_mount",
+          "file": "waveshare_mounting_plate_so101_v2.stl",
+          "alt_file": "WaveShare_Mounting_Plate_SO101.stl",
+          "mesh_xyz_m": [-0.0309827, -0.00019944, 0.0474],
+          "mesh_rpy_rad": [1.5708, 0.0, 1.5708],
+          "mesh_rpy_deg": [90.0, 0.0, 90.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [0.0137179, -0.0000519711, 0.0334843],
+        "mass_kg": 0.147
+      }
+    },
+    {
+      "name": "shoulder_link",
+      "urdf_name": "shoulder_link",
+      "mjcf_name": "shoulder",
+      "description": "Shoulder yaw link — rotates on shoulder_pan joint. Contains servo-2 (shoulder_lift) and rotation-pitch bracket.",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "rotation_pitch_so101_v1.stl",
+          "alt_file": "Rotation_Pitch_SO101.stl",
+          "mesh_xyz_m": [0.0122008, 0.0000222413, 0.0464],
+          "mesh_rpy_rad": [-1.5708, 0.0, 0.0],
+          "mesh_rpy_deg": [-90.0, 0.0, 0.0]
+        },
+        {
+          "role": "motor_bracket",
+          "file": "motor_holder_so101_base_v1.stl",
+          "alt_file": "Motor_holder_SO101_Base.stl",
+          "mesh_xyz_m": [-0.0675992, -0.000177759, 0.0158499],
+          "mesh_rpy_rad": [1.5708, -1.5708, 0.0],
+          "mesh_rpy_deg": [90.0, -90.0, 0.0]
+        },
+        {
+          "role": "servo_body",
+          "file": "sts3215_03a_v1.stl",
+          "mesh_xyz_m": [-0.0303992, 0.000422241, -0.0417],
+          "mesh_rpy_rad": [1.5708, 1.5708, 0.0],
+          "mesh_rpy_deg": [90.0, 90.0, 0.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [-0.0307604, -0.0000166727, -0.0252713],
+        "mass_kg": 0.100006
+      }
+    },
+    {
+      "name": "upper_arm_link",
+      "urdf_name": "upper_arm_link",
+      "mjcf_name": "upper_arm",
+      "description": "Upper arm (humerus) — rotates on shoulder_lift. Long segment from shoulder to elbow.",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "upper_arm_so101_v1.stl",
+          "alt_file": "Upper_arm_SO101.stl",
+          "mesh_xyz_m": [-0.065085, 0.012, 0.0182],
+          "mesh_rpy_rad": [3.14159, 0.0, 0.0],
+          "mesh_rpy_deg": [180.0, 0.0, 0.0]
+        },
+        {
+          "role": "servo_body",
+          "file": "sts3215_03a_v1.stl",
+          "mesh_xyz_m": [-0.11257, -0.0155, 0.0187],
+          "mesh_rpy_rad": [-3.14159, 0.0, -1.5708],
+          "mesh_rpy_deg": [-180.0, 0.0, -90.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [-0.0898471, -0.00838224, 0.0184089],
+        "mass_kg": 0.103
+      }
+    },
+    {
+      "name": "lower_arm_link",
+      "urdf_name": "lower_arm_link",
+      "mjcf_name": "lower_arm",
+      "description": "Forearm (under-arm) — rotates on elbow_flex. Carries wrist servo and motor-holder bracket.",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "under_arm_so101_v1.stl",
+          "alt_file": "Under_arm_SO101.stl",
+          "mesh_xyz_m": [-0.0648499, -0.032, 0.0182],
+          "mesh_rpy_rad": [3.14159, 0.0, 0.0],
+          "mesh_rpy_deg": [180.0, 0.0, 0.0]
+        },
+        {
+          "role": "motor_bracket",
+          "file": "motor_holder_so101_wrist_v1.stl",
+          "alt_file": "Motor_holder_SO101_Wrist.stl",
+          "mesh_xyz_m": [-0.0648499, -0.032, 0.018],
+          "mesh_rpy_rad": [-3.14159, 0.0, 0.0],
+          "mesh_rpy_deg": [-180.0, 0.0, 0.0]
+        },
+        {
+          "role": "servo_body",
+          "file": "sts3215_03a_v1.stl",
+          "mesh_xyz_m": [-0.1224, 0.0052, 0.0187],
+          "mesh_rpy_rad": [-3.14159, 0.0, -3.14159],
+          "mesh_rpy_deg": [-180.0, 0.0, -180.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [-0.0980701, 0.00324376, 0.0182831],
+        "mass_kg": 0.104
+      }
+    },
+    {
+      "name": "wrist_link",
+      "urdf_name": "wrist_link",
+      "mjcf_name": "wrist",
+      "description": "Wrist pitch+roll block — rotates on wrist_flex. Dual-axis wrist housing; contains servo-5 (wrist_roll, no horn variant).",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "wrist_roll_pitch_so101_v2.stl",
+          "alt_file": "Wrist_Roll_Pitch_SO101.stl",
+          "mesh_xyz_m": [0.0, -0.028, 0.0181],
+          "mesh_rpy_rad": [-1.5708, -1.5708, 0.0],
+          "mesh_rpy_deg": [-90.0, -90.0, 0.0]
+        },
+        {
+          "role": "servo_body_no_horn",
+          "file": "sts3215_03a_no_horn_v1.stl",
+          "mesh_xyz_m": [0.0, -0.0424, 0.0306],
+          "mesh_rpy_rad": [1.5708, 1.5708, 0.0],
+          "mesh_rpy_deg": [90.0, 90.0, 0.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [-0.000103312, -0.0386143, 0.0281156],
+        "mass_kg": 0.079
+      }
+    },
+    {
+      "name": "gripper_link",
+      "urdf_name": "gripper_link",
+      "mjcf_name": "gripper",
+      "description": "Wrist roll / gripper base — rotates on wrist_roll. Houses servo-6 (gripper actuator) and follower-specific wrist roll body.",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "wrist_roll_follower_so101_v1.stl",
+          "alt_file": "Wrist_Roll_Follower_SO101.stl",
+          "mesh_xyz_m": [0.0, -0.000218214, 0.000949706],
+          "mesh_rpy_rad": [-3.14159, 0.0, 0.0],
+          "mesh_rpy_deg": [-180.0, 0.0, 0.0]
+        },
+        {
+          "role": "servo_body",
+          "file": "sts3215_03a_v1.stl",
+          "mesh_xyz_m": [0.0077, 0.0001, -0.0234],
+          "mesh_rpy_rad": [-1.5708, 0.0, 0.0],
+          "mesh_rpy_deg": [-90.0, 0.0, 0.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [0.000213627, 0.000245138, -0.025187],
+        "mass_kg": 0.087
+      }
+    },
+    {
+      "name": "moving_jaw_so101_v1_link",
+      "urdf_name": "moving_jaw_so101_v1_link",
+      "mjcf_name": "moving_jaw_so101_v1",
+      "description": "Moving jaw (gripper finger) — end-effector, actuated by gripper joint.",
+      "meshes": [
+        {
+          "role": "primary_structure",
+          "file": "moving_jaw_so101_v1.stl",
+          "alt_file": "Moving_Jaw_SO101.stl",
+          "mesh_xyz_m": [0.0, 0.0, 0.0189],
+          "mesh_rpy_rad": [0.0, 0.0, 0.0],
+          "mesh_rpy_deg": [0.0, 0.0, 0.0]
+        }
+      ],
+      "inertial": {
+        "com_xyz_m": [-0.00157495, -0.0300244, 0.0192755],
+        "mass_kg": 0.012
+      }
+    },
+    {
+      "_note": "Dummy zero-mass link used for gripper TCP frame — no mesh",
+      "name": "gripper_frame_link",
+      "urdf_name": "gripper_frame_link",
+      "description": "TCP / end-effector frame. Zero-mass dummy, no mesh. Use as the target frame for IK.",
+      "meshes": []
+    }
+  ],
+
+  "joints": [
+    {
+      "name": "shoulder_pan",
+      "type": "revolute",
+      "actuator": "motor1 (STS3215 servo, ID 1)",
+      "parent": "base_link",
+      "child": "shoulder_link",
+      "origin_xyz_m": [0.0388353, -0.000000009, 0.0624],
+      "origin_rpy_rad": [3.14159, 0.0, -3.14159],
+      "origin_rpy_deg": [180.0, 0.0, -180.0],
+      "_note_rpy": "RPY≈[π,0,-π] places shoulder frame Z-down relative to base (flips the axis). Net rotation axis in world frame points downward (−Z_world), making positive joint angle = rotate CW when viewed from above.",
+      "axis_local": [0, 0, 1],
+      "limit_rad": [-1.91986, 1.91986],
+      "limit_deg": [-110.0, 110.0],
+      "limit_effort_Nm": 10,
+      "limit_velocity_rad_s": 10,
+      "description": "Base yaw — rotates entire arm left/right around vertical axis"
+    },
+    {
+      "name": "shoulder_lift",
+      "type": "revolute",
+      "actuator": "motor2 (STS3215 servo, ID 2)",
+      "parent": "shoulder_link",
+      "child": "upper_arm_link",
+      "origin_xyz_m": [-0.0303992, -0.0182778, -0.0542],
+      "origin_rpy_rad": [-1.5708, -1.5708, 0.0],
+      "origin_rpy_deg": [-90.0, -90.0, 0.0],
+      "_note_rpy": "Double 90° rotation brings the joint axis into alignment with the arm's pitch axis.",
+      "axis_local": [0, 0, 1],
+      "limit_rad": [-1.74533, 1.74533],
+      "limit_deg": [-100.0, 100.0],
+      "description": "Shoulder pitch — raises/lowers upper arm"
+    },
+    {
+      "name": "elbow_flex",
+      "type": "revolute",
+      "actuator": "motor3 (STS3215 servo, ID 3)",
+      "parent": "upper_arm_link",
+      "child": "lower_arm_link",
+      "origin_xyz_m": [-0.11257, -0.028, 0.0],
+      "origin_rpy_rad": [0.0, 0.0, 1.5708],
+      "origin_rpy_deg": [0.0, 0.0, 90.0],
+      "_note_rpy": "Single 90° yaw rotates joint frame so Z-axis aligns with elbow pitch axis. Note: 5° calibration offset applied to limits.",
+      "axis_local": [0, 0, 1],
+      "limit_rad": [-1.69, 1.69],
+      "limit_deg": [-96.84, 96.84],
+      "description": "Elbow flex — bends/extends forearm"
+    },
+    {
+      "name": "wrist_flex",
+      "type": "revolute",
+      "actuator": "motor4 (STS3215 servo, ID 4)",
+      "parent": "lower_arm_link",
+      "child": "wrist_link",
+      "origin_xyz_m": [-0.1349, 0.0052, 0.0],
+      "origin_rpy_rad": [0.0, 0.0, -1.5708],
+      "origin_rpy_deg": [0.0, 0.0, -90.0],
+      "_note_rpy": "−90° yaw aligns Z with wrist pitch axis.",
+      "axis_local": [0, 0, 1],
+      "limit_rad": [-1.65806, 1.65806],
+      "limit_deg": [-95.0, 95.0],
+      "description": "Wrist flex/pitch — bends wrist up/down"
+    },
+    {
+      "name": "wrist_roll",
+      "type": "revolute",
+      "actuator": "motor5 (STS3215 servo, ID 5)",
+      "parent": "wrist_link",
+      "child": "gripper_link",
+      "origin_xyz_m": [0.0, -0.0611, 0.0181],
+      "origin_rpy_rad": [1.5708, 0.0486795, 3.14159],
+      "origin_rpy_deg": [90.0, 2.789, 180.0],
+      "_note_rpy": "RPY=[π/2, ~2.79°, π]. The small ~2.79° pitch is a calibration offset from the new_calib URDF.",
+      "axis_local": [0, 0, 1],
+      "limit_rad": [-2.74385, 2.84121],
+      "limit_deg": [-157.2, 162.8],
+      "description": "Wrist roll — rotates gripper around forearm longitudinal axis. Asymmetric limits reflect hardware stop geometry."
+    },
+    {
+      "name": "gripper",
+      "type": "revolute",
+      "actuator": "motor6 (STS3215 servo, ID 6)",
+      "parent": "gripper_link",
+      "child": "moving_jaw_so101_v1_link",
+      "origin_xyz_m": [0.0202, 0.0188, -0.0234],
+      "origin_rpy_rad": [1.5708, 0.0, 0.0],
+      "origin_rpy_deg": [90.0, 0.0, 0.0],
+      "_note_rpy": "90° roll aligns joint Z with jaw pivot axis (horizontal pivot).",
+      "axis_local": [0, 0, 1],
+      "limit_rad": [-0.174533, 1.74533],
+      "limit_deg": [-10.0, 100.0],
+      "_note_limits": "Lower limit is near-zero (very slight over-centre); upper limit ~100° = fully open jaw.",
+      "description": "Gripper — opens/closes moving jaw"
+    },
+    {
+      "name": "gripper_frame_joint",
+      "type": "fixed",
+      "actuator": null,
+      "parent": "gripper_link",
+      "child": "gripper_frame_link",
+      "origin_xyz_m": [-0.0079, -0.000218121, -0.0981274],
+      "origin_rpy_rad": [0.0, 3.14159, 0.0],
+      "origin_rpy_deg": [0.0, 180.0, 0.0],
+      "axis_local": null,
+      "limit_rad": null,
+      "limit_deg": null,
+      "description": "TCP frame — fixed joint placing the gripper tip frame ~98mm below gripper_link origin, flipped 180° around Y (faces forward in tool orientation)"
+    }
+  ],
+
+  "kinematic_chain": [
+    "base_link",
+    "→ [shoulder_pan]  z↑ +62.4mm from base",
+    "shoulder_link",
+    "→ [shoulder_lift]  at [-30.4, -18.3, -54.2]mm from shoulder",
+    "upper_arm_link",
+    "→ [elbow_flex]  at [-112.6, -28.0, 0.0]mm from upper_arm",
+    "lower_arm_link",
+    "→ [wrist_flex]  at [-134.9, +5.2, 0.0]mm from lower_arm",
+    "wrist_link",
+    "→ [wrist_roll]  at [0.0, -61.1, +18.1]mm from wrist",
+    "gripper_link",
+    "→ [gripper]  at [+20.2, +18.8, -23.4]mm from gripper",
+    "moving_jaw_so101_v1_link  (end-effector)",
+    "→ [gripper_frame_joint fixed]  TCP at [-7.9, -0.2, -98.1]mm from gripper_link"
+  ],
+
+  "approximate_reach": {
+    "note": "Rough reach estimate from summing arm segment X-extents in URDF frames",
+    "upper_arm_length_mm": 112.6,
+    "lower_arm_length_mm": 134.9,
+    "wrist_to_tcp_mm": 98.1,
+    "total_reach_mm": 345,
+    "total_reach_m": 0.345
+  },
+
+  "stl_files_in_unity_assets": {
+    "simulation_set_lowercase": [
+      "base_so101_v2.stl",
+      "base_motor_holder_so101_v1.stl",
+      "motor_holder_so101_base_v1.stl",
+      "motor_holder_so101_wrist_v1.stl",
+      "rotation_pitch_so101_v1.stl",
+      "upper_arm_so101_v1.stl",
+      "under_arm_so101_v1.stl",
+      "wrist_roll_pitch_so101_v2.stl",
+      "wrist_roll_follower_so101_v1.stl",
+      "moving_jaw_so101_v1.stl",
+      "waveshare_mounting_plate_so101_v2.stl",
+      "sts3215_03a_v1.stl",
+      "sts3215_03a_no_horn_v1.stl"
+    ],
+    "individual_set_mixedcase_fallbacks": [
+      "Base_SO101.stl",
+      "Base_motor_holder_SO101.stl",
+      "Motor_holder_SO101_Base.stl",
+      "Motor_holder_SO101_Wrist.stl",
+      "Rotation_Pitch_SO101.stl",
+      "Upper_arm_SO101.stl",
+      "Under_arm_SO101.stl",
+      "Wrist_Roll_Pitch_SO101.stl",
+      "Wrist_Roll_SO101.stl",
+      "Wrist_Roll_Follower_SO101.stl",
+      "Moving_Jaw_SO101.stl",
+      "WaveShare_Mounting_Plate_SO101.stl",
+      "Seeedstudio_Mounting_Plate_SO101.stl"
+    ]
+  },
+
+  "link_to_sim_stl_map": {
+    "base_link":                 ["base_so101_v2.stl", "base_motor_holder_so101_v1.stl", "sts3215_03a_v1.stl", "waveshare_mounting_plate_so101_v2.stl"],
+    "shoulder_link":             ["rotation_pitch_so101_v1.stl", "motor_holder_so101_base_v1.stl", "sts3215_03a_v1.stl"],
+    "upper_arm_link":            ["upper_arm_so101_v1.stl", "sts3215_03a_v1.stl"],
+    "lower_arm_link":            ["under_arm_so101_v1.stl", "motor_holder_so101_wrist_v1.stl", "sts3215_03a_v1.stl"],
+    "wrist_link":                ["wrist_roll_pitch_so101_v2.stl", "sts3215_03a_no_horn_v1.stl"],
+    "gripper_link":              ["wrist_roll_follower_so101_v1.stl", "sts3215_03a_v1.stl"],
+    "moving_jaw_so101_v1_link":  ["moving_jaw_so101_v1.stl"],
+    "gripper_frame_link":        []
+  }
+}

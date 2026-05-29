@@ -14,12 +14,21 @@ namespace ArmSmith
     ///                  -> Joint0 (revolute) -> Joint1 -> ... -> Wrist
     ///                                                            -> Gripper (LeftJaw, RightJaw)
     /// </summary>
-    public class ProceduralArm : MonoBehaviour
+    public partial class ProceduralArm : MonoBehaviour
     {
         public ArmConfig config;
         public Material linkMaterial;
         public Material jointMaterial;
         public Material gripperMaterial;
+
+        // ── STL mesh skin (opt-in) ─────────────────────────────────────────────────
+        [Tooltip("When true, Build() replaces procedural visuals with real SO-ARM100 STL meshes.")]
+        public bool useStlMeshes = false;
+
+        [Tooltip("Absolute path to the folder containing the .stl files. " +
+                 "Leave empty to use Application.dataPath/Meshes/SOARM100/")]
+        public string stlMeshDir = "";
+        // ──────────────────────────────────────────────────────────────────────────
 
         public ArticulationBody baseBody;
         public readonly List<ArticulationBody> jointBodies = new List<ArticulationBody>();
@@ -120,6 +129,14 @@ namespace ArmSmith
             gripper.Init(this, leftJaw, rightJaw, cfg.gripperWidth, jawHalf);
 
             gameObject.name = string.IsNullOrEmpty(cfg.armName) ? "Arm" : cfg.armName;
+
+            // ── STL mesh skin (opt-in) ─────────────────────────────────────────────
+            // Applied AFTER the full physics hierarchy is built so it can safely
+            // iterate jointBodies / leftJaw / rightJaw.  Physics, servos, and IK are
+            // completely unaffected — only visual MeshRenderers are swapped.
+            if (useStlMeshes)
+                StlArmSkin.Apply(this, stlMeshDir);
+            // ──────────────────────────────────────────────────────────────────────
         }
 
         ArticulationBody BuildJaw(Transform palm, string name, float xOffset, ArmConfig cfg)
