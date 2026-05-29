@@ -34,9 +34,46 @@ namespace ArmSmith
         Func<Material> matFactory;
         float elapsed;
         public float timeLimit = 30f;
-        public bool Succeeded { get; private set; }
+        public bool Succeeded { get; private set; }       // latched: true once achieved, until reset
+        public bool SuccessNow { get; private set; }       // instantaneous this frame
+        public float SuccessTime { get; private set; }     // when success was first reached
         public float LastReward { get; private set; }
         public float Elapsed => elapsed;
+
+        /// <summary>Explicit, human-readable training objective for the current scenario (shown in UI,
+        /// states the success condition the reward optimises).</summary>
+        public string Objective()
+        {
+            switch (current)
+            {
+                case ScenarioType.ReachTouch:
+                    return "REACH: move the gripper tip to the pink target (< 4 cm). No grasp needed.";
+                case ScenarioType.PushToZone:
+                    return "PUSH: push the cube onto the blue pad (< 6 cm, at rest).";
+                case ScenarioType.PickPlaceCube:
+                    return "PICK & PLACE: grasp the cube and set it on the blue pad (< 6 cm, at rest).";
+                case ScenarioType.TrayToTray:
+                    return "TRAY-TO-TRAY: lift the cube out of Tray A and deliver it into Tray B (< 6 cm, resting in tray).";
+                case ScenarioType.StackTwo:
+                    return "STACK: place the yellow cube on top of the purple cube (< 3 cm, at rest).";
+                case ScenarioType.DropInBin:
+                    return "DROP IN BIN: carry the cube and release it inside the blue bin.";
+                default: return "";
+            }
+        }
+
+        /// <summary>Reward-term breakdown string (so the player sees WHAT is being optimised).</summary>
+        public string RewardSpec()
+        {
+            switch (current)
+            {
+                case ScenarioType.ReachTouch: return "reward = -dist(tip,target); +10 on success";
+                case ScenarioType.StackTwo:   return "reward = -dist(cube, aboveCubeB); +10 on success";
+                case ScenarioType.DropInBin:  return "reward = -dist(cube, bin); +10 in-bin & at rest";
+                case ScenarioType.TrayToTray: return "reward = -0.5*grip_dist + (grasped? 0.5-trayB_dist) ; +10 success";
+                default: return "reward = -0.4*grip_dist - 0.3*pad_dist; +10 success";
+            }
+        }
 
         public void Init(ProceduralArm a, ArmController c, Func<Material> mat)
         {
@@ -52,7 +89,8 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.Escape)) LoadScenario(current);
             elapsed += Time.deltaTime;
             LastReward = ComputeReward(out bool s);
-            Succeeded = s;
+            SuccessNow = s;
+            if (s && !Succeeded) { Succeeded = true; SuccessTime = elapsed; Debug.Log($"[Scenario] {current} SUCCESS at {elapsed:F1}s"); }
         }
 
         void Cycle(int dir)
@@ -134,7 +172,7 @@ namespace ArmSmith
         // ---- scenario loading ----
         public void LoadScenario(ScenarioType type)
         {
-            current = type; elapsed = 0f; Succeeded = false;
+            current = type; elapsed = 0f; Succeeded = false; SuccessNow = false; SuccessTime = 0f;
             SetActive(trayA, false); SetActive(trayB, false); SetActive(pad, false);
             SetActive(bin, false); SetActive(cube, false); SetActive(cubeB, false); SetActive(reachTarget, false);
 

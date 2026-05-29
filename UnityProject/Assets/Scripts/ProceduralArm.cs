@@ -24,6 +24,12 @@ namespace ArmSmith
         public ArticulationBody baseBody;
         public readonly List<ArticulationBody> jointBodies = new List<ArticulationBody>();
         public readonly List<JointSpec> jointSpecs = new List<JointSpec>();
+
+        // Digital twin: one servo model per joint. Commands are rate-limited and tick-quantised like
+        // real STS3215 servos, so what the arm does in-game == what the real motor would do.
+        public readonly List<ServoModel> servos = new List<ServoModel>();
+        public bool servoFidelity = true;          // route commands through the servo model
+        float[] servoCommandedDeg;                 // last rate-limited command per joint (deg)
         public Transform endEffector;        // tip point between the jaws
         public ArticulationBody leftJaw, rightJaw;
 
@@ -73,18 +79,32 @@ namespace ArmSmith
                 jointBodies.Add(ab);
                 jointSpecs.Add(js);
 
+                // One servo per joint (digital twin). ID 1..N maps to the real bus.
+                servos.Add(new ServoModel
+                {
+                    servoId = i + 1,
+                    minDeg = js.minAngle, maxDeg = js.maxAngle,
+                    maxTorqueNm = Mathf.Max(0.5f, js.maxTorque * 0.05f),
+                    maxSpeedDegPerSec = 300f
+                });
+
                 parent = go.transform;
                 localAttach = Vector3.up * len; // next joint sits at the end of this link
             }
+
+            servoCommandedDeg = new float[jointBodies.Count];
 
             // --- Gripper -----------------------------------------------------------
             var gripGo = new GameObject("Gripper");
             gripGo.transform.SetParent(parent, false);
             gripGo.transform.localPosition = localAttach;
 
-            // palm
-            AddBoxVisual(gripGo.transform, new Vector3(cfg.gripperWidth + 0.02f, 0.02f, cfg.gripperWidth + 0.02f),
-                         Vector3.up * 0.01f, gripperMaterial);
+            // palm (with collider so the gripper body itself collides with the table/objects)
+            Vector3 palmSize = new Vector3(cfg.gripperWidth + 0.02f, 0.02f, cfg.gripperWidth + 0.02f);
+            Vector3 palmCenter = Vector3.up * 0.01f;
+            AddBoxVisual(gripGo.transform, palmSize, palmCenter, gripperMaterial);
+            var palmCol = gripGo.AddComponent<BoxCollider>();
+            palmCol.size = palmSize; palmCol.center = palmCenter;
 
             float jawHalf = cfg.gripperWidth * 0.5f;
             leftJaw  = BuildJaw(gripGo.transform, "LeftJaw",  -jawHalf, cfg);
@@ -109,19 +129,24 @@ namespace ArmSmith
             go.transform.localPosition = new Vector3(xOffset, 0.02f, 0f);
             var ab = go.AddComponent<ArticulationBody>();
 
-            // Prismatic jaw along X (open/close)
+            // Prismatic jaw sliding along the gripper's LOCAL X (sideways open/close).
+            // anchorRotation identity => the prismatic free axis (X) is the jaw's local X (horizontal,
+            // across the gripper), fixing the "slides vertically" bug. matchAnchors stays true so the
+            // drive TARGET is the jaw's signed DISPLACEMENT from its build position along X.
             ab.jointType = ArticulationJointType.PrismaticJoint;
+            ab.anchorRotation = Quaternion.identity;
             ab.linearLockX = ArticulationDofLock.LimitedMotion;
             ab.linearLockY = ArticulationDofLock.LockedMotion;
             ab.linearLockZ = ArticulationDofLock.LockedMotion;
             var drive = ab.xDrive;
-            drive.lowerLimit = -cfg.gripperWidth * 0.5f;
-            drive.upperLimit =  cfg.gripperWidth * 0.5f;
-            drive.stiffness = 6000f;
-            drive.damping = 200f;
-            drive.forceLimit = 100f;
+            // Each jaw can travel inward up to ~gripperWidth (toward and past centre) and outward a bit.
+            drive.lowerLimit = -cfg.gripperWidth;
+            drive.upperLimit =  cfg.gripperWidth;
+            drive.stiffness = 9000f;
+            drive.damping = 150f;
+            drive.forceLimit = 80f;     // enough to clamp the cube, not bulldoze it through the table
             ab.xDrive = drive;
-            ab.mass = 0.05f;
+            ab.mass = 0.03f;
 
             Vector3 fingerSize = new Vector3(0.012f, cfg.gripperLength, 0.03f);
             Vector3 fingerCenter = Vector3.up * (cfg.gripperLength * 0.5f);
@@ -152,13 +177,44 @@ namespace ArmSmith
 
         public void SetJointTargets(IReadOnlyList<float> anglesDeg)
         {
+            float dt = Mathf.Max(1e-4f, Time.fixedDeltaTime);
             for (int i = 0; i < jointBodies.Count && i < anglesDeg.Count; i++)
             {
                 var ab = jointBodies[i];
                 var drive = ab.xDrive;
-                drive.target = Mathf.Clamp(anglesDeg[i], drive.lowerLimit, drive.upperLimit);
+                float cmd = Mathf.Clamp(anglesDeg[i], drive.lowerLimit, drive.upperLimit);
+
+                // Digital-twin: pass the command through the servo model (rate-limit + tick quantise),
+                // exactly as the real STS3215 would receive it.
+                if (servoFidelity && i < servos.Count && servoCommandedDeg != null)
+                {
+                    float rl = servos[i].RateLimit(servoCommandedDeg[i], cmd, dt);
+                    int tick = servos[i].AngleToTick(rl);     // quantise to a real servo tick
+                    rl = servos[i].TickToAngle(tick);         // and back -> what the motor actually holds
+                    servoCommandedDeg[i] = rl;
+                    cmd = rl;
+                }
+                drive.target = cmd;
                 ab.xDrive = drive;
             }
+        }
+
+        /// <summary>Seed the servo rate-limiter state (call after setting an initial/home pose).</summary>
+        public void SeedServoState(IReadOnlyList<float> anglesDeg)
+        {
+            if (servoCommandedDeg == null) servoCommandedDeg = new float[jointBodies.Count];
+            for (int i = 0; i < servoCommandedDeg.Length && i < anglesDeg.Count; i++)
+                servoCommandedDeg[i] = anglesDeg[i];
+        }
+
+        /// <summary>Current servo bus state: per-joint (id, tick, deg) — what the real bus would show.</summary>
+        public string ServoBusString()
+        {
+            var sb = new System.Text.StringBuilder();
+            float[] ang = GetJointAngles();
+            for (int i = 0; i < servos.Count && i < ang.Length; i++)
+                sb.Append($"#{servos[i].servoId}:{servos[i].AngleToTick(ang[i])} ");
+            return sb.ToString();
         }
 
         public float[] GetJointAngles()

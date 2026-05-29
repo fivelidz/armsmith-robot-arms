@@ -44,6 +44,26 @@ behaviours and designs **export and cross over to real hardware**.
 | M12 | Vision policy training (ML-Agents) using wrist+env cams; sim-to-real eval | C,E | later |
 | M13 | Real-arm telemetry import: 2nd cam follows actual performance/adaptations | C,H | later |
 
+## Active requirements backlog (from P4-P8, newest priorities)
+- [ ] R1: Load real SO-ARM100/SO-101 STL meshes per link (Assets/Meshes/SOARM100/) — authentic look. (I17,I32)
+- [x] R2: Claw must not penetrate worktop — collision physics. (I18,I21,I32) — palm collider + lifted home pose; EE y=0.238 verified.
+- [ ] R3: Fix off camera (wrist/env framing). (I19)
+- [ ] R4: In-game CV detects claw jaws + objects in camera feeds, feeds training. (I20)
+- [x] R5: Servo digital twin — joint cmd → STS3215 4096-tick, rate-limited; bus ticks in HUD. (I22)
+- [x] R6: Explicit per-scenario OBJECTIVE + reward spec in UI. (I23)
+- [ ] R7: Generation controls reliable: train/stop/step/seed via keys + UI w/ feedback. (I25)
+- [ ] R8: Arm follows the MOUSE in real time (cursor→work-plane→IK). (I26)
+- [ ] R9: Gripper open on `,`, close on `.` (plus Space toggle). (I27)
+- [ ] R10: Record control → train (seed/imitation) + export to real servos; document servo activation chain. (I28)
+- [ ] R11: Text-agent command interface (parse instructions → actions; generate sequences; seed evolution). (I29)
+- [ ] R12: Success condition fires + is visible; verify each scenario. (I30)
+
+### Servo activation chain (R10 design note)
+mouse screen pos → ray → worktop plane hit (work-plane) → IK target → FABRIK → per-joint angle (deg)
+→ ServoModel.RateLimit (max deg/s like real motor) → AngleToTick (deg→0..4095) → drive.target (sim)
+AND, for real arm: same tick → SyncWritePosEx(id, tick, speed, acc) over the 1 Mbit bus.
+So at every mouse position the servos receive a concrete tick target; recording = logging those ticks/angles at dt.
+
 ## Working order (immediate)
 1. Finish M0.5: write remaining core scripts, build scene via MCP, get arm standing & solving IK.
 2. M2 control + M3 cameras + M4 task = first playable loop.

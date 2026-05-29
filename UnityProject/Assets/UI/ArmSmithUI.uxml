@@ -1,0 +1,237 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements"
+         xmlns:uie="UnityEditor.UIElements"
+         xsi:noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd"
+         editor-extension-mode="False">
+
+    <!--
+        ArmSmithUI.uxml
+        Unity UI Toolkit layout for ARMSMITH robotics-console HUD.
+        Loaded at runtime by ArmSmithHud.cs via UIDocument component.
+        Named elements are queried with rootVisualElement.Q<T>(name).
+    -->
+
+    <Style src="ArmSmithUI.uss" />
+
+    <!-- ═══════════════════ OUTER ROOT ═══════════════════ -->
+    <ui:VisualElement name="armsmith-root" class="armsmith-root">
+
+        <!-- ─────────────────── TOP BAR ─────────────────── -->
+        <ui:VisualElement name="topbar" class="topbar">
+
+            <!-- Logo -->
+            <ui:Label name="lbl-logo" class="topbar-logo" text="ARM·SMITH" />
+
+            <ui:VisualElement class="topbar-sep" />
+
+            <!-- Scenario navigation -->
+            <ui:VisualElement name="scenario-nav" class="scenario-nav">
+                <ui:Button name="btn-scenario-prev" class="btn btn-sm" text="◀" tooltip="Previous scenario  [" />
+                <ui:Label name="lbl-scenario" text="T1 · Pick &amp; Place" />
+                <ui:Button name="btn-scenario-next" class="btn btn-sm" text="▶" tooltip="Next scenario  ]" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="topbar-sep" />
+
+            <!-- Play / Reset sim -->
+            <ui:Button name="btn-sim-play" class="btn btn-sm" text="▶  PLAY" tooltip="Run task  (Enter)" />
+            <ui:Button name="btn-sim-reset" class="btn btn-sm" text="↩  RESET" tooltip="Reset task  (Esc)" style="margin-left:4px;" />
+
+            <!-- Spacer pushes right controls to the right -->
+            <ui:VisualElement class="topbar-spacer" />
+
+            <!-- Keyboard hints -->
+            <ui:Label name="lbl-hotkeys" class="muted-label"
+                text="Tab IK/Man  |  Space grip  |  G rec  |  T evo  |  F9 STL  |  F10 WP"
+                style="margin-right: 12px;" />
+        </ui:VisualElement>
+
+
+        <!-- ─────────────────── MIDDLE ROW (Left + Centre placeholder + Right) ─────────────────── -->
+        <ui:VisualElement name="main-body" class="main-body">
+
+            <!-- ═══════════ LEFT — DESIGNER PANEL ═══════════ -->
+            <ui:VisualElement name="panel-designer" class="panel designer-panel">
+
+                <ui:VisualElement name="designer-header" class="panel-header">
+                    <ui:Label class="panel-title" text="DESIGNER" />
+                    <ui:VisualElement class="panel-header-spacer" />
+                    <ui:Label name="lbl-dof-badge" class="panel-badge" text="DOF: 3" />
+                </ui:VisualElement>
+
+                <ui:ScrollView name="designer-scroll" class="panel-body"
+                               vertical-scroller-visibility="Auto"
+                               horizontal-scroller-visibility="Hidden">
+
+                    <!-- Section: Joints (rows injected at runtime into designer-joints) -->
+                    <ui:Label class="section-head" text="JOINTS" />
+
+                    <ui:VisualElement name="designer-joints">
+                        <!-- Joint rows are added at runtime by ArmSmithHud.cs -->
+                        <!-- Each row is a .joint-row VisualElement containing:
+                             - joint name label (class joint-name-label)
+                             - angle readout label (class joint-angle-label)
+                             - torque readout label (class joint-torque-label) -->
+                    </ui:VisualElement>
+
+                    <!-- Section: Gripper -->
+                    <ui:Label class="section-head" text="GRIPPER" style="margin-top:8px;" />
+                    <ui:VisualElement class="gripper-row">
+                        <ui:Label class="muted-label" text="Type" />
+                        <ui:DropdownField name="dd-gripper" label=""
+                                          choices="Parallel Jaw,3-Finger Adaptive,Suction Cup,Magnetic"
+                                          index="0" />
+                    </ui:VisualElement>
+
+                    <!-- Section: Arm Stats -->
+                    <ui:Label class="section-head" text="STATS" style="margin-top:8px;" />
+                    <ui:VisualElement name="arm-stats" class="arm-stats">
+                        <ui:VisualElement class="stat-cell">
+                            <ui:Label class="stat-label" text="REACH" />
+                            <ui:Label name="lbl-reach" text="0.00 m" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-cell">
+                            <ui:Label class="stat-label" text="DOF" />
+                            <ui:Label name="lbl-dof" text="0" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                </ui:ScrollView>
+            </ui:VisualElement><!-- /designer -->
+
+
+            <!-- ═══════════ CENTRE — 3D viewport placeholder (fills remaining space) ═══════════ -->
+            <ui:VisualElement name="panel-viewport" class="panel" style="flex-grow: 1;">
+                <ui:VisualElement name="viewport-header" class="panel-header">
+                    <ui:Label class="panel-title" text="WORKSPACE" />
+                    <ui:VisualElement class="panel-header-spacer" />
+                    <ui:Label name="lbl-mode-display" class="teal-label"
+                              text="IK" style="margin-right:6px;" />
+                    <ui:Label name="lbl-status-overlay" class="muted-label" text="" />
+                </ui:VisualElement>
+                <!-- The Unity main camera renders into the full window behind the UI;
+                     this transparent centre area just shows it through. -->
+                <ui:VisualElement name="viewport-body" style="flex-grow:1;" />
+            </ui:VisualElement><!-- /viewport -->
+
+
+            <!-- ═══════════ RIGHT — EVOLUTION PANEL ═══════════ -->
+            <ui:VisualElement name="panel-evolution" class="panel evolution-panel">
+
+                <ui:VisualElement name="evolution-header" class="panel-header">
+                    <ui:Label class="panel-title-green" text="EVOLUTION" />
+                    <ui:VisualElement class="panel-header-spacer" />
+                    <ui:Label name="lbl-evo-status" class="panel-badge" text="idle" />
+                </ui:VisualElement>
+
+                <!-- Gen + best fitness readout -->
+                <ui:VisualElement name="evo-gen-row" class="evo-gen-row">
+                    <ui:Label name="lbl-generation" text="Gen —" />
+                    <ui:Label name="lbl-best" text="Best: —" />
+                </ui:VisualElement>
+
+                <!-- Population thumbnails (Buttons added at runtime) -->
+                <ui:Label class="section-head" text="POPULATION" style="margin-left:8px; margin-right:8px;" />
+                <ui:ScrollView name="evo-scroll" style="flex-grow:1; min-height:120px;"
+                               vertical-scroller-visibility="Auto"
+                               horizontal-scroller-visibility="Hidden">
+                    <ui:VisualElement name="evo-population">
+                        <!-- Thumbnail buttons injected at runtime by ArmSmithHud.cs -->
+                        <!-- Each thumb is a Button with class evo-thumb (+selected/champion) -->
+                    </ui:VisualElement>
+                </ui:ScrollView>
+
+                <!-- Evolution action buttons -->
+                <ui:VisualElement name="evo-btn-row" class="evo-btn-row">
+                    <ui:Button name="btn-train"   class="btn-green btn btn-sm" text="▶ TRAIN"   tooltip="Start/stop continuous training  (T)" />
+                    <ui:Button name="btn-nextgen"  class="btn btn-sm"           text="+1 GEN"   tooltip="Run one generation  (N)" />
+                    <ui:Button name="btn-breed"    class="btn-orange btn btn-sm" text="BREED"    tooltip="Breed selected survivors" />
+                </ui:VisualElement>
+
+            </ui:VisualElement><!-- /evolution -->
+
+        </ui:VisualElement><!-- /main-body -->
+
+
+        <!-- ─────────────────── BOTTOM — DRIVER PANEL ─────────────────── -->
+        <ui:VisualElement name="panel-driver" class="panel driver-panel">
+
+            <ui:VisualElement name="driver-header" class="panel-header">
+                <ui:Label class="panel-title-orange" text="DRIVER" />
+                <ui:VisualElement class="panel-header-spacer" />
+                <ui:Label name="lbl-rec-indicator" class="muted-label" text="" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="driver-content" class="driver-controls">
+
+                <!-- Mode toggle -->
+                <ui:Button name="btn-mode"    class="btn-orange btn" text="IK MODE"
+                           tooltip="Toggle IK / Manual mode  (Tab)"
+                           style="min-width:90px; margin-right:8px;" />
+
+                <!-- Gripper open/close -->
+                <ui:Button name="btn-gripper" class="btn" text="GRIPPER"
+                           tooltip="Toggle gripper open/close  (Space)"
+                           style="margin-right:12px;" />
+
+                <ui:VisualElement class="topbar-sep" style="height:36px; margin-right:12px;" />
+
+                <!-- Task reward -->
+                <ui:VisualElement class="driver-stats" style="flex-direction:column; align-items:flex-start; margin-right:16px;">
+                    <ui:Label class="muted-label" text="REWARD" />
+                    <ui:Label name="lbl-reward" text="0.00" />
+                </ui:VisualElement>
+
+                <!-- Task timer -->
+                <ui:VisualElement class="driver-stats" style="flex-direction:column; align-items:flex-start; margin-right:16px;">
+                    <ui:Label class="muted-label" text="TIME" />
+                    <ui:Label name="lbl-time" text="0.0 s" />
+                </ui:VisualElement>
+
+                <!-- Joint angles summary -->
+                <ui:VisualElement class="driver-stats" style="flex-direction:column; align-items:flex-start; flex-grow:1;">
+                    <ui:Label class="muted-label" text="JOINTS" />
+                    <ui:Label name="lbl-joints" text="—" style="white-space:normal;" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="topbar-sep" style="height:36px; margin-left:8px; margin-right:8px;" />
+
+                <!-- Record / Playback -->
+                <ui:Button name="btn-record" class="btn-red btn btn-sm" text="⏺ REC"
+                           tooltip="Start/stop recording demonstration  (G)"
+                           style="margin-right:4px;" />
+                <ui:Button name="btn-play"   class="btn btn-sm"         text="▶ PLAY"
+                           tooltip="Play back last recording  (P)" />
+
+            </ui:VisualElement>
+        </ui:VisualElement><!-- /driver -->
+
+
+        <!-- ─────────────────── EXPORT ROW ─────────────────── -->
+        <ui:VisualElement name="export-row" class="export-row">
+
+            <ui:Label class="muted-label" text="EXPORT" style="margin-right:10px;" />
+
+            <ui:DropdownField name="dd-armtype" label="" index="0"
+                              choices="SO-ARM100,reBot-DevArm,Generic 3-DOF,Generic 6-DOF" />
+
+            <ui:VisualElement class="export-sep" />
+
+            <ui:Button name="btn-export-stl"       class="btn btn-sm" text="↓ STL"
+                       tooltip="Export arm geometry as binary STL  (F9)"
+                       style="margin-right:4px;" />
+
+            <ui:Button name="btn-export-waypoints" class="btn btn-sm" text="↓ WAYPOINTS"
+                       tooltip="Export current recording / best trajectory as JSON waypoints  (F10)"
+                       style="margin-right:4px;" />
+
+            <ui:Button name="btn-send-robot"       class="btn-orange btn btn-sm" text="⟶ SEND TO ROBOT"
+                       tooltip="Push trajectory to connected real arm" />
+
+            <ui:VisualElement class="topbar-spacer" />
+
+            <ui:Label name="lbl-export-status" class="muted-label" text="" />
+        </ui:VisualElement><!-- /export -->
+
+    </ui:VisualElement><!-- /armsmith-root -->
+
+</ui:UXML>

@@ -26,6 +26,12 @@ namespace ArmSmith
         public float manualJointSpeed = 60f;   // deg/s
         public int ikIterations = 12;
 
+        [Header("Mouse follow")]
+        public bool mouseFollow = true;        // IK target tracks the cursor on the work-plane
+        public float workPlaneY = 0.05f;       // height of the follow plane above the worktop (m)
+        public float followLerp = 12f;         // smoothing
+        public float minTargetY = 0.02f;       // never let IK target go below worktop top (+margin)
+
         int selectedJoint = 0;
         float[] targetAngles;                  // commanded joint angles (deg), what we export
 
@@ -44,11 +50,13 @@ namespace ArmSmith
             // Natural "ready" pose: bend shoulder forward and elbow down so the gripper hovers
             // over the worktop in reach of the trays, instead of standing bolt upright.
             // Joints (starter): 0=BaseYaw, 1=Shoulder(pitch), 2=Elbow(pitch), 3=Wrist(pitch).
-            float[] home = { 0f, 48f, -88f, -20f };
+            // Tuned so the gripper hovers ~5-8 cm ABOVE the worktop (y=0), not into it.
+            float[] home = { 0f, 40f, -78f, -5f };
             for (int i = 0; i < targetAngles.Length; i++)
                 targetAngles[i] = i < home.Length
                     ? Mathf.Clamp(home[i], arm.jointSpecs[i].minAngle, arm.jointSpecs[i].maxAngle)
                     : 0f;
+            arm.SeedServoState(targetAngles);   // start servo rate-limiter at the home pose
             arm.SetJointTargets(targetAngles);
 
             if (ikTarget != null)
@@ -79,8 +87,12 @@ namespace ArmSmith
 
         void HandleGripper()
         {
-            if (Input.GetKeyDown(KeyCode.Space) && arm.gripper != null)
-                arm.gripper.Toggle();
+            if (arm.gripper == null) return;
+            if (Input.GetKeyDown(KeyCode.Space)) arm.gripper.Toggle();
+            // Comma = open, Period = close (hold to actuate continuously).
+            if (Input.GetKey(KeyCode.Comma))  arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 0f, 3f * Time.deltaTime));
+            if (Input.GetKey(KeyCode.Period)) arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 1f, 3f * Time.deltaTime));
+            if (Input.GetKeyDown(KeyCode.M)) mouseFollow = !mouseFollow;  // toggle mouse-follow
         }
 
         // ---- IK mode -------------------------------------------------------------
@@ -89,7 +101,29 @@ namespace ArmSmith
             if (ikTarget == null) return;
             Vector3 p = ikTarget.position;
 
-            // Keyboard nudge in world axes (W/S forward-back along Z, A/D along X, R/F up-down)
+            // --- MOUSE FOLLOW: project the cursor onto a horizontal work-plane and track it. ---
+            // RMB is camera orbit, so we only follow when RMB is NOT held (so orbiting doesn't move the arm).
+            if (mouseFollow && mainCamera != null && !Input.GetMouseButton(1))
+            {
+                Plane work = new Plane(Vector3.up, new Vector3(0f, workPlaneY, 0f));
+                Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+                if (work.Raycast(ray, out float enter))
+                {
+                    Vector3 hit = ray.GetPoint(enter);
+                    // smooth toward the cursor point
+                    p = Vector3.Lerp(p, hit, 1f - Mathf.Exp(-followLerp * Time.deltaTime));
+                }
+            }
+
+            // Scroll (without Ctrl, which is zoom) raises/lowers the work-plane height (pick height).
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.0001f && !Input.GetKey(KeyCode.LeftControl) && !Input.GetMouseButton(1))
+            {
+                workPlaneY = Mathf.Clamp(workPlaneY + scroll * 0.15f, 0.0f, 0.4f);
+                p.y = workPlaneY;
+            }
+
+            // Keyboard fine-nudge (works alongside mouse follow).
             Vector3 d = Vector3.zero;
             if (Input.GetKey(KeyCode.W)) d += Vector3.forward;
             if (Input.GetKey(KeyCode.S)) d += Vector3.back;
@@ -99,60 +133,84 @@ namespace ArmSmith
             if (Input.GetKey(KeyCode.F)) d += Vector3.down;
             p += d.normalized * keyMoveSpeed * Time.deltaTime;
 
-            // Mouse drag (LMB) moves target on a plane facing the camera; scroll = depth.
-            if (Input.GetMouseButton(0) && mainCamera != null)
-            {
-                Plane plane = new Plane(-mainCamera.transform.forward, ikTarget.position);
-                Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-                if (plane.Raycast(ray, out float enter))
-                    p = ray.GetPoint(enter);
-            }
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.0001f && mainCamera != null)
-                p += mainCamera.transform.forward * scroll * 0.5f;
+            // Keep the target within the arm's reach so IK stays well-conditioned.
+            Vector3 basePos = arm.baseBody != null ? arm.baseBody.transform.position : transform.position;
+            float reach = arm.config.TotalReach() * 0.98f;
+            Vector3 fromBase = p - basePos;
+            if (fromBase.magnitude > reach) p = basePos + fromBase.normalized * reach;
+
+            // Don't let the target go into/under the worktop — keeps the claw above the table.
+            p.y = Mathf.Max(p.y, minTargetY);
 
             ikTarget.position = p;
         }
 
+        // CCD (Cyclic Coordinate Descent) IK on a VIRTUAL copy of the chain (does not disturb physics).
+        // We forward-simulate joint frames from the live base using the current targetAngles, run CCD to
+        // update those angles toward the goal, and only write the resulting angle TARGETS to the drives
+        // (via SetJointTargets in FixedUpdate). Robust: reaches forward instead of folding down.
+        Vector3[] jPos;       // virtual joint world positions
+        Quaternion[] jRot;    // virtual joint world rotations
+        Vector3[] jAxisLocal; // each joint's local rotation axis
+
         void SolveIK()
         {
             int n = arm.jointBodies.Count;
-            pts.Clear(); lens.Clear();
+            if (jPos == null || jPos.Length != n + 1)
+            {
+                jPos = new Vector3[n + 1];
+                jRot = new Quaternion[n + 1];
+                jAxisLocal = new Vector3[n];
+                for (int i = 0; i < n; i++) jAxisLocal[i] = arm.config.AxisVector(arm.jointSpecs[i].axis);
+            }
 
-            // Build the current chain in world space from joint origins -> end effector.
-            for (int i = 0; i < n; i++) pts.Add(arm.jointBodies[i].transform.position);
-            pts.Add(arm.endEffector != null ? arm.endEffector.position
-                                            : arm.jointBodies[n - 1].transform.position);
-            for (int i = 0; i < pts.Count - 1; i++)
-                lens.Add(Vector3.Distance(pts[i], pts[i + 1]));
+            Vector3 goal = ikTarget.position;
+            for (int iter = 0; iter < ikIterations; iter++)
+            {
+                ForwardKinematics(n);
+                bool improved = false;
+                for (int i = n - 1; i >= 0; i--)
+                {
+                    Vector3 jp = jPos[i];
+                    Vector3 axis = (jRot[i] * jAxisLocal[i]).normalized;
+                    Vector3 ee = jPos[n];
 
-            FabrikIK.Solve(pts, lens, ikTarget.position, ikIterations, 0.002f);
+                    Vector3 toEE = Vector3.ProjectOnPlane(ee - jp, axis);
+                    Vector3 toGoal = Vector3.ProjectOnPlane(goal - jp, axis);
+                    if (toEE.sqrMagnitude < 1e-7f || toGoal.sqrMagnitude < 1e-7f) continue;
 
-            // Convert solved point directions -> per-joint angle about that joint's axis.
-            // We compute the signed angle between the current link dir and the solved link dir,
-            // projected onto the joint's world rotation axis, and accumulate onto the target.
+                    float delta = Vector3.SignedAngle(toEE, toGoal, axis) * 0.6f; // damping
+                    var js = arm.jointSpecs[i];
+                    float na = Mathf.Clamp(targetAngles[i] + delta, js.minAngle, js.maxAngle);
+                    if (Mathf.Abs(na - targetAngles[i]) > 0.01f) improved = true;
+                    targetAngles[i] = na;
+                    ForwardKinematics(n); // re-evaluate chain after this joint moved
+                }
+                if (!improved) break;
+                if (Vector3.Distance(jPos[n], goal) < 0.005f) break;
+            }
+        }
+
+        // Build virtual joint frames from the live base using current targetAngles + the link offsets.
+        void ForwardKinematics(int n)
+        {
+            // Root: base body's top (first joint's parent frame).
+            Transform baseT = arm.baseBody.transform;
+            Quaternion rot = baseT.rotation;
+            Vector3 pos = arm.jointBodies[0].transform.position; // first joint origin (stable)
+
             for (int i = 0; i < n; i++)
             {
-                var ab = arm.jointBodies[i];
-                Vector3 axisWorld = ab.transform.TransformDirection(
-                    arm.config.AxisVector(arm.jointSpecs[i].axis)).normalized;
-
-                Vector3 curDir = (pts.Count > i + 1)
-                    ? (arm.endEffector != null && i == n - 1
-                        ? (arm.endEffector.position - ab.transform.position)
-                        : (arm.jointBodies[Mathf.Min(i + 1, n - 1)].transform.position - ab.transform.position))
-                    : ab.transform.up;
-                Vector3 solvedDir = pts[i + 1] - pts[i];
-
-                // project onto plane perpendicular to axis
-                curDir = Vector3.ProjectOnPlane(curDir, axisWorld);
-                solvedDir = Vector3.ProjectOnPlane(solvedDir, axisWorld);
-                if (curDir.sqrMagnitude < 1e-6f || solvedDir.sqrMagnitude < 1e-6f) continue;
-
-                float delta = Vector3.SignedAngle(curDir, solvedDir, axisWorld);
-                var js = arm.jointSpecs[i];
-                targetAngles[i] = Mathf.Clamp(targetAngles[i] + delta, js.minAngle, js.maxAngle);
+                jPos[i] = pos;
+                // apply this joint's rotation about its local axis by targetAngles[i]
+                rot = rot * Quaternion.AngleAxis(targetAngles[i], jAxisLocal[i]);
+                jRot[i] = rot;
+                // advance along the link (local +Y by link length) to the next joint
+                float len = arm.jointSpecs[i].linkLength;
+                pos = pos + rot * (Vector3.up * len);
             }
+            // end-effector tip (gripper offset ~ palm + finger)
+            jPos[n] = pos + rot * (Vector3.up * (0.02f + arm.config.gripperLength));
         }
 
         // ---- Manual mode ---------------------------------------------------------

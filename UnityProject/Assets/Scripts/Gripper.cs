@@ -25,10 +25,13 @@ namespace ArmSmith
         public void SetClose(float t)
         {
             closeAmount = Mathf.Clamp01(t);
-            // Open: left at -half, right at +half. Closed: both near 0 (small gap).
-            float gapHalf = Mathf.Lerp(halfOpen, 0.004f, closeAmount);
-            ApplyTarget(left,  -gapHalf);
-            ApplyTarget(right, +gapHalf);
+            // Drive target = DISPLACEMENT from each jaw's rest position (matchAnchors=true).
+            // closeAmount 0 => 0 displacement (jaws rest at ±halfOpen, fully open).
+            // closeAmount 1 => each jaw moves inward by (halfOpen - 1mm) so they nearly meet at centre.
+            // Physics + high friction make them clamp on any object between them (they stop at its surface).
+            float inward = Mathf.Lerp(0f, halfOpen - 0.001f, closeAmount);
+            ApplyTarget(left,  +inward);   // left jaw (rest -halfOpen) moves +X toward centre
+            ApplyTarget(right, -inward);   // right jaw (rest +halfOpen) moves -X toward centre
         }
 
         public void Toggle() => SetClose(closeAmount > 0.5f ? 0f : 1f);

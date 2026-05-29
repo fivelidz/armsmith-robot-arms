@@ -22,6 +22,7 @@ namespace ArmSmith
         ArmGizmos gizmos;
         BehaviourRecorder recorder;
         EvolutionTrainer trainer;
+        AgentCommands agent;
         Transform ikTarget;
 
         // HUD
@@ -51,6 +52,10 @@ namespace ArmSmith
             var trGo = new GameObject("EvolutionTrainer");
             trainer = trGo.AddComponent<EvolutionTrainer>();
             trainer.Init(arm, controller, scenarios);
+
+            var agGo = new GameObject("AgentCommands");
+            agent = agGo.AddComponent<AgentCommands>();
+            agent.Bind(controller, arm, scenarios, trainer, ikTarget);
         }
 
         void BuildScenarios()
@@ -196,7 +201,7 @@ namespace ArmSmith
             rt.anchorMin = new Vector2(0, 1); rt.anchorMax = new Vector2(0, 1);
             rt.pivot = new Vector2(0, 1);
             rt.anchoredPosition = new Vector2(10, -10);
-            rt.sizeDelta = new Vector2(520, 260);
+            rt.sizeDelta = new Vector2(640, 320);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)
@@ -218,20 +223,25 @@ namespace ArmSmith
             string rec = recorder.IsRecording ? " [REC]" : recorder.IsPlaying ? " [PLAY]" : "";
             infoText.text =
                 $"<b>ARMSMITH</b> — {config.armName}  ({arm.jointBodies.Count} DOF){rec}\n" +
-                $"Mode: {mode}  (Tab toggle) | Gripper: {grip} (Space)\n" +
-                $"IK: LMB drag target, scroll depth, WASD/RF nudge\n" +
-                $"Manual: 1-{arm.jointBodies.Count} select joint, Q/E rotate\n" +
+                $"Mode: {mode} (Tab) | Gripper: {grip}  (, open  . close  Space toggle)\n" +
+                $"IK: arm FOLLOWS MOUSE on work-plane (M toggle); scroll=pick height; WASD/RF nudge\n" +
+                $"Manual: 1-{arm.jointBodies.Count} select joint, Q/E rotate | F1 run agent demo\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom, V HUD | B bounds, X axes\n" +
                 $"Record G | Playback P | Reset Esc | Export F9 STL / F10 waypoints\n" +
                 $"Scenario: <b>{scenarios.current}</b>  ([ ] change) | Evolve: T train, N +1 gen, F11 export best\n" +
+                $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
+                $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +
                 $"Reward: {scenarios.LastReward:F2}   Time: {scenarios.Elapsed:F1}s   " +
                 $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}\n" +
+                $"<color=#fa6>Servo bus (ticks):</color> {arm.ServoBusString()}\n" +
                 $"<color=#7cf>Evolution</color> gen {trainer.generation}  " +
                 $"best {(trainer.best != null ? trainer.best.fitness.ToString("F2") : "-")}  [{trainer.status}]";
 
             if (Input.GetKeyDown(KeyCode.F9)) ExportStl();
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
             if (Input.GetKeyDown(KeyCode.F11)) ExportBestTrajectory();
+            // G1 / numpad-style: run the built-in agent demo script (slow-but-correct solution).
+            if (Input.GetKeyDown(KeyCode.F1)) agent.Run(AgentCommands.DemoTrayToTray);
         }
 
         void ExportStl()

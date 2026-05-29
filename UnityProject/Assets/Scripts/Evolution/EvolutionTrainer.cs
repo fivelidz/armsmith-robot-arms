@@ -32,6 +32,10 @@ namespace ArmSmith
         public bool Running { get; private set; }
         public string status = "idle";
 
+        // Interactive evolution: indices the player has locked as survivors (always parents next gen).
+        public readonly HashSet<int> selected = new HashSet<int>();
+        public bool playerSelectionMode = false;  // if true, Breed uses only selected as parents
+
         System.Random rng = new System.Random(12345);
         JointSpec[] specs;
         float[] homePose;
@@ -135,21 +139,45 @@ namespace ArmSmith
         void Breed()
         {
             var next = new List<MotionGenome>();
-            for (int i = 0; i < elite && i < population.Count; i++)
+
+            // Interactive evolution: if the player locked survivors, they (and only they) seed the next gen.
+            List<MotionGenome> parents = null;
+            if (playerSelectionMode && selected.Count > 0)
             {
-                var e = population[i].Clone();
-                e.fitness = population[i].fitness; e.generation = generation; // keep elites' scores
-                next.Add(e);
+                parents = new List<MotionGenome>();
+                foreach (int idx in selected)
+                    if (idx >= 0 && idx < population.Count) parents.Add(population[idx]);
+                // carry the selected survivors forward unchanged (elitism by choice)
+                foreach (var p in parents) { var c = p.Clone(); c.fitness = p.fitness; c.generation = generation; next.Add(c); }
             }
+            else
+            {
+                for (int i = 0; i < elite && i < population.Count; i++)
+                {
+                    var e = population[i].Clone();
+                    e.fitness = population[i].fitness; e.generation = generation;
+                    next.Add(e);
+                }
+            }
+
             while (next.Count < populationSize)
             {
-                var pa = Tournament(); var pb = Tournament();
+                MotionGenome pa = parents != null ? parents[rng.Next(parents.Count)] : Tournament();
+                MotionGenome pb = parents != null ? parents[rng.Next(parents.Count)] : Tournament();
                 var child = MotionGenome.Crossover(pa, pb, rng);
                 child.Mutate(mutationRate, mutationSigma, specs, rng);
                 child.fitness = float.NegativeInfinity;
                 next.Add(child);
             }
             population = next;
+            selected.Clear();
+        }
+
+        /// <summary>Player locks/unlocks a genome index as a survivor for the next generation.</summary>
+        public void ToggleSelect(int index)
+        {
+            if (selected.Contains(index)) selected.Remove(index);
+            else selected.Add(index);
         }
 
         MotionGenome Tournament(int k = 3)
