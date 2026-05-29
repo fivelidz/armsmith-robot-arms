@@ -21,6 +21,7 @@ namespace ArmSmith
         ScenarioManager scenarios;
         ArmGizmos gizmos;
         BehaviourRecorder recorder;
+        EvolutionTrainer trainer;
         Transform ikTarget;
 
         // HUD
@@ -40,8 +41,16 @@ namespace ArmSmith
             BuildEnvironment();
             BuildArm();
             BuildScenarios();
-            BuildCameras();
+            BuildCameras();   // controller.Bind() sets the home pose here
+            BuildTrainer();   // capture home pose AFTER Bind
             BuildHud();
+        }
+
+        void BuildTrainer()
+        {
+            var trGo = new GameObject("EvolutionTrainer");
+            trainer = trGo.AddComponent<EvolutionTrainer>();
+            trainer.Init(arm, controller, scenarios);
         }
 
         void BuildScenarios()
@@ -214,12 +223,15 @@ namespace ArmSmith
                 $"Manual: 1-{arm.jointBodies.Count} select joint, Q/E rotate\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom, V HUD | B bounds, X axes\n" +
                 $"Record G | Playback P | Reset Esc | Export F9 STL / F10 waypoints\n" +
-                $"Scenario: <b>{scenarios.current}</b>  ([ ] to change)\n" +
+                $"Scenario: <b>{scenarios.current}</b>  ([ ] change) | Evolve: T train, N +1 gen, F11 export best\n" +
                 $"Reward: {scenarios.LastReward:F2}   Time: {scenarios.Elapsed:F1}s   " +
-                $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}";
+                $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}\n" +
+                $"<color=#7cf>Evolution</color> gen {trainer.generation}  " +
+                $"best {(trainer.best != null ? trainer.best.fitness.ToString("F2") : "-")}  [{trainer.status}]";
 
             if (Input.GetKeyDown(KeyCode.F9)) ExportStl();
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
+            if (Input.GetKeyDown(KeyCode.F11)) ExportBestTrajectory();
         }
 
         void ExportStl()
@@ -228,6 +240,15 @@ namespace ArmSmith
             System.IO.Directory.CreateDirectory(dir);
             string path = System.IO.Path.Combine(dir, $"{config.armName}.stl");
             StlExporter.ExportHierarchy(arm.transform, path);
+        }
+
+        void ExportBestTrajectory()
+        {
+            var traj = trainer.BestToTrajectory();
+            if (traj == null) { Debug.Log("[Export] no evolved best yet — press N/T to train"); return; }
+            recorder.SetTrajectory(traj);
+            string path = recorder.StopRecording(); // writes the injected trajectory to JSON
+            Debug.Log($"[Export] best evolved trajectory -> {path}");
         }
 
         static Material Mat(Color c)

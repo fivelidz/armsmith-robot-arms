@@ -40,7 +40,30 @@ Append-only build log. See ROADMAP.md for the plan, PROMPT_LOG.md for user promp
 - Real-robot Python sidecar (scripts/realbot/) reusing servo_controller.py.
 - Evolution layer (CMA-ES motion params), CAD engine, zero-auth in-game AI.
 
-### How to run
+## 2026-05-30 — Session 1 (cont): real-robot port + evolution working
+
+### Done
+- Real-robot port sidecar `scripts/realbot/`: `armsmith_player.py` (Feetech STS3215, deg->4096 steps,
+  SyncWrite, ramp/rate-limit/e-stop) + `armsmith_lerobot.py` (LeRobot send_action for SO-101 & reBot)
+  + `joint_map.json` + `joint_map_lerobot.json` + `sample.waypoints.json` + README. Both DRY-RUN tested OK.
+- In-engine STL export verified: 3508-triangle valid binary STL (175 KB), bytes match 84+N*50.
+  Sample saved to `exports_samples/starter_arm.stl`.
+- Evolution layer: `MotionGenome` (keyframe genome) + `EvolutionTrainer` (GA: elitism+tournament+
+  crossover+Gaussian mutation; rolls out each genome on the ArticulationBody arm; fitness = scenario
+  reward - energy). Wired into GameBootstrap. Keys: T train, N +1 gen, F11 export best trajectory.
+- git checkpoint committed (112 files).
+
+### Verified working
+- **Evolution improves across generations** (tray-to-tray, pop 16, 4 keys): best fitness
+  gen4 -2.03 -> gen8 -1.61 -> gen11 -1.16 -> gen14 -0.69. Monotonic learning confirmed with real physics rollouts.
+- Best genome -> exportable waypoint trajectory -> same JSON the real-robot sidecars consume.
+
+### Next
+- Evolution UI (population grid + fitness bars + breed/select buttons) — interactive evolution.
+- Unity UI Toolkit panels from design/ui_html.
+- CAD engine + zero-auth in-game AI agent.
+
+## How to run
 1. MCP server + editor already launched (port 6990). Helper: `scripts/mcp.py`.
 2. `python3 scripts/mcp.py tool manage_editor '{"action":"play"}'` to play.
 3. Screenshot: `manage_camera screenshot ... output_folder=Captures max_resolution<=900` then
