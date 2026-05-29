@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ARMSMITH — Driver / Teleop Panel</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { padding: 16px; display: flex; justify-content: center; }
+  .root { width: 560px; }
+
+  /* angle arc indicator */
+  .joint-arc-row {
+    display: grid;
+    grid-template-columns: 20px 90px 28px 1fr 56px 64px;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .joint-arc-row:last-child { border-bottom: none; }
+  .arc-wrap {
+    width: 28px; height: 28px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .arc-bg, .arc-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+  }
+  .arc-bg   { border: 3px solid var(--border-hi); }
+  .arc-fill {
+    border: 3px solid var(--teal);
+    clip-path: inset(0 50% 0 0); /* JS updates this */
+  }
+  .arc-val {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--teal);
+  }
+
+  /* torque bar */
+  .torq-bar-cell { display: flex; flex-direction: column; gap: 3px; }
+  .torq-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); text-align: right; }
+
+  /* mode toggle pill-style */
+  .mode-pills {
+    display: flex;
+    gap: 0;
+    background: var(--card2);
+    border: 1px solid var(--border-hi);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .mode-pill {
+    flex: 1;
+    text-align: center;
+    padding: 7px 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .15s;
+    color: var(--muted);
+    user-select: none;
+  }
+  .mode-pill.active {
+    background: var(--teal-dim);
+    color: var(--text-hi);
+  }
+  .mode-pill:hover:not(.active) { background: rgba(255,255,255,.03); color: var(--text); }
+
+  /* reward display */
+  .reward-display {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .reward-number {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--green);
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .reward-detail { flex: 1; }
+
+  /* record / playback */
+  .transport-bar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .transport-time {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* gripper button */
+  .gripper-btn {
+    position: relative;
+    overflow: hidden;
+  }
+  .gripper-btn .gripper-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 60%;
+    background: rgba(0,212,180,.08);
+    transition: width .2s;
+  }
+
+  /* task timer big display */
+  .timer-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="root">
+  <div class="panel accent-orange" style="width:100%;">
+
+    <!-- Header -->
+    <div class="panel-header">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2 6h8M6 2l4 4-4 4" stroke="#ff6b2b" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="panel-title">Driver / Teleop</span>
+      <span class="pill pill-green" style="margin-left:auto;">
+        <span class="status-dot dot-green"></span>SIM LIVE
+      </span>
+    </div>
+
+    <div class="panel-body" style="gap:10px;">
+
+      <!-- Top row: mode + task info -->
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:start;">
+
+        <!-- Mode toggle -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <span class="label">Control Mode <span class="shortcut-tag">Tab</span></span>
+          <div class="mode-pills" id="mode-pills">
+            <div class="mode-pill active" onclick="setMode('ik',this)">IK</div>
+            <div class="mode-pill"        onclick="setMode('manual',this)">Manual</div>
+          </div>
+          <span class="label" style="font-size:9px;" id="mode-hint">
+            Drag IK target · W/A/S/D nudge · Scroll depth
+          </span>
+        </div>
+
+        <!-- Task timer -->
+        <div class="timer-area">
+          <span class="label">Task Timer</span>
+          <div class="big-num" id="task-timer">01:23</div>
+          <span class="label" style="font-size:9px;color:var(--orange);">T1 PICK+PLACE</span>
+        </div>
+
+        <!-- Active joint (manual mode) -->
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+          <span class="label">Active Joint <span class="shortcut-tag">1–6</span></span>
+          <div style="width:42px;height:42px;background:var(--card2);border:2px solid var(--teal);border-radius:var(--radius);
+                      display:flex;align-items:center;justify-content:center;">
+            <span id="active-joint" style="font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--teal);">2</span>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <span class="shortcut-tag">Q−</span>
+            <span class="shortcut-tag">E+</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- Joint readouts: 6 joints -->
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span class="label">Joint Telemetry</span>
+          <span class="label" style="font-size:9px;">angle · torque%</span>
+        </div>
+
+        <div id="joint-readouts">
+          <!-- J1 -->
+          <div class="joint-arc-row" id="jrow-1">
+            <span class="joint-idx">1</span>
+            <span class="joint-name" style="font-size:10px;">BASE YAW</span>
+            <!-- Arc dial -->
+            <div class="arc-wrap" title="Current angle">
+              <svg viewBox="0 0 28 28" width="28" height="28">
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#1e2a34" stroke-width="3"/>
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#00d4b4" stroke-width="3"
+                        stroke-dasharray="69.12" stroke-dashoffset="17.28"
+                        transform="rotate(-90 14 14)" stroke-linecap="round"/>
+                <text x="14" y="16.5" text-anchor="middle" font-family="Courier New" font-size="5.5" fill="#00d4b4">25°</text>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <div class="prog-bar"><div class="prog-fill orange" style="width:42%;"></div></div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:2px;text-align:right;">42% torque</div>
+            </div>
+            <span class="joint-angle">25.4°</span>
+            <span class="joint-torque orange">1.26 Nm</span>
+          </div>
+
+          <!-- J2 (active — highlighted) -->
+          <div class="joint-arc-row" id="jrow-2" style="background:rgba(0,212,180,.04);border-radius:3px;">
+            <span class="joint-idx teal" style="font-weight:700;">2</span>
+            <span class="joint-name teal">SHOULDER</span>
+            <div class="arc-wrap">
+              <svg viewBox="0 0 28 28" width="28" height="28">
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#1e2a34" stroke-width="3"/>
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#00d4b4" stroke-width="3"
+                        stroke-dasharray="69.12" stroke-dashoffset="30.0"
+                        transform="rotate(-90 14 14)" stroke-linecap="round"/>
+                <text x="14" y="16.5" text-anchor="middle" font-family="Courier New" font-size="5.5" fill="#00d4b4">-47°</text>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <div class="prog-bar"><div class="prog-fill" style="width:68%;"></div></div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--teal);margin-top:2px;text-align:right;">68% torque</div>
+            </div>
+            <span class="joint-angle teal" style="font-size:13px;font-weight:700;">-47.1°</span>
+            <span class="joint-torque teal">3.40 Nm</span>
+          </div>
+
+          <!-- J3 -->
+          <div class="joint-arc-row">
+            <span class="joint-idx">3</span>
+            <span class="joint-name">ELBOW</span>
+            <div class="arc-wrap">
+              <svg viewBox="0 0 28 28" width="28" height="28">
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#1e2a34" stroke-width="3"/>
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#4a6070" stroke-width="3"
+                        stroke-dasharray="69.12" stroke-dashoffset="51.8"
+                        transform="rotate(-90 14 14)" stroke-linecap="round"/>
+                <text x="14" y="16.5" text-anchor="middle" font-family="Courier New" font-size="5.5" fill="#4a6070">112°</text>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <div class="prog-bar"><div class="prog-fill orange" style="width:28%;"></div></div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:2px;text-align:right;">28% torque</div>
+            </div>
+            <span class="joint-angle" style="color:var(--muted)">112.3°</span>
+            <span class="joint-torque orange">0.70 Nm</span>
+          </div>
+
+          <!-- J4 -->
+          <div class="joint-arc-row">
+            <span class="joint-idx">4</span>
+            <span class="joint-name">WRIST ROLL</span>
+            <div class="arc-wrap">
+              <svg viewBox="0 0 28 28" width="28" height="28">
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#1e2a34" stroke-width="3"/>
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#4a6070" stroke-width="3"
+                        stroke-dasharray="69.12" stroke-dashoffset="55.3"
+                        transform="rotate(-90 14 14)" stroke-linecap="round"/>
+                <text x="14" y="16.5" text-anchor="middle" font-family="Courier New" font-size="5.5" fill="#4a6070">20°</text>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <div class="prog-bar"><div class="prog-fill orange" style="width:18%;"></div></div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:2px;text-align:right;">18% torque</div>
+            </div>
+            <span class="joint-angle" style="color:var(--muted)">20.0°</span>
+            <span class="joint-torque orange">0.45 Nm</span>
+          </div>
+
+          <!-- J5 -->
+          <div class="joint-arc-row">
+            <span class="joint-idx">5</span>
+            <span class="joint-name">WRIST PITCH</span>
+            <div class="arc-wrap">
+              <svg viewBox="0 0 28 28" width="28" height="28">
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#1e2a34" stroke-width="3"/>
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#4a6070" stroke-width="3"
+                        stroke-dasharray="69.12" stroke-dashoffset="40.0"
+                        transform="rotate(-90 14 14)" stroke-linecap="round"/>
+                <text x="14" y="16.5" text-anchor="middle" font-family="Courier New" font-size="5.5" fill="#4a6070">-8°</text>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <div class="prog-bar"><div class="prog-fill orange" style="width:20%;"></div></div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:2px;text-align:right;">20% torque</div>
+            </div>
+            <span class="joint-angle" style="color:var(--muted)">-8.3°</span>
+            <span class="joint-torque orange">0.50 Nm</span>
+          </div>
+
+          <!-- J6 -->
+          <div class="joint-arc-row">
+            <span class="joint-idx">6</span>
+            <span class="joint-name">WRIST YAW</span>
+            <div class="arc-wrap">
+              <svg viewBox="0 0 28 28" width="28" height="28">
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#1e2a34" stroke-width="3"/>
+                <circle cx="14" cy="14" r="11" fill="none" stroke="#4a6070" stroke-width="3"
+                        stroke-dasharray="69.12" stroke-dashoffset="62.2"
+                        transform="rotate(-90 14 14)" stroke-linecap="round"/>
+                <text x="14" y="16.5" text-anchor="middle" font-family="Courier New" font-size="5.5" fill="#4a6070">0°</text>
+              </svg>
+            </div>
+            <div style="flex:1;">
+              <div class="prog-bar"><div class="prog-fill orange" style="width:5%;"></div></div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:2px;text-align:right;">5% torque</div>
+            </div>
+            <span class="joint-angle" style="color:var(--muted)">0.0°</span>
+            <span class="joint-torque orange">0.12 Nm</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- Gripper + actions row -->
+      <div style="display:flex;gap:8px;align-items:stretch;">
+        <!-- Gripper -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <span class="label">Gripper <span class="shortcut-tag">Space</span></span>
+          <div style="display:flex;gap:6px;flex:1;align-items:center;">
+            <button class="btn btn-full gripper-btn active" id="grip-btn" onclick="toggleGripper(this)"
+                    style="height:40px;font-size:12px;position:relative;overflow:hidden;">
+              <span class="gripper-fill"></span>
+              <span style="position:relative;z-index:1;">CLOSE ✊</span>
+            </button>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span class="label" style="font-size:9px;">Open width</span>
+            <span class="mono teal" style="font-size:10px;" id="grip-width">38 mm</span>
+          </div>
+          <input type="range" min="0" max="100" value="60" oninput="updateGripper(this)">
+        </div>
+
+        <!-- EE pos -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <span class="label">End-Effector Pos</span>
+          <div class="stat-cell" style="gap:4px;border:1px solid var(--border);border-radius:var(--radius);">
+            <div class="stat-row" style="border:none;padding:0;">
+              <span class="label" style="font-size:9px;">X</span>
+              <span class="value mono" style="font-size:11px;">+0.312 m</span>
+            </div>
+            <div class="stat-row" style="border:none;padding:0;">
+              <span class="label" style="font-size:9px;">Y</span>
+              <span class="value mono" style="font-size:11px;">+0.284 m</span>
+            </div>
+            <div class="stat-row" style="border:none;padding:0;">
+              <span class="label" style="font-size:9px;">Z</span>
+              <span class="value mono" style="font-size:11px;">-0.041 m</span>
+            </div>
+          </div>
+          <span class="label" style="font-size:9px;color:var(--green);">IK SOLVED ✓</span>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- Reward / score -->
+      <div>
+        <span class="label">Task Score</span>
+        <div class="reward-display" style="margin-top:4px;">
+          <div>
+            <div class="label" style="font-size:9px;">CUMULATIVE</div>
+            <div class="reward-number" id="reward-num">+0.742</div>
+          </div>
+          <div class="reward-detail">
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;">
+                <span class="muted">dist(grip→cube)</span><span class="teal">-0.124</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;">
+                <span class="muted">dist(cube→tgt)</span><span class="orange">-0.038</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;">
+                <span class="muted">success bonus</span><span class="green">+1.000</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;">
+                <span class="muted">energy cost</span><span style="color:var(--red)">-0.096</span>
+              </div>
+            </div>
+            <div class="prog-bar prog-bar-lg" style="margin-top:6px;">
+              <div class="prog-fill green" style="width:74%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- Record / Playback transport -->
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;align-items:center;">
+          <span class="label">Demonstration Recording <span class="shortcut-tag">G</span></span>
+          <span id="rec-indicator" style="display:none;">
+            <span class="rec-dot"></span>
+            <span class="mono red" style="font-size:10px;margin-left:4px;">REC 00:07</span>
+          </span>
+        </div>
+        <div class="transport-bar">
+          <button class="btn btn-sm btn-red" id="btn-rec" onclick="toggleRec(this)">⏺ Record</button>
+          <button class="btn btn-sm" onclick="togglePlay(this)" id="btn-play">▶ Play</button>
+          <button class="btn btn-sm btn-orange" onclick>↩ Reset <span class="shortcut-tag">Esc</span></button>
+          <span class="transport-time" id="transport-time">00:00 / 00:00</span>
+        </div>
+        <div class="prog-bar" style="margin-top:6px;">
+          <div class="prog-fill orange" id="play-progress" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Task shortcuts -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-green">⏎ Run Task</button>
+        <button class="btn btn-sm muted">◀ Prev Task <span class="shortcut-tag">[</span></button>
+        <button class="btn btn-sm muted">Next Task ▶ <span class="shortcut-tag">]</span></button>
+        <button class="btn btn-sm btn-orange" style="margin-left:auto;">C: Cam Cycle</button>
+      </div>
+
+    </div><!-- /panel-body -->
+  </div><!-- /panel -->
+</div>
+
+<script>
+function setMode(m, el) {
+  document.querySelectorAll('.mode-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('mode-hint').textContent =
+    m === 'ik'
+      ? 'Drag IK target · W/A/S/D nudge · Scroll depth'
+      : 'Keys 1-6 select joint · Q rotate − · E rotate +';
+}
+
+function toggleGripper(btn) {
+  const open = btn.textContent.includes('CLOSE');
+  btn.innerHTML = open
+    ? '<span class="gripper-fill" style="width:90%"></span><span style="position:relative;z-index:1;">OPEN ✋</span>'
+    : '<span class="gripper-fill"></span><span style="position:relative;z-index:1;">CLOSE ✊</span>';
+  btn.classList.toggle('active', !open);
+  document.getElementById('grip-width').textContent = open ? '100 mm' : '38 mm';
+}
+
+function updateGripper(el) {
+  const w = Math.round(el.value);
+  document.getElementById('grip-width').textContent = w + ' mm';
+}
+
+let recActive = false, recInterval = null, recSec = 0;
+function toggleRec(btn) {
+  recActive = !recActive;
+  const ind = document.getElementById('rec-indicator');
+  if (recActive) {
+    btn.textContent = '⏹ Stop'; btn.classList.add('active');
+    ind.style.display = 'inline';
+    recInterval = setInterval(() => {
+      recSec++;
+      const mm = String(Math.floor(recSec/60)).padStart(2,'0');
+      const ss = String(recSec%60).padStart(2,'0');
+      ind.querySelector('.red').textContent = 'REC ' + mm + ':' + ss;
+      document.getElementById('play-progress').style.width = Math.min(recSec*2,100)+'%';
+      document.getElementById('transport-time').textContent = mm+':'+ss+' / '+mm+':'+ss;
+    }, 1000);
+  } else {
+    btn.textContent = '⏺ Record'; btn.classList.remove('active');
+    ind.style.display = 'none';
+    clearInterval(recInterval);
+  }
+}
+
+let playActive = false;
+function togglePlay(btn) {
+  playActive = !playActive;
+  btn.textContent = playActive ? '⏸ Pause' : '▶ Play';
+  btn.classList.toggle('active', playActive);
+}
+
+// Animate timer
+let t = 83;
+setInterval(() => {
+  t++;
+  const mm = String(Math.floor(t/60)).padStart(2,'0');
+  const ss = String(t%60).padStart(2,'0');
+  document.getElementById('task-timer').textContent = mm+':'+ss;
+}, 1000);
+</script>
+</body>
+</html>

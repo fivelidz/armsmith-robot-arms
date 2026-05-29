@@ -1,0 +1,240 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace ArmSmith
+{
+    /// <summary>
+    /// Builds a physical robot arm from an ArmConfig using Unity ArticulationBody
+    /// (reduced-coordinate jointed physics = stable, accurate, no drift). Meshes are
+    /// procedural (capsule links, sphere joints, box gripper) so morphology is just numbers
+    /// and the whole arm can be regenerated live from the Designer UI or the evolution layer.
+    ///
+    /// Hierarchy created:
+    ///   Arm (this) -> Base (fixed ArticulationBody)
+    ///                  -> Joint0 (revolute) -> Joint1 -> ... -> Wrist
+    ///                                                            -> Gripper (LeftJaw, RightJaw)
+    /// </summary>
+    public class ProceduralArm : MonoBehaviour
+    {
+        public ArmConfig config;
+        public Material linkMaterial;
+        public Material jointMaterial;
+        public Material gripperMaterial;
+
+        public ArticulationBody baseBody;
+        public readonly List<ArticulationBody> jointBodies = new List<ArticulationBody>();
+        public readonly List<JointSpec> jointSpecs = new List<JointSpec>();
+        public Transform endEffector;        // tip point between the jaws
+        public ArticulationBody leftJaw, rightJaw;
+
+        public Gripper gripper;
+
+        public void Build(ArmConfig cfg)
+        {
+            if (cfg == null || cfg.joints == null || cfg.joints.Count == 0)
+                cfg = ArmConfig.CreateStarter();
+            config = cfg;
+            Clear();
+
+            EnsureMaterials();
+
+            // --- Base (fixed root articulation body) -------------------------------
+            var baseGo = new GameObject("Base");
+            baseGo.transform.SetParent(transform, false);
+            baseBody = baseGo.AddComponent<ArticulationBody>();
+            baseBody.immovable = true;
+            AddCylinderVisual(baseGo.transform, cfg.baseRadius, cfg.baseHeight, Vector3.up * (cfg.baseHeight * 0.5f), jointMaterial);
+            AddCapsuleCollider(baseGo, cfg.baseRadius, cfg.baseHeight, Vector3.up * (cfg.baseHeight * 0.5f));
+
+            Transform parent = baseGo.transform;
+            Vector3 localAttach = Vector3.up * cfg.baseHeight; // top of base, in base-local space
+
+            jointBodies.Clear();
+            jointSpecs.Clear();
+
+            // --- Joints + links ----------------------------------------------------
+            for (int i = 0; i < cfg.joints.Count; i++)
+            {
+                JointSpec js = cfg.joints[i];
+                var go = new GameObject(js.name);
+                go.transform.SetParent(parent, false);
+                go.transform.localPosition = localAttach;
+
+                var ab = go.AddComponent<ArticulationBody>();
+                ConfigureRevolute(ab, js, cfg.AxisVector(js.axis));
+
+                // Visuals: sphere at joint, capsule for the link going +Y (local up = link dir).
+                AddSphereVisual(go.transform, js.linkRadius * 1.4f, Vector3.zero, jointMaterial);
+                float len = Mathf.Max(0.001f, js.linkLength);
+                Vector3 linkCenter = Vector3.up * (len * 0.5f);
+                AddCylinderVisual(go.transform, js.linkRadius, len, linkCenter, linkMaterial);
+                AddCapsuleCollider(go, js.linkRadius, len, linkCenter);
+
+                jointBodies.Add(ab);
+                jointSpecs.Add(js);
+
+                parent = go.transform;
+                localAttach = Vector3.up * len; // next joint sits at the end of this link
+            }
+
+            // --- Gripper -----------------------------------------------------------
+            var gripGo = new GameObject("Gripper");
+            gripGo.transform.SetParent(parent, false);
+            gripGo.transform.localPosition = localAttach;
+
+            // palm
+            AddBoxVisual(gripGo.transform, new Vector3(cfg.gripperWidth + 0.02f, 0.02f, cfg.gripperWidth + 0.02f),
+                         Vector3.up * 0.01f, gripperMaterial);
+
+            float jawHalf = cfg.gripperWidth * 0.5f;
+            leftJaw  = BuildJaw(gripGo.transform, "LeftJaw",  -jawHalf, cfg);
+            rightJaw = BuildJaw(gripGo.transform, "RightJaw", +jawHalf, cfg);
+
+            // end-effector reference point (between jaws, at finger tip)
+            var ee = new GameObject("EndEffector");
+            ee.transform.SetParent(gripGo.transform, false);
+            ee.transform.localPosition = Vector3.up * (0.02f + cfg.gripperLength * 0.5f);
+            endEffector = ee.transform;
+
+            gripper = gripGo.AddComponent<Gripper>();
+            gripper.Init(this, leftJaw, rightJaw, cfg.gripperWidth, jawHalf);
+
+            gameObject.name = string.IsNullOrEmpty(cfg.armName) ? "Arm" : cfg.armName;
+        }
+
+        ArticulationBody BuildJaw(Transform palm, string name, float xOffset, ArmConfig cfg)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(palm, false);
+            go.transform.localPosition = new Vector3(xOffset, 0.02f, 0f);
+            var ab = go.AddComponent<ArticulationBody>();
+
+            // Prismatic jaw along X (open/close)
+            ab.jointType = ArticulationJointType.PrismaticJoint;
+            ab.linearLockX = ArticulationDofLock.LimitedMotion;
+            ab.linearLockY = ArticulationDofLock.LockedMotion;
+            ab.linearLockZ = ArticulationDofLock.LockedMotion;
+            var drive = ab.xDrive;
+            drive.lowerLimit = -cfg.gripperWidth * 0.5f;
+            drive.upperLimit =  cfg.gripperWidth * 0.5f;
+            drive.stiffness = 6000f;
+            drive.damping = 200f;
+            drive.forceLimit = 100f;
+            ab.xDrive = drive;
+            ab.mass = 0.05f;
+
+            Vector3 fingerSize = new Vector3(0.012f, cfg.gripperLength, 0.03f);
+            Vector3 fingerCenter = Vector3.up * (cfg.gripperLength * 0.5f);
+            AddBoxVisual(go.transform, fingerSize, fingerCenter, gripperMaterial);
+            var col = go.AddComponent<BoxCollider>();
+            col.size = fingerSize;
+            col.center = fingerCenter;
+            var mat = new PhysicsMaterial("grip") { dynamicFriction = 1.2f, staticFriction = 1.4f, frictionCombine = PhysicsMaterialCombine.Maximum };
+            col.material = mat;
+            return ab;
+        }
+
+        void ConfigureRevolute(ArticulationBody ab, JointSpec js, Vector3 axisLocal)
+        {
+            ab.jointType = ArticulationJointType.RevoluteJoint;
+            ab.anchorRotation = Quaternion.FromToRotation(Vector3.right, axisLocal); // map drive axis(X) to desired axis
+            ab.twistLock = ArticulationDofLock.LimitedMotion;
+            var drive = ab.xDrive;
+            drive.lowerLimit = js.minAngle;
+            drive.upperLimit = js.maxAngle;
+            drive.stiffness = js.stiffness;
+            drive.damping = js.damping;
+            drive.forceLimit = js.maxTorque;
+            drive.target = 0f;
+            ab.xDrive = drive;
+            ab.mass = Mathf.Max(0.05f, js.linkLength * js.linkRadius * 50f);
+        }
+
+        public void SetJointTargets(IReadOnlyList<float> anglesDeg)
+        {
+            for (int i = 0; i < jointBodies.Count && i < anglesDeg.Count; i++)
+            {
+                var ab = jointBodies[i];
+                var drive = ab.xDrive;
+                drive.target = Mathf.Clamp(anglesDeg[i], drive.lowerLimit, drive.upperLimit);
+                ab.xDrive = drive;
+            }
+        }
+
+        public float[] GetJointAngles()
+        {
+            var a = new float[jointBodies.Count];
+            for (int i = 0; i < jointBodies.Count; i++)
+            {
+                var pos = jointBodies[i].jointPosition;
+                a[i] = pos.dofCount > 0 ? pos[0] * Mathf.Rad2Deg : 0f;
+            }
+            return a;
+        }
+
+        public void Clear()
+        {
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                var c = transform.GetChild(i);
+                if (Application.isPlaying) Destroy(c.gameObject); else DestroyImmediate(c.gameObject);
+            }
+            jointBodies.Clear();
+            jointSpecs.Clear();
+        }
+
+        // ----- procedural mesh helpers --------------------------------------------
+        void EnsureMaterials()
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            if (linkMaterial == null)   linkMaterial   = new Material(sh) { color = new Color(0.85f, 0.85f, 0.88f) };
+            if (jointMaterial == null)  jointMaterial  = new Material(sh) { color = new Color(0.25f, 0.45f, 0.85f) };
+            if (gripperMaterial == null) gripperMaterial = new Material(sh) { color = new Color(0.95f, 0.55f, 0.15f) };
+        }
+
+        static GameObject Prim(PrimitiveType t, Transform parent)
+        {
+            var go = GameObject.CreatePrimitive(t);
+            var col = go.GetComponent<Collider>();
+            if (col != null) { if (Application.isPlaying) Destroy(col); else DestroyImmediate(col); }
+            go.transform.SetParent(parent, false);
+            return go;
+        }
+
+        void AddCylinderVisual(Transform parent, float radius, float length, Vector3 center, Material m)
+        {
+            var go = Prim(PrimitiveType.Cylinder, parent); // default cylinder is 2 units tall along Y
+            go.name = "vis_link";
+            go.transform.localPosition = center;
+            go.transform.localScale = new Vector3(radius * 2f, length * 0.5f, radius * 2f);
+            go.GetComponent<MeshRenderer>().sharedMaterial = m;
+        }
+
+        void AddSphereVisual(Transform parent, float radius, Vector3 center, Material m)
+        {
+            var go = Prim(PrimitiveType.Sphere, parent);
+            go.name = "vis_joint";
+            go.transform.localPosition = center;
+            go.transform.localScale = Vector3.one * radius * 2f;
+            go.GetComponent<MeshRenderer>().sharedMaterial = m;
+        }
+
+        void AddBoxVisual(Transform parent, Vector3 size, Vector3 center, Material m)
+        {
+            var go = Prim(PrimitiveType.Cube, parent);
+            go.name = "vis_box";
+            go.transform.localPosition = center;
+            go.transform.localScale = size;
+            go.GetComponent<MeshRenderer>().sharedMaterial = m;
+        }
+
+        void AddCapsuleCollider(GameObject go, float radius, float height, Vector3 center)
+        {
+            var col = go.AddComponent<CapsuleCollider>();
+            col.radius = radius;
+            col.height = height + radius * 2f;
+            col.direction = 1; // Y
+            col.center = center;
+        }
+    }
+}

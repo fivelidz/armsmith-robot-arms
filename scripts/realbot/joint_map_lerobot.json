@@ -1,0 +1,8 @@
+{
+  "_comment": "Maps ARMSMITH game joint names -> LeRobot motor names. SO-101 motor names shown; for reBot B601-DM use the rebot motor names from its lerobot config.",
+  "BaseYaw": "shoulder_pan",
+  "Shoulder": "shoulder_lift",
+  "Elbow": "elbow_flex",
+  "Wrist": "wrist_flex",
+  "Gripper": "gripper"
+}

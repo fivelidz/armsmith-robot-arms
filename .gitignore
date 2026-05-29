@@ -1,0 +1,12 @@
+UnityProject/Library/
+UnityProject/Temp/
+UnityProject/Obj/
+UnityProject/Logs/
+UnityProject/UserSettings/
+UnityProject/Build*/
+UnityProject/Captures/
+UnityProject/**/*.mem.*.blob
+UnityProject/mono_crash.*
+*.csproj
+*.sln
+.opencode/

@@ -1,0 +1,16 @@
+{
+  "arm_type": "so101",
+  "schema": "armsmith.waypoints.v1",
+  "units": "degrees",
+  "joint_names": ["BaseYaw", "Shoulder", "Elbow", "Wrist"],
+  "gripper_name": "Gripper",
+  "dt_s": 0.05,
+  "waypoints": [
+    { "t_s": 0.00, "joints": [{"name":"BaseYaw","deg":0},{"name":"Shoulder","deg":48},{"name":"Elbow","deg":-88},{"name":"Wrist","deg":-20}], "gripper_deg": 0 },
+    { "t_s": 0.05, "joints": [{"name":"BaseYaw","deg":10},{"name":"Shoulder","deg":52},{"name":"Elbow","deg":-92},{"name":"Wrist","deg":-22}], "gripper_deg": 0 },
+    { "t_s": 0.10, "joints": [{"name":"BaseYaw","deg":18},{"name":"Shoulder","deg":58},{"name":"Elbow","deg":-98},{"name":"Wrist","deg":-25}], "gripper_deg": 0 },
+    { "t_s": 0.15, "joints": [{"name":"BaseYaw","deg":18},{"name":"Shoulder","deg":58},{"name":"Elbow","deg":-98},{"name":"Wrist","deg":-25}], "gripper_deg": 90 },
+    { "t_s": 0.20, "joints": [{"name":"BaseYaw","deg":-18},{"name":"Shoulder","deg":58},{"name":"Elbow","deg":-98},{"name":"Wrist","deg":-25}], "gripper_deg": 90 },
+    { "t_s": 0.25, "joints": [{"name":"BaseYaw","deg":-18},{"name":"Shoulder","deg":58},{"name":"Elbow","deg":-98},{"name":"Wrist","deg":-25}], "gripper_deg": 0 }
+  ]
+}

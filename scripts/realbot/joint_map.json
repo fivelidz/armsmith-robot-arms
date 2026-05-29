@@ -1,0 +1,9 @@
+{
+  "_comment": "Maps ARMSMITH game joint names -> real Feetech STS3215 servo IDs + soft limits (deg) + calibration. Edit per your physical arm. offset is added after invert; invert flips sign. Mirrors ~/projects/robot_hand SERVO_LIMITS conventions.",
+  "arm_type": "so101",
+  "BaseYaw":  { "id": 1, "min": -180, "max": 180, "offset": 0.0, "invert": false },
+  "Shoulder": { "id": 2, "min": -100, "max": 100, "offset": 0.0, "invert": false },
+  "Elbow":    { "id": 3, "min": -135, "max": 135, "offset": 0.0, "invert": false },
+  "Wrist":    { "id": 4, "min": -110, "max": 110, "offset": 0.0, "invert": false },
+  "Gripper":  { "id": 5, "min": 0,    "max": 90,  "offset": 0.0, "invert": false }
+}

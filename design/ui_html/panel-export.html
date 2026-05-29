@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ARMSMITH — Export Panel</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { padding: 16px; display: flex; justify-content: center; background: var(--bg); }
+  .root { width: 420px; }
+
+  /* Export action card */
+  .export-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: border-color .15s, background .15s;
+    cursor: pointer;
+    user-select: none;
+  }
+  .export-card:hover { border-color: var(--teal-dim); background: rgba(0,212,180,.03); }
+  .export-card.orange:hover { border-color: var(--orange-dim); background: rgba(255,107,43,.04); }
+  .export-card.green:hover  { border-color: var(--green-dim);  background: rgba(57,255,130,.04); }
+
+  .export-icon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid var(--border-hi);
+    background: var(--card);
+  }
+
+  .export-title {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-hi);
+  }
+  .export-desc {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .export-status {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .export-status.ready { color: var(--green); }
+  .export-status.warn  { color: var(--orange); }
+
+  /* Progress bar for sending */
+  .send-progress {
+    display: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .send-progress .fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--teal-dim), var(--teal));
+    border-radius: 2px;
+    width: 0%;
+    transition: width .1s linear;
+  }
+  .send-progress.active { display: block; }
+
+  /* Real robot connection card */
+  .robot-connect-card {
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .robot-connect-header {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Safety checklist */
+  .safety-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .safety-pass-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--green);
+  }
+
+  /* file size chip */
+  .size-chip {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 1px 6px;
+  }
+
+  /* Send to robot step indicator */
+  .send-steps {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-top: 6px;
+  }
+  .send-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+  }
+  .step-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border-hi);
+  }
+  .step-dot.done   { background: var(--green); }
+  .step-dot.active { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+  .step-line { flex: 1; height: 1px; background: var(--border-hi); }
+  .step-line.done { background: var(--teal-dim); }
+  .step-lbl {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--muted);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* JSON preview box */
+  .json-preview {
+    background: #050810;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--teal);
+    line-height: 1.8;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .json-key   { color: var(--text); }
+  .json-str   { color: var(--orange); }
+  .json-num   { color: var(--teal); }
+  .json-bool  { color: var(--green); }
+</style>
+</head>
+<body>
+<div class="root">
+  <div class="panel accent-green" style="width:100%;">
+
+    <!-- Header -->
+    <div class="panel-header">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M6 1v7M3 5l3 3 3-3" stroke="#39ff82" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="1" y="9" width="10" height="2" rx="1" fill="#39ff82" opacity=".5"/>
+      </svg>
+      <span class="panel-title">Export</span>
+      <span class="panel-badge green">M5 · M6 · M7</span>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+        <span class="pill pill-green"><span class="status-dot dot-green"></span>READY</span>
+      </div>
+    </div>
+
+    <div class="panel-body" style="gap:10px;">
+
+      <!-- ARM TYPE selector -->
+      <div>
+        <span class="label">Target Hardware</span>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+          <select id="arm-type" style="flex:1;" onchange="updateArmType(this)">
+            <option value="so101">SO-ARM100 / SO-101 (Seeed)</option>
+            <option value="rebot_b601_dm">reBot-B601-DM (DevArm)</option>
+            <option value="custom">Custom / Generic</option>
+          </select>
+          <span class="pill pill-teal" id="arm-compat">6 DOF</span>
+        </div>
+        <div class="stat-row" style="margin-top:6px;border:none;">
+          <span class="label" style="font-size:9px;">Bus protocol</span>
+          <span class="value" style="font-size:10px;" id="bus-proto">STS3215 SyncWrite</span>
+        </div>
+        <div class="stat-row" style="border:none;">
+          <span class="label" style="font-size:9px;">Steps/rev</span>
+          <span class="value" style="font-size:10px;" id="steps-rev">4096 steps / 360°</span>
+        </div>
+        <div class="stat-row" style="border:none;">
+          <span class="label" style="font-size:9px;">Interface</span>
+          <span class="value" style="font-size:10px;" id="hw-interface">USB-C serial / LeRobot</span>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- Export actions -->
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span class="label">Export Actions</span>
+
+        <!-- STL -->
+        <div class="export-card" onclick="doExport('stl', this)">
+          <div class="export-icon">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#39ff82" stroke-width="1.4">
+              <path d="M4 18l4-8 3 5 3-4 4 7H4z" stroke-linejoin="round"/>
+              <path d="M11 3v6" stroke-linecap="round"/>
+              <path d="M8 6l3-3 3 3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div style="flex:1;">
+            <div class="export-title">Export STL</div>
+            <div class="export-desc">Binary STL · Y→Z-up · winding flip</div>
+            <div id="stl-prog" class="send-progress"><div class="fill"></div></div>
+          </div>
+          <div class="export-status ready" id="stl-status">
+            <div>READY</div>
+            <div class="size-chip" style="margin-top:3px;">~142 KB</div>
+          </div>
+        </div>
+
+        <!-- Waypoints JSON -->
+        <div class="export-card orange" onclick="doExport('waypoints', this)">
+          <div class="export-icon">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#ff6b2b" stroke-width="1.4">
+              <rect x="3" y="3" width="16" height="16" rx="2"/>
+              <path d="M7 7h8M7 11h5M7 15h3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="flex:1;">
+            <div class="export-title">Export Waypoints JSON</div>
+            <div class="export-desc">arm_config.json · per-joint drive params</div>
+            <div id="wp-prog" class="send-progress"><div class="fill"></div></div>
+          </div>
+          <div class="export-status ready" id="wp-status">
+            <div>READY</div>
+            <div class="size-chip" style="margin-top:3px;">~4.2 KB</div>
+          </div>
+        </div>
+
+        <!-- Send to real robot -->
+        <div class="export-card green" onclick="doExport('robot', this)">
+          <div class="export-icon">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#39ff82" stroke-width="1.4">
+              <circle cx="11" cy="8" r="4"/>
+              <path d="M7 16s0-4 4-4 4 4 4 4" stroke-linecap="round"/>
+              <path d="M15 12l2-2M19 8l-2 2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="flex:1;">
+            <div class="export-title">Send to Real Robot</div>
+            <div class="export-desc">JSON → servo_controller.py / LeRobot</div>
+            <div id="robot-prog" class="send-progress"><div class="fill"></div></div>
+            <!-- Step indicator -->
+            <div class="send-steps" id="send-steps" style="display:none;">
+              <div class="send-step">
+                <div class="step-dot done"></div>
+                <div class="step-lbl">Connect</div>
+              </div>
+              <div class="step-line done"></div>
+              <div class="send-step">
+                <div class="step-dot active"></div>
+                <div class="step-lbl">Validate</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="send-step">
+                <div class="step-dot"></div>
+                <div class="step-lbl">Upload</div>
+              </div>
+              <div class="step-line"></div>
+              <div class="send-step">
+                <div class="step-dot"></div>
+                <div class="step-lbl">Execute</div>
+              </div>
+            </div>
+          </div>
+          <div class="export-status warn" id="robot-status">
+            <div>CHECK USB</div>
+            <span class="size-chip" style="margin-top:3px;color:var(--orange);">SO-101</span>
+          </div>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- Safety checklist -->
+      <div>
+        <div class="safety-header">
+          <span class="label">Safety Checklist</span>
+          <span class="safety-pass-count" id="safety-pass">4 / 6 ✓</span>
+        </div>
+        <div class="checklist">
+          <div class="check-item pass">
+            <span class="check-icon">✓</span>
+            <span>Joint limits within hardware spec</span>
+          </div>
+          <div class="check-item pass">
+            <span class="check-icon">✓</span>
+            <span>Torque values within rated max</span>
+          </div>
+          <div class="check-item pass">
+            <span class="check-icon">✓</span>
+            <span>No self-collision detected in workspace</span>
+          </div>
+          <div class="check-item pass">
+            <span class="check-icon">✓</span>
+            <span>Gripper open/close cycle validated</span>
+          </div>
+          <div class="check-item warn" id="check-usb">
+            <span class="check-icon">!</span>
+            <span>USB serial connection not verified</span>
+            <button class="btn btn-sm btn-orange" style="margin-left:auto;font-size:9px;" onclick="checkUsb()">Check</button>
+          </div>
+          <div class="check-item warn" id="check-home">
+            <span class="check-icon">!</span>
+            <span>Robot not in home position</span>
+            <button class="btn btn-sm" style="margin-left:auto;font-size:9px;" onclick="sendHome()">Home</button>
+          </div>
+        </div>
+      </div>
+
+      <hr class="console-hr">
+
+      <!-- JSON preview -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span class="label">arm_config.json Preview</span>
+          <button class="btn btn-sm" style="font-size:9px;" onclick="copyJson()">Copy</button>
+        </div>
+        <div class="json-preview" id="json-prev">
+<span class="json-key">{</span>
+  <span class="json-key">"arm_type"</span>: <span class="json-str">"so101"</span>,
+  <span class="json-key">"dof"</span>: <span class="json-num">3</span>,
+  <span class="json-key">"joints"</span>: [
+    {
+      <span class="json-key">"id"</span>: <span class="json-num">1</span>, <span class="json-key">"name"</span>: <span class="json-str">"base_yaw"</span>,
+      <span class="json-key">"axis"</span>: <span class="json-str">"Y"</span>, <span class="json-key">"link_len"</span>: <span class="json-num">0.20</span>,
+      <span class="json-key">"limits"</span>: [<span class="json-num">-90</span>, <span class="json-num">90</span>],
+      <span class="json-key">"max_torque"</span>: <span class="json-num">3.0</span>, <span class="json-key">"drive"</span>: {
+        <span class="json-key">"stiffness"</span>: <span class="json-num">800</span>, <span class="json-key">"damping"</span>: <span class="json-num">40</span>
+      }
+    }
+    <span class="json-key muted">/* … J2, J3 … */</span>
+  ],
+  <span class="json-key">"gripper"</span>: {
+    <span class="json-key">"type"</span>: <span class="json-str">"parallel_jaw"</span>,
+    <span class="json-key">"max_open"</span>: <span class="json-num">0.10</span>, <span class="json-key">"grip_force"</span>: <span class="json-num">8.0</span>
+  },
+  <span class="json-key">"export_ts"</span>: <span class="json-str">"2026-05-30T12:34:56Z"</span>
+<span class="json-key">}</span>
+        </div>
+      </div>
+
+    </div><!-- /panel-body -->
+  </div><!-- /panel -->
+</div>
+
+<script>
+function updateArmType(sel) {
+  const map = {
+    so101:         { dof:'6 DOF', bus:'STS3215 SyncWrite', steps:'4096 steps / 360°', iface:'USB-C / LeRobot' },
+    rebot_b601_dm: { dof:'6 DOF', bus:'RS485 / STS3215',   steps:'4096 steps / 360°', iface:'USB-RS485 / ROS2' },
+    custom:        { dof:'N DOF', bus:'User-defined',       steps:'—',                 iface:'Generic JSON' },
+  };
+  const m = map[sel.value];
+  document.getElementById('arm-compat').textContent  = m.dof;
+  document.getElementById('bus-proto').textContent   = m.bus;
+  document.getElementById('steps-rev').textContent   = m.steps;
+  document.getElementById('hw-interface').textContent= m.iface;
+  // update json preview arm_type
+  const jp = document.getElementById('json-prev');
+  jp.innerHTML = jp.innerHTML.replace(/"so101"|"rebot_b601_dm"|"custom"/, '"'+sel.value+'"');
+}
+
+function doExport(type, card) {
+  const progId  = {stl:'stl-prog', waypoints:'wp-prog', robot:'robot-prog'}[type];
+  const statId  = {stl:'stl-status', waypoints:'wp-status', robot:'robot-status'}[type];
+  const prog    = document.getElementById(progId);
+  const stat    = document.getElementById(statId);
+  const fill    = prog.querySelector('.fill');
+
+  prog.classList.add('active');
+  let w = 0;
+  const iv = setInterval(() => {
+    w += type === 'robot' ? 3 : 8;
+    fill.style.width = Math.min(w,100) + '%';
+    if (w >= 100) {
+      clearInterval(iv);
+      setTimeout(() => {
+        prog.classList.remove('active');
+        fill.style.width = '0%';
+        if (type === 'stl') {
+          stat.innerHTML = '<div class="green">✓ SAVED</div><div class="size-chip" style="margin-top:3px;">arm.stl</div>';
+        } else if (type === 'waypoints') {
+          stat.innerHTML = '<div class="green">✓ SAVED</div><div class="size-chip" style="margin-top:3px;">arm_config.json</div>';
+        } else {
+          // show step indicators
+          document.getElementById('send-steps').style.display = 'flex';
+          stat.innerHTML = '<div class="green">✓ SENT</div><span class="size-chip" style="margin-top:3px;color:var(--green)">LIVE</span>';
+          // animate steps
+          const dots = document.querySelectorAll('.step-dot');
+          const lines = document.querySelectorAll('.step-line');
+          let i = 2;
+          const si = setInterval(() => {
+            if (i >= dots.length) { clearInterval(si); return; }
+            dots[i].classList.add('done');
+            dots[i].classList.remove('active');
+            if (i < lines.length) lines[i-1].classList.add('done');
+            if (i+1 < dots.length) dots[i+1].classList.add('active');
+            i++;
+          }, 600);
+        }
+      }, 200);
+    }
+  }, type === 'robot' ? 80 : 50);
+}
+
+function checkUsb() {
+  const el = document.getElementById('check-usb');
+  el.className = 'check-item pass';
+  el.innerHTML = '<span class="check-icon">✓</span><span>USB serial /dev/ttyUSB0 connected</span>';
+  updateSafetyCount();
+}
+
+function sendHome() {
+  const el = document.getElementById('check-home');
+  el.className = 'check-item pass';
+  el.innerHTML = '<span class="check-icon">✓</span><span>Robot homed — all joints at 0°</span>';
+  updateSafetyCount();
+}
+
+function updateSafetyCount() {
+  const passed = document.querySelectorAll('.check-item.pass').length;
+  const total  = document.querySelectorAll('.check-item').length;
+  document.getElementById('safety-pass').textContent = passed + ' / ' + total + (passed === total ? ' ✓ ALL CLEAR' : ' ✓');
+  document.getElementById('safety-pass').style.color = passed === total ? 'var(--green)' : 'var(--orange)';
+}
+
+function copyJson() {
+  const raw = `{
+  "arm_type": "so101",
+  "dof": 3,
+  "joints": [
+    { "id": 1, "name": "base_yaw", "axis": "Y", "link_len": 0.20,
+      "limits": [-90, 90], "max_torque": 3.0, "drive": { "stiffness": 800, "damping": 40 } }
+  ],
+  "gripper": { "type": "parallel_jaw", "max_open": 0.10, "grip_force": 8.0 },
+  "export_ts": "${new Date().toISOString()}"
+}`;
+  navigator.clipboard.writeText(raw).then(() => alert('Copied to clipboard!'));
+}
+</script>
+</body>
+</html>
