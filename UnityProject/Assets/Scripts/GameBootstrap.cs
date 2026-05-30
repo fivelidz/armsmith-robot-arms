@@ -18,7 +18,7 @@ namespace ArmSmith
         // STL skinning needs the real SO-ARM100 joint frames (URDF) to align; until that's wired,
         // Procedural arm is the stable shipping default (clean look + approved mouse control work well).
         // Real SO-101 STL arm (URDF-accurate frames, now aligned). true=real model, false=procedural.
-        public bool useRealStlMeshes = true;
+        public bool useRealStlMeshes = false;
         ProceduralArm arm;
         ArmController controller;
         CameraRig rig;

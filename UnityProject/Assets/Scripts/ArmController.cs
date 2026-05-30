@@ -49,11 +49,13 @@ namespace ArmSmith
             arm = a; ikTarget = target; mainCamera = cam;
             targetAngles = new float[arm.jointBodies.Count];
 
-            // Natural "ready" pose: bend shoulder forward and elbow down so the gripper hovers
-            // over the worktop in reach of the trays, instead of standing bolt upright.
-            // Joints (starter): 0=BaseYaw, 1=Shoulder(pitch), 2=Elbow(pitch), 3=Wrist(pitch).
-            // Tuned so the gripper hovers ~5-8 cm ABOVE the worktop (y=0), not into it.
-            float[] home = { 0f, 40f, -78f, -5f };
+            // Natural "ready" pose: bend the arm forward+down so the gripper hovers over the worktop in
+            // reach of the trays, instead of standing bolt upright. Two homes — one for the simple
+            // procedural 4-DOF arm, one for the real SO-101 6-DOF URDF arm (empirically tuned so the
+            // gripper sits ~3 cm above the worktop near the trays; see PROGRESS notes).
+            float[] home4 = { 0f, 40f, -78f, -5f };                       // procedural: yaw,shoulder,elbow,wrist
+            float[] home6 = { 0f, -40f, -30f, -15f, 0f, 0f };             // SO-101: pan,lift,elbow,wristflex,roll,grip
+            float[] home = arm.jointBodies.Count >= 6 ? home6 : home4;
             for (int i = 0; i < targetAngles.Length; i++)
                 targetAngles[i] = i < home.Length
                     ? Mathf.Clamp(home[i], arm.jointSpecs[i].minAngle, arm.jointSpecs[i].maxAngle)
@@ -62,7 +64,7 @@ namespace ArmSmith
             arm.SetJointTargets(targetAngles);
 
             if (ikTarget != null)
-                ikTarget.position = new Vector3(0.18f, 0.10f, 0.34f); // above Tray A
+                ikTarget.position = new Vector3(0.0f, 0.12f, 0.30f); // in front of the arm, above the table
         }
 
         void Update()
@@ -74,9 +76,18 @@ namespace ArmSmith
             else HandleManualInput();
         }
 
+        int settleFrames = 0;
         void FixedUpdate()
         {
             if (arm == null || targetAngles == null) return;
+            // Let the arm settle into its home pose, THEN calibrate the IK from the real rest geometry.
+            if (settleFrames < 30)
+            {
+                settleFrames++;
+                arm.SetJointTargets(targetAngles);
+                if (settleFrames == 30) CalibrateIK();
+                return;
+            }
             if (mode == Mode.IK) SolveIK();
             arm.SetJointTargets(targetAngles);
         }
@@ -151,23 +162,67 @@ namespace ArmSmith
         }
 
         // CCD (Cyclic Coordinate Descent) IK on a VIRTUAL copy of the chain (does not disturb physics).
-        // We forward-simulate joint frames from the live base using the current targetAngles, run CCD to
-        // update those angles toward the goal, and only write the resulting angle TARGETS to the drives
-        // (via SetJointTargets in FixedUpdate). Robust: reaches forward instead of folding down.
-        Vector3[] jPos;       // virtual joint world positions
-        Quaternion[] jRot;    // virtual joint world rotations
-        Vector3[] jAxisLocal; // each joint's local rotation axis
+        // Works for ANY arm geometry (procedural OR real SO-101 URDF) because the chain's rest geometry
+        // is CALIBRATED from the live transforms at bind time: we store each joint's local axis, the
+        // fixed local rotation from one joint frame to the next, and the local offset between them. FK
+        // then composes those fixed locals with the per-joint angle, so the virtual EE matches reality.
+        Vector3[] jPos;        // virtual joint world positions
+        Quaternion[] jRot;     // virtual joint world rotations
+        Vector3[] jAxisLocal;  // each joint's local rotation axis (in its own frame)
+        Quaternion baseRot0;   // base world rotation at calibration
+        Vector3 basePos0;      // first joint world pos at calibration
+        Quaternion[] restLocalRot; // fixed local rotation from joint i frame to joint i+1 frame (at angle 0)
+        Vector3[] restLocalOff;    // fixed local offset (in joint i frame) to joint i+1 origin
+        Quaternion eeLocalRot; // EE local rotation relative to last joint frame
+        Vector3 eeLocalOff;    // EE local offset in last joint frame
+        bool calibrated;
+
+        // Capture the real chain geometry once (call after the home pose is applied & physics settled).
+        public void CalibrateIK()
+        {
+            int n = arm.jointBodies.Count;
+            jPos = new Vector3[n + 1];
+            jRot = new Quaternion[n + 1];
+            jAxisLocal = new Vector3[n];
+            restLocalRot = new Quaternion[n];
+            restLocalOff = new Vector3[n];
+
+            for (int i = 0; i < n; i++)
+                jAxisLocal[i] = arm.config.AxisVector(arm.jointSpecs[i].axis);
+
+            baseRot0 = arm.jointBodies[0].transform.rotation
+                       * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[0], jAxisLocal[0]));
+            basePos0 = arm.jointBodies[0].transform.position;
+
+            // For each consecutive pair, record the local transform (undoing the current joint angles)
+            // so FK can re-apply arbitrary angles.
+            for (int i = 0; i < n; i++)
+            {
+                Transform a = arm.jointBodies[i].transform;
+                // frame of joint i WITHOUT its own angle applied:
+                Quaternion aFrame0 = a.rotation * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[i], jAxisLocal[i]));
+                Transform b = (i + 1 < n) ? arm.jointBodies[i + 1].transform
+                                          : (arm.endEffector != null ? arm.endEffector : a);
+                Vector3 worldOff = b.position - a.position;
+                restLocalOff[i] = Quaternion.Inverse(aFrame0) * worldOff;
+                restLocalRot[i] = Quaternion.Inverse(aFrame0) * (b.rotation
+                                   * (i + 1 < n ? Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[i + 1], jAxisLocal[i + 1])) : Quaternion.identity));
+            }
+            // EE relative to last joint frame (without last joint's angle)
+            if (arm.endEffector != null && n > 0)
+            {
+                Transform last = arm.jointBodies[n - 1].transform;
+                Quaternion lastFrame0 = last.rotation * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[n - 1], jAxisLocal[n - 1]));
+                eeLocalOff = Quaternion.Inverse(lastFrame0) * (arm.endEffector.position - last.position);
+                eeLocalRot = Quaternion.Inverse(lastFrame0) * arm.endEffector.rotation;
+            }
+            calibrated = true;
+        }
 
         void SolveIK()
         {
             int n = arm.jointBodies.Count;
-            if (jPos == null || jPos.Length != n + 1)
-            {
-                jPos = new Vector3[n + 1];
-                jRot = new Quaternion[n + 1];
-                jAxisLocal = new Vector3[n];
-                for (int i = 0; i < n; i++) jAxisLocal[i] = arm.config.AxisVector(arm.jointSpecs[i].axis);
-            }
+            if (!calibrated || jPos == null || jPos.Length != n + 1) CalibrateIK();
 
             Vector3 goal = ikTarget.position;
             for (int iter = 0; iter < ikIterations; iter++)
@@ -189,33 +244,27 @@ namespace ArmSmith
                     float na = Mathf.Clamp(targetAngles[i] + delta, js.minAngle, js.maxAngle);
                     if (Mathf.Abs(na - targetAngles[i]) > 0.01f) improved = true;
                     targetAngles[i] = na;
-                    ForwardKinematics(n); // re-evaluate chain after this joint moved
+                    ForwardKinematics(n);
                 }
                 if (!improved) break;
                 if (Vector3.Distance(jPos[n], goal) < 0.005f) break;
             }
         }
 
-        // Build virtual joint frames from the live base using current targetAngles + the link offsets.
+        // FK using the CALIBRATED rest geometry + current targetAngles (matches the real chain).
         void ForwardKinematics(int n)
         {
-            // Root: base body's top (first joint's parent frame).
-            Transform baseT = arm.baseBody.transform;
-            Quaternion rot = baseT.rotation;
-            Vector3 pos = arm.jointBodies[0].transform.position; // first joint origin (stable)
-
+            Quaternion rot = baseRot0;
+            Vector3 pos = basePos0;
             for (int i = 0; i < n; i++)
             {
                 jPos[i] = pos;
-                // apply this joint's rotation about its local axis by targetAngles[i]
-                rot = rot * Quaternion.AngleAxis(targetAngles[i], jAxisLocal[i]);
+                rot = rot * Quaternion.AngleAxis(targetAngles[i], jAxisLocal[i]); // apply joint angle
                 jRot[i] = rot;
-                // advance along the link (local +Y by link length) to the next joint
-                float len = arm.jointSpecs[i].linkLength;
-                pos = pos + rot * (Vector3.up * len);
+                pos = pos + rot * restLocalOff[i];        // step to next joint origin (real offset)
+                rot = rot * restLocalRot[i];              // and into next joint's frame (real twist)
             }
-            // end-effector tip (gripper offset ~ palm + finger)
-            jPos[n] = pos + rot * (Vector3.up * (0.02f + arm.config.gripperLength));
+            jPos[n] = pos; // last computed pos is the EE (restLocalOff[n-1] already points to EE/endEffector)
         }
 
         // ---- Manual mode ---------------------------------------------------------
