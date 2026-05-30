@@ -10,10 +10,13 @@
 // ArmController, ScenarioManager, EvolutionTrainer, BehaviourRecorder all continue to work
 // without modification because they depend exclusively on those public members.
 //
-// URDF → Unity coordinate conversion (per KINEMATICS_NOTES.md):
-//   position : (x, y, z)_urdf  →  (x, z, y)_unity           [swap Y↔Z]
-//   rpy→quat : Quaternion.Euler(roll_deg, yaw_deg, pitch_deg) * Quaternion.Euler(0,180,0)
-//   mesh scale: StlImporter.Load() already converts mm→m and Z-up→Y-up internally.
+// URDF → Unity coordinate conversion (consistent with StlImporter's (x,y,z)→(x,z,y) vertex swap):
+//   position : (x, y, z)_urdf  →  (x, z, y)_unity           [swap Y↔Z, no negation]
+//   rpy→quat : M·Rz(y)·Ry(p)·Rx(r)·M^T  =  Ry(−y)·Rz(−p)·Rx(−r)  where M=[[1,0,0],[0,0,1],[0,1,0]]
+//             In Unity: Euler(0,−y,0)*Euler(0,0,−p)*Euler(−r,0,0)  (r/p/y all in URDF degrees)
+//   joint axis: URDF Z=[0,0,1] → Unity Y=[0,1,0]; ArticulationBody drive-X→Y via anchorRotation=Euler(0,0,90)
+//   root yaw  : arm root rotated −90° around Y (baseYawOffsetDeg=−90) maps URDF+X to Unity+Z (forward)
+//   mesh scale: StlImporter.Load() applies Y↔Z swap and NO mm→m scale (STLs already in metres).
 //
 // Author: ArmSmith / SO-ARM100 builder   (generated 2026-05-30)
 // Attribution: SO-ARM100/SO-101 meshes © The Robot Studio, Apache-2.0
@@ -100,6 +103,12 @@ namespace ArmSmith
         [Tooltip("Fine-tune per-link STL visual offsets without recompiling.")]
         public List<LinkVisualTweak> visualTweaks = new List<LinkVisualTweak>();
 
+        [Header("URDF Builder Orientation")]
+        [Tooltip("Extra world-space Y rotation (degrees) applied to the arm root so the arm faces forward (+Z). " +
+                 "The SO-101 URDF natural reach direction is +X; −90° (Unity Ry(−90)=RH Ry(−90)) rotates " +
+                 "+X to +Z so the arm points toward the table. Default −90.")]
+        public float baseYawOffsetDeg = -90f;
+
         // ─────────────────────────────────────────────────────────────────────────
         //  Main entry point
         // ─────────────────────────────────────────────────────────────────────────
@@ -130,6 +139,11 @@ namespace ArmSmith
             // --- Clear any previous arm hierarchy -----------------------------
             Clear();
             EnsureMaterials();
+
+            // Apply base yaw so the arm faces forward (+Z in Unity world).
+            // The SO-101 URDF natural reach direction is +X; rotating the root by
+            // baseYawOffsetDeg (default 90°) swings it to face +Z (toward the table).
+            transform.localRotation = Quaternion.Euler(0f, baseYawOffsetDeg, 0f);
 
             string meshDir = Path.GetDirectoryName(kinematicsJsonPath);
 
@@ -210,13 +224,16 @@ namespace ArmSmith
                 float limLo = (j.limit_deg != null && j.limit_deg.Length >= 2) ? j.limit_deg[0] : -180f;
                 float limHi = (j.limit_deg != null && j.limit_deg.Length >= 2) ? j.limit_deg[1] :  180f;
 
-                // All SO-101 joints rotate about local Z in their URDF frame.
-                // In ArticulationBody a RevoluteJoint twists about its X-axis (the "drive" axis).
-                // We set anchorRotation = 90° about Y so that local-X maps to local-Z
-                // (i.e. the physical Z-axis of the joint frame becomes the twist axis).
+                // Each SO-101 joint rotates about local-Z (URDF) = local-Y (Unity after M-swap).
+                // In ArticulationBody the revolute drive is about the ANCHOR's X-axis.
+                // Each joint has a different joint-frame orientation so we need a per-joint
+                // anchorRotation that maps anchor-X to the correct physical rotation axis
+                // (the child frame's Y in the parent's local coordinates).
+                Quaternion anchorRot = JointAnchorRotation(j.name);
                 ConfigureUrdfRevolute(ab, limLo, limHi,
                     stiffness: 9000f, damping: 150f, forceLimit: 40f,
-                    massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f);
+                    massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f,
+                    anchorRotation: anchorRot);
 
                 // JointSpec for IK / ArmController
                 float linkLength = (i + 1 < revoluteJoints.Count)
@@ -410,19 +427,21 @@ namespace ArmSmith
 
         /// <summary>
         /// Configure a RevoluteJoint that spins about URDF local-Z.
-        /// ArticulationBody's revolute "twist" is about its local X-axis, so we
-        /// pre-rotate the anchor 90° about Y to map X→Z.
+        /// ArticulationBody's revolute "twist" is about its anchor's local X-axis.
+        /// Each joint has a different anchorRotation because the joint frame orientations
+        /// differ across the SO-101 kinematic chain (computed from child_Y_in_parent analysis).
         /// </summary>
         static void ConfigureUrdfRevolute(ArticulationBody ab,
             float lowerLimitDeg, float upperLimitDeg,
             float stiffness, float damping, float forceLimit,
-            float massKg)
+            float massKg,
+            Quaternion anchorRotation)
         {
             ab.jointType = ArticulationJointType.RevoluteJoint;
 
-            // Rotate anchor so drive-X aligns with URDF joint-Z
-            // Quat(90° about Y): forward(Z)->right(X), so drive-axis(X)=joint-Z. Correct.
-            ab.anchorRotation = Quaternion.Euler(0f, 90f, 0f);
+            // anchorRotation is computed per-joint so drive-X maps to the correct
+            // physical rotation axis (the URDF joint Z in the parent frame).
+            ab.anchorRotation = anchorRotation;
 
             ab.twistLock = ArticulationDofLock.LimitedMotion;
 
@@ -647,19 +666,36 @@ namespace ArmSmith
 
         /// <summary>
         /// URDF roll/pitch/yaw (degrees) → Unity local Quaternion.
-        /// Per KINEMATICS_NOTES.md:
-        ///   Unity_q = Quaternion.Euler(roll, yaw, pitch) * Quaternion.Euler(0, 180, 0)
-        /// where roll/pitch/yaw are the URDF RPY values in degrees.
+        ///
+        /// Derivation (consistent with StlImporter's (x,y,z)→(x,z,y) vertex swap):
+        ///   The axis-swap matrix M maps URDF→Unity:  M = [[1,0,0],[0,0,1],[0,1,0]]
+        ///   For elementary rotations: M·Rx(r)·M^T = Rx(−r),  M·Ry(p)·M^T = Rz(−p),
+        ///                             M·Rz(y)·M^T = Ry(−y)
+        ///   URDF RPY = Rz(y)·Ry(p)·Rx(r)  so
+        ///   M·R_urdf·M^T = Ry(−y) · Rz(−p) · Rx(−r)
+        ///
+        ///   In Unity's convention (left-hand coords, right-hand Euler angles):
+        ///     Quaternion.Euler(0, y_u, 0)  ≡  right-hand Ry( y_u)   [Y same sign]
+        ///     Quaternion.Euler(0, 0, z_u)  ≡  right-hand Rz( z_u)   [Z same sign]
+        ///     Quaternion.Euler(x_u, 0, 0)  ≡  right-hand Rx( x_u)   [X same sign]
+        ///   Therefore:
+        ///     Ry(−y_urdf) = Euler(0, −y_urdf, 0)
+        ///     Rz(−p_urdf) = Euler(0, 0, −p_urdf)
+        ///     Rx(−r_urdf) = Euler(−r_urdf, 0, 0)
+        ///   Combined (applied right-to-left):
+        ///     Q = Euler(0, −y, 0) * Euler(0, 0, −p) * Euler(−r, 0, 0)
         /// </summary>
         static Quaternion UrdfRpyDegToUnity(float[] rpyDeg)
         {
             if (rpyDeg == null || rpyDeg.Length < 3) return Quaternion.identity;
-            float roll  = rpyDeg[0];
-            float pitch = rpyDeg[1];
-            float yaw   = rpyDeg[2];
-            // URDF RPY is applied R(yaw)*R(pitch)*R(roll); in Unity Euler order Z→X→Y
-            // KINEMATICS_NOTES formula: Euler(roll, yaw, pitch) * Euler(0,180,0)
-            return Quaternion.Euler(roll, yaw, pitch) * Quaternion.Euler(0f, 180f, 0f);
+            float r = rpyDeg[0];   // URDF roll
+            float p = rpyDeg[1];   // URDF pitch
+            float y = rpyDeg[2];   // URDF yaw
+            // M·Rz(y)·Ry(p)·Rx(r)·M^T  =  Ry(−y)·Rz(−p)·Rx(−r)
+            // In Unity: Euler angles map to same-sign right-hand matrices
+            return Quaternion.Euler(0f, -y, 0f)
+                 * Quaternion.Euler(0f, 0f, -p)
+                 * Quaternion.Euler(-r, 0f, 0f);
         }
 
         // ─────────────────────────────────────────────────────────────────────────
@@ -674,6 +710,36 @@ namespace ArmSmith
             if (n.Contains("pan")  || n.Contains("yaw"))  return JointAxis.Yaw;
             if (n.Contains("roll"))                        return JointAxis.Roll;
             return JointAxis.Pitch;  // lift, flex, gripper
+        }
+
+        /// <summary>
+        /// Returns the ArticulationBody anchorRotation for a given SO-101 URDF joint.
+        ///
+        /// ArticulationBody revolute drives about the anchor's X axis. The anchorRotation
+        /// must map anchor-X to the URDF joint's physical rotation axis (URDF Z = Unity Y
+        /// of the CHILD frame) expressed in PARENT-local coordinates.
+        ///
+        /// Computed analytically from M·R_urdf·M^T for each joint's RPY:
+        ///
+        ///   shoulder_pan  : child_Y_in_parent=(0,−1,0) → Euler(0, 0,−90)  [X→−Y]
+        ///   shoulder_lift : child_Y_in_parent=(0, 0,+1) → Euler(0,−90, 0)  [X→+Z]
+        ///   elbow_flex    : child_Y_in_parent=(0,+1,0)  → Euler(0, 0,+90)  [X→+Y]
+        ///   wrist_flex    : child_Y_in_parent=(0,+1,0)  → Euler(0, 0,+90)  [X→+Y]
+        ///   wrist_roll    : child_Y_in_parent=(0, 0,+1) → Euler(0,−90, 0)  [X→+Z]
+        ///   gripper       : child_Y_in_parent=(0, 0,−1) → Euler(0,+90, 0)  [X→−Z]
+        /// </summary>
+        static Quaternion JointAnchorRotation(string jointName)
+        {
+            if (jointName == null) return Quaternion.Euler(0f, 0f, 90f);
+            string n = jointName.ToLowerInvariant();
+            if (n == "shoulder_pan")  return Quaternion.Euler(0f,   0f, -90f);
+            if (n == "shoulder_lift") return Quaternion.Euler(0f, -90f,   0f);
+            if (n == "elbow_flex")    return Quaternion.Euler(0f,   0f,  90f);
+            if (n == "wrist_flex")    return Quaternion.Euler(0f,   0f,  90f);
+            if (n == "wrist_roll")    return Quaternion.Euler(0f, -90f,   0f);
+            if (n == "gripper")       return Quaternion.Euler(0f,  90f,   0f);
+            // Fallback for unknown joints: X→+Y (generic pitch-type assumption)
+            return Quaternion.Euler(0f, 0f, 90f);
         }
 
         // Per-session mesh cache (keyed by lowercase filename)

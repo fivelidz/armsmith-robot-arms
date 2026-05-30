@@ -17,9 +17,8 @@ namespace ArmSmith
         public ArmConfig config;
         // STL skinning needs the real SO-ARM100 joint frames (URDF) to align; until that's wired,
         // Procedural arm is the stable shipping default (clean look + approved mouse control work well).
-        // The URDF/STL-accurate arm (BuildFromKinematics) is wired but its mesh frame-conversion still
-        // needs tuning (tracked: ROADMAP R1) — set true to work on it.
-        public bool useRealStlMeshes = false;
+        // Real SO-101 STL arm (URDF-accurate frames, now aligned). true=real model, false=procedural.
+        public bool useRealStlMeshes = true;
         ProceduralArm arm;
         ArmController controller;
         CameraRig rig;
@@ -188,6 +187,22 @@ namespace ArmSmith
             rig.envCam = MakeCam("EnvCam", false);
 
             controller.Bind(arm, ikTarget, rig.mainCam);
+
+            // When using the real URDF arm, override the home pose set by Bind() (which was
+            // designed for the procedural arm geometry). For the URDF arm, theta=0 for all
+            // joints is already a good "arm-up, reaching-forward" home pose (EE at ~z=0.32).
+            // Also move the IK target to where the EE actually is at theta=0 so the first
+            // IK frame is stable (not immediately driving the arm to an extreme config).
+            if (useRealStlMeshes && arm.baseBody != null)
+            {
+                var homeDeg = new float[arm.jointBodies.Count]; // all zeros
+                arm.SeedServoState(homeDeg);
+                arm.SetJointTargets(homeDeg);
+                controller.SetTargets(homeDeg);
+                // Place IK target at the natural home EE position so IK starts stable.
+                if (ikTarget != null && arm.endEffector != null)
+                    ikTarget.position = arm.endEffector.position;
+            }
             // rig.Setup is called once after the HUD panels exist (see BuildHud).
         }
 
@@ -262,13 +277,22 @@ namespace ArmSmith
                 $"Reward: {scenarios.LastReward:F2}   Time: {scenarios.Elapsed:F1}s   " +
                 $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}\n" +
                 $"<color=#fa6>Servo bus (ticks):</color> {arm.ServoBusString()}\n" +
+                $"<color=#fc6>Sim speed: {Time.timeScale:F1}x</color>  (+/- adjust, 0 to pause)  " +
+                $"<color=#999>real servos move slower; speed-up is sim-only</color>\n" +
                 $"<color=#7cf>Evolution</color> gen {trainer.generation}  " +
                 $"best {(trainer.best != null ? trainer.best.fitness.ToString("F2") : "-")}  [{trainer.status}]";
+
+            // Sim speed control (the sim can run faster than real time; real motors are slower).
+            if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus))
+                Time.timeScale = Mathf.Min(8f, Time.timeScale + 0.5f);
+            if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus))
+                Time.timeScale = Mathf.Max(0f, Time.timeScale - 0.5f);
+            if (Input.GetKeyDown(KeyCode.Alpha0)) Time.timeScale = (Time.timeScale == 0f) ? 1f : 0f;
 
             if (Input.GetKeyDown(KeyCode.F9)) ExportStl();
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
             if (Input.GetKeyDown(KeyCode.F11)) ExportBestTrajectory();
-            // G1 / numpad-style: run the built-in agent demo script (slow-but-correct solution).
+            // F1: run the built-in agent demo script (slow-but-correct solution).
             if (Input.GetKeyDown(KeyCode.F1)) agent.Run(AgentCommands.DemoTrayToTray);
         }
 

@@ -1,6 +1,8 @@
 // StlImporter.cs — runtime binary + ASCII STL loader for ArmSmith / SO-ARM100 meshes.
-// Coordinate conversion: STL is Z-up right-handed (mm); Unity is Y-up left-handed (m).
-//   • Scale    : multiply every coordinate by 0.001 (mm → m)
+// Coordinate conversion: STL is Z-up right-handed; Unity is Y-up left-handed.
+//   • Scale    : NOTE: SO-ARM100 STL files from The Robot Studio are already in METRES
+//                (coordinates ~0.01–0.11 m), so the scale factor is 1.0 (no conversion).
+//                The old 0.001 (mm→m) factor produced meshes 1000× too small.
 //   • Axis remap : (x_stl, y_stl, z_stl) → (x_stl, z_stl, y_stl)  [swap Y↔Z]
 //   • Winding flip: every triangle is emitted CW (Unity expects CW when viewed from front
 //     in left-hand coords); the axis-swap already mirrors the mesh, so winding is reversed
@@ -165,15 +167,15 @@ namespace ArmSmith
                 offset += 2; // attribute byte count (always skip)
 
                 // Coordinate conversion:
-                //   STL  : right-hand, Z-up,  mm
+                //   STL  : right-hand, Z-up,  METRES (SO-ARM100 files are already in m)
                 //   Unity: left-hand,  Y-up,  m
-                //   Remap: (x, y, z) → (x * 0.001, z * 0.001, y * 0.001)
+                //   Remap: (x, y, z) → (x, z, y)   [Y↔Z swap, no mm→m scale]
                 //   The Y↔Z swap is an orientation mirror; to restore correct front-face
                 //   winding for Unity's left-hand CCW-front convention we swap vertices 1 & 2.
 
-                verts[vi + 0] = new Vector3(v0x * 0.001f, v0z * 0.001f, v0y * 0.001f);
-                verts[vi + 1] = new Vector3(v2x * 0.001f, v2z * 0.001f, v2y * 0.001f); // swapped
-                verts[vi + 2] = new Vector3(v1x * 0.001f, v1z * 0.001f, v1y * 0.001f); // swapped
+                verts[vi + 0] = new Vector3(v0x, v0z, v0y);
+                verts[vi + 1] = new Vector3(v2x, v2z, v2y); // swapped
+                verts[vi + 2] = new Vector3(v1x, v1z, v1y); // swapped
 
                 indices[vi + 0] = vi + 0;
                 indices[vi + 1] = vi + 1;
@@ -246,9 +248,10 @@ namespace ArmSmith
                     if (loopVert == 3)
                     {
                         // Same conversion as binary: remap + swap v1/v2 for winding.
-                        verts.Add(new Vector3(v0x * 0.001f, v0z * 0.001f, v0y * 0.001f));
-                        verts.Add(new Vector3(v2x * 0.001f, v2z * 0.001f, v2y * 0.001f));
-                        verts.Add(new Vector3(v1x * 0.001f, v1z * 0.001f, v1y * 0.001f));
+                        // SO-ARM100 STL files are in metres — no mm→m scale needed.
+                        verts.Add(new Vector3(v0x, v0z, v0y));
+                        verts.Add(new Vector3(v2x, v2z, v2y));
+                        verts.Add(new Vector3(v1x, v1z, v1y));
                         indices.Add(vi); indices.Add(vi + 1); indices.Add(vi + 2);
                         vi += 3;
                     }

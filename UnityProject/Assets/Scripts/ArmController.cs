@@ -31,6 +31,8 @@ namespace ArmSmith
         public float workPlaneY = 0.05f;       // height of the follow plane above the worktop (m)
         public float followLerp = 12f;         // smoothing
         public float minTargetY = 0.02f;       // never let IK target go below worktop top (+margin)
+        public float scrollDepthSensitivity = 0.45f; // m per scroll notch for pick-height (responsive)
+        public float scrollDepthFine = 0.12f;        // fine depth step when Shift held
 
         int selectedJoint = 0;
         float[] targetAngles;                  // commanded joint angles (deg), what we export
@@ -115,11 +117,14 @@ namespace ArmSmith
                 }
             }
 
-            // Scroll (without Ctrl, which is zoom) raises/lowers the work-plane height (pick height).
+            // Scroll (without Ctrl, which is zoom) raises/lowers the work-plane height (pick depth).
+            // More sensitive depth control for a better 3D dimension when reaching up/down.
             float scroll = Input.GetAxis("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.0001f && !Input.GetKey(KeyCode.LeftControl) && !Input.GetMouseButton(1))
             {
-                workPlaneY = Mathf.Clamp(workPlaneY + scroll * 0.15f, 0.0f, 0.4f);
+                // Shift = fine (precise), default = responsive depth.
+                float step = Input.GetKey(KeyCode.LeftShift) ? scrollDepthFine : scrollDepthSensitivity;
+                workPlaneY = Mathf.Clamp(workPlaneY + scroll * step, 0.0f, 0.45f);
                 p.y = workPlaneY;
             }
 
