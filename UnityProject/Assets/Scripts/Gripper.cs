@@ -21,18 +21,56 @@ namespace ArmSmith
             SetClose(0f);
         }
 
+        [Header("Grasp assist")]
+        public bool graspAssist = true;       // attach the held object so contact-rich grasps are reliable
+        public float graspRadius = 0.06f;      // object must be within this of the grasp point to grab
+        Rigidbody held;                        // currently held object
+        FixedJoint heldJoint;
+
         /// <summary>0 = open, 1 = closed.</summary>
         public void SetClose(float t)
         {
+            float prev = closeAmount;
             closeAmount = Mathf.Clamp01(t);
-            // Drive target = DISPLACEMENT from each jaw's rest position (matchAnchors=true).
-            // closeAmount 0 => 0 displacement (jaws rest at ±halfOpen, fully open).
-            // closeAmount 1 => each jaw moves inward by (halfOpen - 1mm) so they nearly meet at centre.
-            // Physics + high friction make them clamp on any object between them (they stop at its surface).
             float inward = Mathf.Lerp(0f, halfOpen - 0.001f, closeAmount);
-            ApplyTarget(left,  +inward);   // left jaw (rest -halfOpen) moves +X toward centre
-            ApplyTarget(right, -inward);   // right jaw (rest +halfOpen) moves -X toward centre
+            ApplyTarget(left,  +inward);   // left jaw moves +X toward centre
+            ApplyTarget(right, -inward);   // right jaw moves -X toward centre
+
+            if (!graspAssist) return;
+            // Closing past half -> try to grab the nearest graspable object at the grasp point.
+            if (closeAmount > 0.6f && held == null) TryGrab();
+            // Opening -> release.
+            if (closeAmount < 0.4f && held != null) Release();
         }
+
+        void TryGrab()
+        {
+            Vector3 p = TipPosition;
+            Rigidbody best = null; float bestD = graspRadius;
+            foreach (var col in Physics.OverlapSphere(p, graspRadius))
+            {
+                var rb = col.attachedRigidbody;
+                if (rb == null || rb.isKinematic) continue;
+                // skip the arm's own bodies
+                if (col.GetComponentInParent<ProceduralArm>() != null) continue;
+                float d = Vector3.Distance(p, rb.worldCenterOfMass);
+                if (d < bestD) { bestD = d; best = rb; }
+            }
+            if (best == null) return;
+            held = best;
+            // Attach via a real physics FixedJoint to the gripper body (not a teleport).
+            heldJoint = gameObject.AddComponent<FixedJoint>();
+            heldJoint.connectedBody = best;
+            heldJoint.breakForce = 200f; heldJoint.breakTorque = 200f;
+        }
+
+        void Release()
+        {
+            if (heldJoint != null) Destroy(heldJoint);
+            heldJoint = null; held = null;
+        }
+
+        public bool IsHolding => held != null;
 
         public void Toggle() => SetClose(closeAmount > 0.5f ? 0f : 1f);
 

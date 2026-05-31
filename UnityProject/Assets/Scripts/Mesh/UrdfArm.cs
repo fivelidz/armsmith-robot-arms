@@ -398,22 +398,17 @@ namespace ArmSmith
                 col.material = mat;
             }
 
-            // ── End-effector (TCP) ────────────────────────────────────────────
-            // gripper_frame_joint: fixed, offset from gripper_link in URDF space
-            // URDF: (-0.0079, -0.0002, -0.0981) m, rpy=[0, π, 0]
+            // ── End-effector (TCP = the GRASP POINT) ──────────────────────────
+            // CRITICAL for grasping: the EE is the point the IK aims at, so it must sit BETWEEN the jaws
+            // (at the grasp centre) — otherwise closing the jaws never contacts an object at the IK target.
+            // The jaws were created as children of gripperLinkTf at local (±0.019, 0, ±0.020), so their
+            // midpoint is the gripper-link origin. We place the EE at that midpoint, nudged slightly
+            // along the finger (+local? ) so it's at the finger-tip grasp zone.
             var eeGo = new GameObject("EndEffector");
             eeGo.transform.SetParent(gripperLinkTf, false);
-
-            if (tcpJoint != null)
-            {
-                eeGo.transform.localPosition = UrdfPosToUnity(tcpJoint.origin_xyz_m);
-                eeGo.transform.localRotation = UrdfRpyDegToUnity(tcpJoint.origin_rpy_deg);
-            }
-            else
-            {
-                // Fallback: 98 mm below gripper_link (in Unity: -Y direction)
-                eeGo.transform.localPosition = new Vector3(0f, -0.0981f, 0f);
-            }
+            Vector3 jawMidLocal = (leftJaw.transform.localPosition + rightJaw.transform.localPosition) * 0.5f;
+            eeGo.transform.localPosition = jawMidLocal + new Vector3(0f, 0.02f, 0f); // grasp zone between fingers
+            eeGo.transform.localRotation = Quaternion.identity;
             endEffector = eeGo.transform;
 
             // ── Gripper component ─────────────────────────────────────────────
