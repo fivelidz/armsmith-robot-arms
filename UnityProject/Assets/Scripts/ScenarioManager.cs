@@ -11,7 +11,8 @@ namespace ArmSmith
         PickPlaceCube,   // pick cube, place on pad
         TrayToTray,      // move cube from tray A to tray B
         StackTwo,        // stack cube on another cube
-        DropInBin        // drop cube into a bin
+        DropInBin,       // drop cube into a bin
+        SortIntoTray     // multiple scattered cubes -> all into one target tray
     }
 
     /// <summary>
@@ -30,6 +31,7 @@ namespace ArmSmith
         Rigidbody cubeRb;
         public Transform cube;
         Transform reachTarget;
+        readonly List<Transform> sortCubes = new List<Transform>();   // multi-object "sort into tray"
 
         Func<Material> matFactory;
         float elapsed;
@@ -58,6 +60,8 @@ namespace ArmSmith
                     return "STACK: place the yellow cube on top of the purple cube (< 3 cm, at rest).";
                 case ScenarioType.DropInBin:
                     return "DROP IN BIN: carry the cube and release it inside the blue bin.";
+                case ScenarioType.SortIntoTray:
+                    return "SORT INTO TRAY: place ALL the scattered cubes into the green tray.";
                 default: return "";
             }
         }
@@ -70,6 +74,7 @@ namespace ArmSmith
                 case ScenarioType.ReachTouch: return "reward = -dist(tip,target); +10 on success";
                 case ScenarioType.StackTwo:   return "reward = -dist(cube, aboveCubeB); +10 on success";
                 case ScenarioType.DropInBin:  return "reward = -dist(cube, bin); +10 in-bin & at rest";
+                case ScenarioType.SortIntoTray: return "reward = -sum(dist each cube -> tray); +10 when all in";
                 case ScenarioType.TrayToTray: return "reward = -0.5*grip_dist + (grasped? 0.5-trayB_dist) ; +10 success";
                 default: return "reward = -0.4*grip_dist - 0.3*pad_dist; +10 success";
             }
@@ -116,6 +121,11 @@ namespace ArmSmith
             cube = MakeCube("S_Cube", new Color(0.9f, 0.75f, 0.15f), 0.045f, 0.05f, true);
             cubeRb = cube.GetComponent<Rigidbody>();
             cubeB = MakeCube("S_CubeB", new Color(0.8f, 0.3f, 0.7f), 0.05f, 0.08f, true);
+
+            // Multi-object set for SortIntoTray (3 scattered cubes of different colours).
+            Color[] cols = { new Color(0.9f,0.3f,0.2f), new Color(0.2f,0.6f,0.95f), new Color(0.95f,0.8f,0.2f) };
+            for (int i = 0; i < 3; i++)
+                sortCubes.Add(MakeCube($"S_SortCube{i}", cols[i], 0.04f, 0.04f, true));
 
             reachTarget = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
             reachTarget.name = "S_ReachTarget"; reachTarget.localScale = Vector3.one * 0.04f;
@@ -175,9 +185,16 @@ namespace ArmSmith
             current = type; elapsed = 0f; Succeeded = false; SuccessNow = false; SuccessTime = 0f;
             SetActive(trayA, false); SetActive(trayB, false); SetActive(pad, false);
             SetActive(bin, false); SetActive(cube, false); SetActive(cubeB, false); SetActive(reachTarget, false);
+            foreach (var sc in sortCubes) SetActive(sc, false);
 
             switch (type)
             {
+                case ScenarioType.SortIntoTray:
+                    SetActive(trayB, true);
+                    trayB.position = new Vector3(-0.16f, 0f, 0.34f);   // the target tray
+                    Vector3[] spots = { new Vector3(0.18f,0.03f,0.28f), new Vector3(0.12f,0.03f,0.38f), new Vector3(0.20f,0.03f,0.40f) };
+                    for (int i = 0; i < sortCubes.Count; i++) { SetActive(sortCubes[i], true); Place(sortCubes[i], spots[i % spots.Length]); }
+                    break;
                 case ScenarioType.ReachTouch:
                     SetActive(reachTarget, true);
                     reachTarget.position = new Vector3(0.1f, 0.12f, 0.32f);
@@ -226,6 +243,19 @@ namespace ArmSmith
 
             switch (current)
             {
+                case ScenarioType.SortIntoTray:
+                {
+                    float total = 0f; int inTray = 0;
+                    foreach (var sc in sortCubes)
+                    {
+                        Vector3 flat = sc.position; flat.y = trayB.position.y;
+                        float d = Vector3.Distance(flat, trayB.position);
+                        total += d;
+                        if (d < 0.07f && sc.position.y < 0.07f) inTray++;
+                    }
+                    success = inTray >= sortCubes.Count && Rest();
+                    return -total + inTray * 2f + (success ? 10f : 0f);
+                }
                 case ScenarioType.ReachTouch:
                 {
                     float dist = Vector3.Distance(ee, reachTarget.position);

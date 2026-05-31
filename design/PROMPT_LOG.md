@@ -199,3 +199,18 @@ simulated environment to be like the real world.
   message bus / coordinated tasks; e.g. hand-off an object between two arms).
 - I46: Real-world fidelity - tighten sim to match reality (servo speed/torque, sensor noise, latency,
   friction). IK reach issue = CCD local-minimum on offset wrist -> implement DLS/Jacobian IK.
+
+## P14 — Waypoint sequences, multi-object tray scenario, scenario menu, builder UI, UI polish
+**User prompt (summary):** Continue all elements + tests. Consider the UI panels. From previous prompts:
+disable live movement but PLAY the arm between points. Save points in a SEQUENCE so recorded controls
+can be adjusted. Create a scenario where objects must be placed into a tray. Create a MENU of different
+scenarios. Create the robot-arm BUILDER UI with the different modules + ability to see training/generations.
+**Derived intentions:**
+- I47: Waypoint SEQUENCE editor: capture the current pose as a keyframe; build an ordered list; PLAY the
+  arm smoothly between keyframes (not live). Adjust/insert/delete keyframes. Export sequence -> waypoints
+  JSON (real-robot) + as a training/demo seed.
+- I48: Multi-object "place into tray" scenario: several cubes scattered -> must all end inside a target tray.
+- I49: Scenario MENU UI: list selectable scenarios with name + objective; click to load.
+- I50: Robot-arm BUILDER UI: pick arm model + attach sensor modules (toggle), live arm stats, AND a
+  training/generations view (start/step training, gen counter, best fitness, population/fitness display).
+- I51: UI polish: clean panel layout, legible, consistent dark console theme.

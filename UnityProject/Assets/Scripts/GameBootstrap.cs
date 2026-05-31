@@ -31,7 +31,9 @@ namespace ArmSmith
         ServoPanel servoPanel;
         ModuleUsagePanel modulePanel;
         ServoCallouts servoCallouts;
+        ScenarioMenu scenarioMenu;
         DemoRecorder demoRec;
+        SequenceEditor sequence;
         Transform ikTarget;
 
         // HUD
@@ -82,6 +84,10 @@ namespace ArmSmith
             var demoGo = new GameObject("DemoRecorder");
             demoRec = demoGo.AddComponent<DemoRecorder>();
             demoRec.Bind(arm, controller, scenarios, sensorHub);
+
+            var seqGo = new GameObject("SequenceEditor");
+            sequence = seqGo.AddComponent<SequenceEditor>();
+            sequence.Bind(arm, controller);
         }
 
         void BuildScenarios()
@@ -291,6 +297,10 @@ namespace ArmSmith
             // Clickable servo callouts: click a joint's yellow hotspot -> leader line + command panel.
             servoCallouts = canvasGo.AddComponent<ServoCallouts>();
             servoCallouts.Build(arm, controller, rig.mainCam, canvas);
+
+            // Scenario selection menu (top-center): clickable list of scenarios + active objective.
+            scenarioMenu = canvasGo.AddComponent<ScenarioMenu>();
+            scenarioMenu.Build(canvasGo.transform, scenarios);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)
@@ -319,7 +329,8 @@ namespace ArmSmith
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | <color=#f99>DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount + " steps" : "Backspace")}</color>\n" +
-                $"Scenario: <b>{scenarios.current}</b>  ([ ] change) | Evolve: T train, N +1 gen, F11 export best\n" +
+                $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best\n" +
+                $"<color=#cdf>Sequence:</color> K capture pt ({sequence.Count}), J play{(sequence.Playing ? " <color=#6f6>[PLAYING " + (sequence.PlayIndex + 1) + "]</color>" : "")}, Shift+Backspace del, F6... export\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
                 $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +
                 $"Reward: {scenarios.LastReward:F2}   Time: {scenarios.Elapsed:F1}s   " +
