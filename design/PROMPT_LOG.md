@@ -229,3 +229,17 @@ Continue all tasks, test yourself, record prompts, update ROADMAP.
 - I55: Remap sensor-view keys off the servo hotkeys (L/'/Shift+L clash with O/L, P/;).
 - I56: Colour-code each servo (consistent colour on arm + panels + callouts); clickable on the arm.
 - I57: Per-servo CIRCULAR activation gauge (radial infill = angle within range / load) for feedback.
+
+## P16 — Text-to-task, training/generative strategy, randomized scenarios, multi-robot
+**User prompt (summary):** Do all three: (a) live text-command input box, (b) run training to solve a
+task, (c) multi-arm / ORCA Hand. Want to know how TEXT->TASK COMPLETION is best solved and how the
+training + generative learning should best play out so robot commands solve scenarios well. Scenarios
+should have varied elements (objects in different/random grid locations). Future: robots interacting
+with other robots.
+**Derived intentions:**
+- I58: Write a STRATEGY doc: the layered text->task->control->training pipeline + how generative learning
+  should solve scenarios (the "best" approach).
+- I59: Live in-game TEXT COMMAND input box (type -> AgentCommands executes).
+- I60: Run training that actually SOLVES a task (warm-start from demos/scripted solver -> evolve faster).
+- I61: Randomized scenario variation (object positions on a random grid; difficulty knob).
+- I62: Multi-arm foundation + ORCA Hand catalogue; future robot-robot interaction tasks.
