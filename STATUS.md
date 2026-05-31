@@ -46,10 +46,10 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 | D Tasks | 6 scenarios incl tray-to-tray | WORKS |
 | E Evolution | motion GA + closed-loop sensor policy | WORKS |
 | F CAD/STL export | binary STL + waypoints | WORKS |
-| G In-game AI | text agent command interface | WORKS (basic) |
+| G In-game AI | text command console + skill grammar (pick/place/sort/reach) | WORKS |
 | H Real-robot port | Feetech + LeRobot sidecars | WORKS (dry-run) |
 | I Sensors | 6 modules + hub + usage panel | WORKS |
-| J Open-source catalogue | ORCA Hand + others | TODO |
+| J Open-source catalogue | ORCA Hand studied+cloned; SO-101 done; import path documented | PARTIAL |
 | K Multi-robot comms | N arms communicating | TODO |
 
 ## KNOWN ISSUES (priority order)
@@ -82,9 +82,12 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - `research/` — the research library (6 reports + index).
 
 ## NEXT ACTIONS (live)
-- [ ] DLS/Jacobian IK -> claw reaches the position indicator reliably.
-- [ ] Fix wrist camera forward orientation.
-- [ ] Legible UI pass.
-- [ ] Fly-around indicator control (WASD/QE + mouse) as primary arm driver.
-- [ ] Then: warm-start policy training from recorded demos; run training to success on tray-to-tray.
-- [ ] Then: Pillar J (ORCA Hand / catalogue), Pillar K (multi-arm comms).
+- [x] DLS/Jacobian IK; wrist cam; legible UI; fly-around; calibrate/speed/pause.
+- [x] Clickable ControlBar + on-arm servo arrows + colour-coded servos + radial gauges.
+- [x] Base-bend (shoulder_lift) axis fix.
+- [x] Live text-command console + skill grammar (pick/place/sort/reach resolve live objects). VERIFIED.
+- [x] Randomized scenarios + reset-eval training + success-rate metric.
+- [x] UI windows (HTML): menu, options, training overview. ORCA Hand studied+cloned.
+- [ ] Warm-start policy population from recorded demos -> train to actual SUCCESS on a task.
+- [ ] Build the HTML windows as in-game Unity windows (menu/options/training).
+- [ ] Pillar J: import ORCA Hand via URDF (catalogue) ; Pillar K: 2nd arm + comms + hand-off.
