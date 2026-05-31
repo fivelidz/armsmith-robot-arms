@@ -63,6 +63,35 @@ Append-only build log. See ROADMAP.md for the plan, PROMPT_LOG.md for user promp
 - Unity UI Toolkit panels from design/ui_html.
 - CAD engine + zero-auth in-game AI agent.
 
+## 2026-05-30 — Session 2: STL arm, startup fix, sensors, servo UI, controls
+
+### Done
+- **Unity GUI startup hang SELF-DIAGNOSED + FIXED**: SDL picks "(null)" window backend on XWayland and
+  blocks after licensing. Fix = `SDL_VIDEODRIVER=x11` + full env + nohup. `scripts/unity_start.sh`
+  (auto-cleans stale lockfile / orphaned mcp server on :6990 / kills editor) + `docs/UNITY_STARTUP.md`.
+- **Real SO-101 STL arm** is the default model: `UrdfArm.BuildFromKinematics` builds a 6-DOF
+  ArticulationBody chain from `kinematics.json` (real URDF joint origins/axes/limits) + mounts 19 STL
+  meshes. Fixed 4 frame bugs (STLs already in metres; per-joint anchorRotation; URDF rpy->Unity; base
+  yaw). All-zero pose assembles correctly. 6-DOF home pose {0,-40,-30,-15,0,0}.
+- **Sensor module system** (pillar I): ISensor + SensorBase; MotorEncoders, IMU, RangeFinder, Lidar2D,
+  DepthCamera, EFleshTactile; SensorHub concatenates enabled modules -> obs vector (~50ch). F2-F7 toggle
+  for ablation. "Train with all info" realised. Verified live values + toggle shrinks obs.
+- **Servo motor-value UI** (ServoPanel, bottom-left): per-joint current->target angle + STS3215 tick
+  (0-4096) + range bar. The values that translate an arm point into motor commands — for control,
+  training visibility, real-robot export.
+- **Controls overhaul**: labeled per-servo keys T/G Y/H U/J I/K O/L P/; (work both modes); claw
+  open/close ,/. ; claw ROTATION N/B (wrist_roll); mouse on/off M; camera-relative depth (top view =
+  ground plane for X/Z, side view = vertical plane for height) + [/] depth keys.
+- **More mouse control** (MouseInteraction, layered on approved control): double-click grab/place,
+  Shift+drag draw-a-path (recorded as a trajectory/training seed).
+- **IK fix**: CCD skips Roll + gripper joints so wrist_roll no longer spins 360° to "reach"; calibrated
+  FK reads real rest geometry.
+
+### Known / next
+- URDF-arm IK reach is partial (CCD local minimum on offset wrist) — wants DLS/Jacobian. Per-servo keys
+  + claw rotation give full manual control meanwhile.
+- Wire SensorHub observation into EvolutionTrainer; comparative analytics (which module helps which task).
+
 ## How to run
 1. MCP server + editor already launched (port 6990). Helper: `scripts/mcp.py`.
 2. `python3 scripts/mcp.py tool manage_editor '{"action":"play"}'` to play.

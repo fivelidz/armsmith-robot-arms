@@ -40,12 +40,33 @@ namespace ArmSmith
         JointSpec[] specs;
         float[] homePose;
 
+        // Closed-loop (sensor-driven) policy training. When policyMode is on, genomes are small neural
+        // nets that map the SensorHub observation -> joint deltas — i.e. training USES all sensor info.
+        public SensorHub sensorHub;
+        public bool policyMode = false;
+        public int policyHidden = 12;
+        public List<PolicyGenome> policyPop = new List<PolicyGenome>();
+        public PolicyGenome bestPolicy;
+        public float policyControlHz = 20f;   // policy decision rate during rollout
+
         public void Init(ProceduralArm a, ArmController c, ScenarioManager s)
         {
             arm = a; controller = c; scenarios = s;
             specs = arm.jointSpecs.ToArray();
             homePose = (float[])controller.TargetAngles.Clone();
             SeedPopulation();
+        }
+
+        public void SetSensorHub(SensorHub h) => sensorHub = h;
+
+        public void SeedPolicyPopulation()
+        {
+            policyPop.Clear();
+            int inSize = sensorHub != null ? Mathf.Max(1, sensorHub.ObservationSize()) : arm.jointBodies.Count;
+            int outSize = arm.jointBodies.Count;
+            for (int i = 0; i < populationSize; i++)
+                policyPop.Add(PolicyGenome.Random(inSize, policyHidden, outSize, rng));
+            generation = 0; bestPolicy = null;
         }
 
         void Update()
@@ -69,7 +90,91 @@ namespace ArmSmith
         {
             Running = true;
             while (Running)
-                yield return RunGeneration();
+                yield return policyMode ? RunPolicyGeneration() : RunGeneration();
+        }
+
+        // ---- Closed-loop sensor-driven policy evolution ----
+        public IEnumerator RunPolicyGeneration()
+        {
+            if (policyPop.Count == 0) SeedPolicyPopulation();
+            float prevScale = Time.timeScale;
+            Time.timeScale = rolloutSpeedup;
+
+            for (int i = 0; i < policyPop.Count; i++)
+            {
+                if (policyPop[i].fitness > float.NegativeInfinity && policyPop[i].generation == generation) continue;
+                status = $"[policy] gen {generation} eval {i + 1}/{policyPop.Count}";
+                yield return RolloutPolicy(policyPop[i]);
+            }
+            policyPop.Sort((x, y) => y.fitness.CompareTo(x.fitness));
+            bestPolicy = policyPop[0];
+            status = $"[policy] gen {generation} done best={bestPolicy.fitness:F2} obs={(sensorHub != null ? sensorHub.ObservationSize() : 0)}";
+            BreedPolicies();
+            generation++;
+            Time.timeScale = prevScale;
+        }
+
+        IEnumerator RolloutPolicy(PolicyGenome g)
+        {
+            scenarios.LoadScenario(scenarios.current);
+            controller.mode = ArmController.Mode.Manual;
+            controller.SetTargets(homePose);
+            arm.SetJointTargets(homePose);
+            yield return new WaitForFixedUpdate();
+
+            float[] cur = (float[])homePose.Clone();
+            float energy = 0f;
+            float dt = 1f / Mathf.Max(1f, policyControlHz);
+            int steps = Mathf.RoundToInt(scenarios.timeLimit * policyControlHz);
+
+            for (int s = 0; s < steps; s++)
+            {
+                float[] obs = sensorHub != null ? sensorHub.BuildObservation() : arm.GetJointAngles();
+                float[] act = g.Forward(obs);   // [-1,1] per joint
+                for (int j = 0; j < cur.Length && j < act.Length; j++)
+                {
+                    float delta = act[j] * 4f;   // deg per control step
+                    float nv = Mathf.Clamp(cur[j] + delta, specs[j].minAngle, specs[j].maxAngle);
+                    energy += Mathf.Abs(nv - cur[j]);
+                    cur[j] = nv;
+                }
+                controller.SetTargets(cur);
+                arm.SetJointTargets(cur);
+                // gripper from the last output if present
+                if (arm.gripper != null && act.Length > cur.Length)
+                    arm.gripper.SetClose((act[cur.Length] + 1f) * 0.5f);
+
+                float tAccum = 0f;
+                while (tAccum < dt) { tAccum += Time.fixedDeltaTime; yield return new WaitForFixedUpdate(); }
+
+                scenarios.ComputeReward(out bool succ);
+                if (succ) break;
+            }
+            float reward = scenarios.ComputeReward(out bool success);
+            g.fitness = reward - energy * 0.001f + (success ? 5f : 0f);
+            g.generation = generation;
+        }
+
+        void BreedPolicies()
+        {
+            var next = new List<PolicyGenome>();
+            for (int i = 0; i < elite && i < policyPop.Count; i++) { var e = policyPop[i].Clone(); e.fitness = policyPop[i].fitness; e.generation = generation; next.Add(e); }
+            while (next.Count < populationSize)
+            {
+                var pa = TournamentP(); var pb = TournamentP();
+                var child = PolicyGenome.Crossover(pa, pb, rng);
+                child.Mutate(mutationRate, mutationSigma * 0.02f, rng);
+                child.fitness = float.NegativeInfinity;
+                next.Add(child);
+            }
+            policyPop = next;
+        }
+
+        PolicyGenome TournamentP(int k = 3)
+        {
+            PolicyGenome b = null;
+            for (int i = 0; i < k; i++) { var c = policyPop[rng.Next(policyPop.Count)]; if (b == null || c.fitness > b.fitness) b = c; }
+            return b;
         }
 
         public IEnumerator RunGeneration()

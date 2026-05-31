@@ -66,6 +66,7 @@ namespace ArmSmith
             var trGo = new GameObject("EvolutionTrainer");
             trainer = trGo.AddComponent<EvolutionTrainer>();
             trainer.Init(arm, controller, scenarios);
+            trainer.SetSensorHub(sensorHub);   // closed-loop policy training uses sensor observations
 
             var agGo = new GameObject("AgentCommands");
             agent = agGo.AddComponent<AgentCommands>();
@@ -298,8 +299,8 @@ namespace ArmSmith
                 $"<color=#9cf>Sensors</color> (F2-F7 toggle): {sensorHub.Summary()}\n" +
                 $"<color=#fc6>Sim speed: {Time.timeScale:F1}x</color>  (+/- adjust, 0 to pause)  " +
                 $"<color=#999>real servos move slower; speed-up is sim-only</color>\n" +
-                $"<color=#7cf>Evolution</color> gen {trainer.generation}  " +
-                $"best {(trainer.best != null ? trainer.best.fitness.ToString("F2") : "-")}  [{trainer.status}]";
+                $"<color=#7cf>Evolution</color> [{(trainer.policyMode ? "POLICY/sensors" : "motion")}] (F8 toggle) gen {trainer.generation}  " +
+                $"best {(trainer.policyMode ? (trainer.bestPolicy != null ? trainer.bestPolicy.fitness.ToString("F2") : "-") : (trainer.best != null ? trainer.best.fitness.ToString("F2") : "-"))}  [{trainer.status}]";
 
             // Sim speed control (the sim can run faster than real time; real motors are slower).
             if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.KeypadPlus))
@@ -315,6 +316,7 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.F5)) Toggle("DepthCamera");
             if (Input.GetKeyDown(KeyCode.F6)) Toggle("EFleshTactile");
             if (Input.GetKeyDown(KeyCode.F7)) Toggle("MotorEncoders");
+            if (Input.GetKeyDown(KeyCode.F8)) { trainer.policyMode = !trainer.policyMode; if (trainer.policyMode) trainer.SeedPolicyPopulation(); }
 
             if (Input.GetKeyDown(KeyCode.F9)) ExportStl();
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
