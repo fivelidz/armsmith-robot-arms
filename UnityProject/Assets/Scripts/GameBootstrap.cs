@@ -30,6 +30,7 @@ namespace ArmSmith
         MouseInteraction mouse;
         ServoPanel servoPanel;
         ModuleUsagePanel modulePanel;
+        ServoCallouts servoCallouts;
         DemoRecorder demoRec;
         Transform ikTarget;
 
@@ -286,6 +287,10 @@ namespace ArmSmith
             // Sensor-module usage panel (right): live outputs + USED-IN-TRAINING indicator.
             modulePanel = canvasGo.AddComponent<ModuleUsagePanel>();
             modulePanel.Build(canvasGo.transform, sensorHub, trainer);
+
+            // Clickable servo callouts: click a joint's yellow hotspot -> leader line + command panel.
+            servoCallouts = canvasGo.AddComponent<ServoCallouts>();
+            servoCallouts.Build(arm, controller, rig.mainCam, canvas);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)
@@ -311,7 +316,7 @@ namespace ArmSmith
                 $"<color=#fd6>FLY the green target:</color> WASD move, Q/E up-down (drives the claw via IK)\n" +
                 $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth scroll | dbl-click grab/place\n" +
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
-                $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom, V HUD | B bounds, X axes\n" +
+                $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | <color=#f99>DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount + " steps" : "Backspace")}</color>\n" +
                 $"Scenario: <b>{scenarios.current}</b>  ([ ] change) | Evolve: T train, N +1 gen, F11 export best\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
