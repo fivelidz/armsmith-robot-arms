@@ -32,6 +32,7 @@ namespace ArmSmith
         ModuleUsagePanel modulePanel;
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
+        BuilderPanel builderPanel;
         DemoRecorder demoRec;
         SequenceEditor sequence;
         Transform ikTarget;
@@ -301,6 +302,10 @@ namespace ArmSmith
             // Scenario selection menu (top-center): clickable list of scenarios + active objective.
             scenarioMenu = canvasGo.AddComponent<ScenarioMenu>();
             scenarioMenu.Build(canvasGo.transform, scenarios);
+
+            // Robot-arm BUILDER panel (left dock): arm stats + module toggles + training/generations view.
+            builderPanel = canvasGo.AddComponent<BuilderPanel>();
+            builderPanel.Build(canvasGo.transform, arm, sensorHub, trainer);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)

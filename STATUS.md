@@ -30,6 +30,8 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - Camera: RMB orbit, MMB pan, Ctrl+scroll zoom. `V` toggle cam HUD, `B` bounds, `X` axes.
 - Scenarios `[`/`]`... (NOTE: conflicts with depth keys — see KNOWN ISSUES). Reset Esc.
 - Calibrate to zero: `Z`/`Home`. Pause/resume (move-on-resume): `Enter`. Manual speed: `Shift+,`/`Shift+.`.
+- Sequence editor: `K` capture pose, `J` play between keyframes, `Shift+Backspace` delete last.
+- Builder panel: `Shift+G` toggle. Scenario menu: top-center clickable + `Shift+F1` toggle.
 - Servo callouts: `\` then click a joint -> leader-line panel of its command/output.
 - Train: `T` start/stop, `N` +1 gen, `F8` policy(sensor) vs motion mode, `F11` export best.
 - Sensors toggle: `F2`-`F7`. Module panel `F12`. STL export `F9`, waypoints `F10`.
