@@ -180,3 +180,10 @@ Control:
 Catalogue/multi-robot:
 - [ ] Import ORCA Hand (URDF) as a catalogue arm.
 - [ ] 2nd arm + shared world state + object hand-off.
+
+## Session-4 deliverables (verifiable, no-Unity-needed work done while editor env broken)
+- [x] Placement-VERIFICATION system (Verification/): IPlacementRule + PlacementVerifier + 5 rules + panel. Extensible foundation for CAD + modules.
+- [x] Real-robot waypoint SAFETY verifier (scripts/realbot/verify_waypoints.py) — tested (passes good, rejects bad).
+- [x] CAD spec (design/specs/CAD_SPEC.md) — extensible parametric-CAD architecture + milestones C1-C6.
+- [x] Module-mount spec (design/specs/MODULE_MOUNT_SPEC.md) — player-placeable/orientable modules; pose drives sensing; sim->real; milestones MM1-MM6.
+- [ ] BLOCKED on Unity editor display: verify in GUI, finish grip-detection feedback wiring, build CAD/module systems.
