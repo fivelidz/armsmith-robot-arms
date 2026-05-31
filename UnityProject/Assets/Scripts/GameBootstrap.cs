@@ -320,7 +320,7 @@ namespace ArmSmith
 
             // Clickable CONTROL BAR (bottom-center): view + control toggle buttons (mouse-operable).
             controlBar = canvasGo.AddComponent<ControlBar>();
-            controlBar.Build(canvasGo.transform, controller, arm, sensorViz, gizmos, rig, servoCallouts, trainer);
+            controlBar.Build(canvasGo.transform, controller, arm, sensorViz, gizmos, rig, servoCallouts, trainer, scenarios);
 
             // Live TEXT COMMAND console: type robot commands (AgentCommands grammar) -> execute.
             commandConsole = canvasGo.AddComponent<CommandConsole>();

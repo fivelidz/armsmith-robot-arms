@@ -48,6 +48,8 @@ namespace ArmSmith
         public List<PolicyGenome> policyPop = new List<PolicyGenome>();
         public PolicyGenome bestPolicy;
         public float policyControlHz = 20f;   // policy decision rate during rollout
+        public int evalResets = 2;            // randomised resets per genome eval (generalisation)
+        public float lastSuccessRate = 0f;    // success-rate over the last eval's resets (UI metric)
 
         public void Init(ProceduralArm a, ArmController c, ScenarioManager s)
         {
@@ -116,43 +118,54 @@ namespace ArmSmith
 
         IEnumerator RolloutPolicy(PolicyGenome g)
         {
-            scenarios.LoadScenario(scenarios.current);
-            controller.mode = ArmController.Mode.Manual;
-            controller.SetTargets(homePose);
-            arm.SetJointTargets(homePose);
-            yield return new WaitForFixedUpdate();
-
-            float[] cur = (float[])homePose.Clone();
-            float energy = 0f;
+            // Evaluate across several RANDOMISED resets so the policy GENERALISES (not memorises a single
+            // layout). Fitness = mean over resets; success-rate tracked for the metric in the UI.
             float dt = 1f / Mathf.Max(1f, policyControlHz);
             int steps = Mathf.RoundToInt(scenarios.timeLimit * policyControlHz);
+            float fitnessSum = 0f; int successes = 0;
+            int resets = Mathf.Max(1, evalResets);
 
-            for (int s = 0; s < steps; s++)
+            for (int r = 0; r < resets; r++)
             {
-                float[] obs = sensorHub != null ? sensorHub.BuildObservation() : arm.GetJointAngles();
-                float[] act = g.Forward(obs);   // [-1,1] per joint
-                for (int j = 0; j < cur.Length && j < act.Length; j++)
+                scenarios.Reroll();   // re-randomise object positions
+                controller.mode = ArmController.Mode.Manual;
+                controller.SetTargets(homePose);
+                arm.SetJointTargets(homePose);
+                yield return new WaitForFixedUpdate();
+
+                float[] cur = (float[])homePose.Clone();
+                float energy = 0f;
+                bool success = false;
+                for (int s = 0; s < steps; s++)
                 {
-                    float delta = act[j] * 4f;   // deg per control step
-                    float nv = Mathf.Clamp(cur[j] + delta, specs[j].minAngle, specs[j].maxAngle);
-                    energy += Mathf.Abs(nv - cur[j]);
-                    cur[j] = nv;
+                    float[] obs = sensorHub != null ? sensorHub.BuildObservation() : arm.GetJointAngles();
+                    float[] act = g.Forward(obs);
+                    for (int j = 0; j < cur.Length && j < act.Length; j++)
+                    {
+                        float delta = act[j] * 4f;
+                        float nv = Mathf.Clamp(cur[j] + delta, specs[j].minAngle, specs[j].maxAngle);
+                        energy += Mathf.Abs(nv - cur[j]);
+                        cur[j] = nv;
+                    }
+                    controller.SetTargets(cur);
+                    arm.SetJointTargets(cur);
+                    if (arm.gripper != null && act.Length > cur.Length)
+                        arm.gripper.SetClose((act[cur.Length] + 1f) * 0.5f);
+
+                    float tAccum = 0f;
+                    while (tAccum < dt) { tAccum += Time.fixedDeltaTime; yield return new WaitForFixedUpdate(); }
+
+                    scenarios.ComputeReward(out bool succ);
+                    if (succ) { success = true; break; }
                 }
-                controller.SetTargets(cur);
-                arm.SetJointTargets(cur);
-                // gripper from the last output if present
-                if (arm.gripper != null && act.Length > cur.Length)
-                    arm.gripper.SetClose((act[cur.Length] + 1f) * 0.5f);
-
-                float tAccum = 0f;
-                while (tAccum < dt) { tAccum += Time.fixedDeltaTime; yield return new WaitForFixedUpdate(); }
-
-                scenarios.ComputeReward(out bool succ);
-                if (succ) break;
+                float reward = scenarios.ComputeReward(out bool s2);
+                if (s2) success = true;
+                fitnessSum += reward - energy * 0.001f + (success ? 5f : 0f);
+                if (success) successes++;
             }
-            float reward = scenarios.ComputeReward(out bool success);
-            g.fitness = reward - energy * 0.001f + (success ? 5f : 0f);
+            g.fitness = fitnessSum / resets;
             g.generation = generation;
+            lastSuccessRate = successes / (float)resets;
         }
 
         void BreedPolicies()

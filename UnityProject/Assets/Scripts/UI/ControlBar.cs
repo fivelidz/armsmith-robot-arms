@@ -20,15 +20,16 @@ namespace ArmSmith
         public CameraRig rig;
         public ServoCallouts callouts;
         public EvolutionTrainer trainer;
+        public ScenarioManager scenarios;
 
         class Btn { public Image img; public Func<bool> isOn; public string label; public Text txt; }
         readonly List<Btn> buttons = new List<Btn>();
         Transform row;
 
         public void Build(Transform canvas, ArmController c, ProceduralArm a, SensorViz v, ArmGizmos g,
-                          CameraRig r, ServoCallouts co, EvolutionTrainer t)
+                          CameraRig r, ServoCallouts co, EvolutionTrainer t, ScenarioManager sm)
         {
-            controller = c; arm = a; viz = v; gizmos = g; rig = r; callouts = co; trainer = t;
+            controller = c; arm = a; viz = v; gizmos = g; rig = r; callouts = co; trainer = t; scenarios = sm;
 
             var go = new GameObject("ControlBar");
             go.transform.SetParent(canvas, false);
@@ -37,7 +38,7 @@ namespace ArmSmith
             var rt = bg.rectTransform;
             rt.anchorMin = new Vector2(0.5f, 0f); rt.anchorMax = new Vector2(0.5f, 0f); rt.pivot = new Vector2(0.5f, 0f);
             rt.anchoredPosition = new Vector2(0, 8);
-            rt.sizeDelta = new Vector2(980, 40);
+            rt.sizeDelta = new Vector2(1180, 40);
             row = go.transform;
 
             float x = 8f;
@@ -58,6 +59,9 @@ namespace ArmSmith
             x = AddToggle("Pause", x, () => controller.paused, () => controller.paused = !controller.paused);
             x = AddButton("Zero", x, () => controller.GoToZero());
             x = AddToggle("Train", x, () => trainer.Running, () => { if (trainer.Running) trainer.StopTraining(); else trainer.StartTraining(); });
+            x = AddToggle("Random", x, () => scenarios != null && scenarios.randomness > 0.5f,
+                          () => { if (scenarios != null) { scenarios.randomness = scenarios.randomness > 0.5f ? 0f : 1f; scenarios.Reroll(); } });
+            x = AddButton("Reroll", x, () => { if (scenarios != null) scenarios.Reroll(); });
         }
 
         float AddLabel(string text, float x)

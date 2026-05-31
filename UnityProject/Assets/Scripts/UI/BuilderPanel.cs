@@ -106,6 +106,7 @@ namespace ArmSmith
                 ? (trainer.bestPolicy != null ? trainer.bestPolicy.fitness : float.NaN)
                 : (trainer.best != null ? trainer.best.fitness : float.NaN);
             sb.AppendLine($"best fitness: {(float.IsNaN(best) ? "-" : best.ToString("F2"))}");
+            sb.AppendLine($"success rate: <color=#6f6>{(trainer.lastSuccessRate * 100f):F0}%</color> (over {trainer.evalResets} random resets)");
             // compact population fitness bars
             if (!trainer.policyMode && trainer.population != null)
             {

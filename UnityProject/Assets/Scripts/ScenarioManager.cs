@@ -193,24 +193,24 @@ namespace ArmSmith
                     SetActive(trayB, true);
                     trayB.position = new Vector3(-0.16f, 0f, 0.34f);   // the target tray
                     Vector3[] spots = { new Vector3(0.18f,0.03f,0.28f), new Vector3(0.12f,0.03f,0.38f), new Vector3(0.20f,0.03f,0.40f) };
-                    for (int i = 0; i < sortCubes.Count; i++) { SetActive(sortCubes[i], true); Place(sortCubes[i], spots[i % spots.Length]); }
+                    for (int i = 0; i < sortCubes.Count; i++) { SetActive(sortCubes[i], true); Place(sortCubes[i], RandomSpot(spots[i % spots.Length])); }
                     break;
                 case ScenarioType.ReachTouch:
                     SetActive(reachTarget, true);
-                    reachTarget.position = new Vector3(0.1f, 0.12f, 0.32f);
+                    reachTarget.position = RandomSpot(new Vector3(0.1f, 0.12f, 0.32f));
                     break;
                 case ScenarioType.PushToZone:
                     SetActive(cube, true); SetActive(pad, true);
-                    Place(cube, new Vector3(0.05f, 0.03f, 0.30f)); pad.position = new Vector3(-0.18f, 0.001f, 0.34f);
+                    Place(cube, RandomSpot(new Vector3(0.05f, 0.03f, 0.30f))); pad.position = new Vector3(-0.18f, 0.001f, 0.34f);
                     break;
                 case ScenarioType.PickPlaceCube:
                     SetActive(cube, true); SetActive(pad, true);
-                    Place(cube, new Vector3(0.15f, 0.03f, 0.30f)); pad.position = new Vector3(-0.15f, 0.001f, 0.32f);
+                    Place(cube, RandomSpot(new Vector3(0.15f, 0.03f, 0.30f))); pad.position = new Vector3(-0.15f, 0.001f, 0.32f);
                     break;
                 case ScenarioType.TrayToTray:
                     SetActive(trayA, true); SetActive(trayB, true); SetActive(cube, true);
                     trayA.position = new Vector3(0.18f, 0f, 0.34f); trayB.position = new Vector3(-0.18f, 0f, 0.34f);
-                    Place(cube, trayA.position + Vector3.up * 0.03f);
+                    Place(cube, RandomSpot(trayA.position + Vector3.up * 0.03f));
                     break;
                 case ScenarioType.StackTwo:
                     SetActive(cube, true); SetActive(cubeB, true);
@@ -222,6 +222,24 @@ namespace ArmSmith
                     break;
             }
         }
+
+        [Range(0f, 1f)] public float randomness = 0f;   // 0=fixed positions, 1=full random-grid spread
+        public int randomSeed = 0;
+
+        // Jitter a base position on a random grid within the reachable workspace, scaled by randomness.
+        // Keeps objects in front of the arm and on the table.
+        Vector3 RandomSpot(Vector3 baseP)
+        {
+            if (randomness <= 0.001f) return baseP;
+            var rng = new System.Random(randomSeed == 0 ? Environment.TickCount : randomSeed++);
+            float jx = (float)(rng.NextDouble() * 2 - 1) * 0.14f * randomness;
+            float jz = (float)(rng.NextDouble() * 2 - 1) * 0.10f * randomness;
+            float x = Mathf.Clamp(baseP.x + jx, -0.24f, 0.24f);
+            float z = Mathf.Clamp(baseP.z + jz, 0.20f, 0.44f);
+            return new Vector3(x, baseP.y, z);
+        }
+
+        public void Reroll() { LoadScenario(current); }   // re-randomise (called on reset/each episode)
 
         void Place(Transform t, Vector3 p)
         {
