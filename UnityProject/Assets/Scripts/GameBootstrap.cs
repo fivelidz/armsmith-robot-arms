@@ -35,6 +35,7 @@ namespace ArmSmith
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
         ControlBar controlBar;
+        CommandConsole commandConsole;
         DemoRecorder demoRec;
         SequenceEditor sequence;
         SaveSystem saveSystem;
@@ -320,6 +321,10 @@ namespace ArmSmith
             // Clickable CONTROL BAR (bottom-center): view + control toggle buttons (mouse-operable).
             controlBar = canvasGo.AddComponent<ControlBar>();
             controlBar.Build(canvasGo.transform, controller, arm, sensorViz, gizmos, rig, servoCallouts, trainer);
+
+            // Live TEXT COMMAND console: type robot commands (AgentCommands grammar) -> execute.
+            commandConsole = canvasGo.AddComponent<CommandConsole>();
+            commandConsole.Build(canvasGo.transform, agent);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)

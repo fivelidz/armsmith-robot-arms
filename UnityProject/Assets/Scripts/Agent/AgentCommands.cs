@@ -99,6 +99,62 @@ namespace ArmSmith
             yield return MoveTo(new Vector3(place.x, hover, place.z), 0.6f);   // retreat
         }
 
+        // pick (grasp) the object at a position; place (release) above a position. Reusable skills.
+        IEnumerator PickAt(Vector3 pick)
+        {
+            float hover = 0.14f, grab = 0.045f;
+            if (arm.gripper != null) arm.gripper.SetClose(0f);
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.0f);
+            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 0.8f);
+            if (arm.gripper != null) arm.gripper.SetClose(1f);
+            yield return Wait(0.6f);
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 0.7f);
+            Log("picked");
+        }
+        IEnumerator PlaceAt(Vector3 place)
+        {
+            float hover = 0.14f;
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.0f);
+            yield return MoveTo(ClampY(place), 0.7f);
+            if (arm.gripper != null) arm.gripper.SetClose(0f);
+            yield return Wait(0.5f);
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 0.6f);
+            Log("placed");
+        }
+
+        // Resolve an object reference: "nearest" | a colour name | a name substring.
+        Transform ResolveObject(string spec)
+        {
+            spec = spec.ToLowerInvariant();
+            var movables = new List<Transform>();
+            foreach (var t in GameObject.FindObjectsOfType<Transform>())
+                if (t.GetComponent<Rigidbody>() != null && t.name.StartsWith("S_")) movables.Add(t);
+            // colour match
+            Color? want = ColorFromName(spec);
+            Transform best = null; float bestScore = -1f;
+            Vector3 ee = arm.endEffector != null ? arm.endEffector.position : Vector3.zero;
+            foreach (var m in movables)
+            {
+                float score = 1f / (0.01f + Vector3.Distance(ee, m.position)); // nearest preferred
+                if (want.HasValue)
+                {
+                    var mr = m.GetComponent<MeshRenderer>();
+                    if (mr != null && mr.material != null && ColorClose(mr.material.color, want.Value)) score += 100f;
+                    else continue;
+                }
+                else if (spec != "nearest" && spec.Length > 0 && !m.name.ToLowerInvariant().Contains(spec)) continue;
+                if (score > bestScore) { bestScore = score; best = m; }
+            }
+            return best;
+        }
+        static Color? ColorFromName(string s)
+        {
+            switch (s) { case "red": return Color.red; case "blue": return Color.blue; case "green": return Color.green;
+                case "yellow": return Color.yellow; case "orange": return new Color(1f,0.6f,0.1f); case "purple": return new Color(0.7f,0.4f,0.9f);
+                default: return null; }
+        }
+        static bool ColorClose(Color a, Color b) => Vector3.Distance(new Vector3(a.r,a.g,a.b), new Vector3(b.r,b.g,b.b)) < 0.45f;
+
         IEnumerator MoveTo(Vector3 goal, float dur)
         {
             goal.y = Mathf.Max(goal.y, controller != null ? controller.minTargetY : 0.02f);
@@ -186,6 +242,26 @@ namespace ArmSmith
                     break;
                 case "seed": trainer.SeedPopulation(); break;
                 case "sort": yield return AutoSortRoutine(); break;
+                case "reach":
+                    // reach <x y z> | reach <anchor>
+                    if (tok.Length >= 4) { controller.mode = ArmController.Mode.IK; controller.mouseFollow = false; yield return MoveTo(ClampY(new Vector3(F(tok[1]), F(tok[2]), F(tok[3]))), 1.0f); }
+                    else if (tok.Length == 2) { controller.mode = ArmController.Mode.IK; controller.mouseFollow = false; yield return MoveTo(ClampY(Anchor(tok[1])), 1.0f); }
+                    break;
+                case "pick":
+                    // pick nearest | pick <color> | pick <objectNameSubstring>
+                    {
+                        Transform obj = ResolveObject(tok.Length > 1 ? tok[1] : "nearest");
+                        if (obj != null) { controller.mode = ArmController.Mode.IK; controller.mouseFollow = false; yield return PickAt(obj.position); }
+                        else Log("pick: no object found");
+                    }
+                    break;
+                case "place":
+                    // place <anchor> | place <x y z>
+                    {
+                        Vector3 where = tok.Length >= 4 ? new Vector3(F(tok[1]), F(tok[2]), F(tok[3])) : Anchor(tok.Length > 1 ? tok[1] : "trayb");
+                        yield return PlaceAt(where + Vector3.up * 0.05f);
+                    }
+                    break;
                 case "say": Log(line.Substring(3).Trim()); break;
                 default: Log($"unknown command: {cmd}"); break;
             }
