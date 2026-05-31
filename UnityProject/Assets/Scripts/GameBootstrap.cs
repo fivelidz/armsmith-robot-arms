@@ -30,6 +30,7 @@ namespace ArmSmith
         MouseInteraction mouse;
         ServoPanel servoPanel;
         ModuleUsagePanel modulePanel;
+        DemoRecorder demoRec;
         Transform ikTarget;
 
         // HUD
@@ -76,6 +77,10 @@ namespace ArmSmith
             var miGo = new GameObject("MouseInteraction");
             mouse = miGo.AddComponent<MouseInteraction>();
             mouse.Bind(controller, arm, ikTarget, rig.mainCam, recorder);
+
+            var demoGo = new GameObject("DemoRecorder");
+            demoRec = demoGo.AddComponent<DemoRecorder>();
+            demoRec.Bind(arm, controller, scenarios, sensorHub);
         }
 
         void BuildScenarios()
@@ -294,7 +299,7 @@ namespace ArmSmith
                 $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth: scroll or [/] | dbl-click grab/place | Shift+drag path\n" +
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom, V HUD | B bounds, X axes\n" +
-                $"Record G | Playback P | Reset Esc | Export F9 STL / F10 waypoints\n" +
+                $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | <color=#f99>DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount + " steps" : "Backspace")}</color>\n" +
                 $"Scenario: <b>{scenarios.current}</b>  ([ ] change) | Evolve: T train, N +1 gen, F11 export best\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
                 $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +
@@ -322,6 +327,8 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.F6)) Toggle("EFleshTactile");
             if (Input.GetKeyDown(KeyCode.F7)) Toggle("MotorEncoders");
             if (Input.GetKeyDown(KeyCode.F8)) { trainer.policyMode = !trainer.policyMode; if (trainer.policyMode) trainer.SeedPolicyPopulation(); }
+            // Backspace: start/stop recording a DEMONSTRATION (obs+action pairs for imitation seeding).
+            if (Input.GetKeyDown(KeyCode.Backspace)) { if (demoRec.IsRecording) demoRec.StopRecording(); else demoRec.StartRecording(); }
 
             if (Input.GetKeyDown(KeyCode.F9)) ExportStl();
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
