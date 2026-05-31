@@ -34,6 +34,7 @@ namespace ArmSmith
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
+        ControlBar controlBar;
         DemoRecorder demoRec;
         SequenceEditor sequence;
         SaveSystem saveSystem;
@@ -315,6 +316,10 @@ namespace ArmSmith
             // Robot-arm BUILDER panel (left dock): arm stats + module toggles + training/generations view.
             builderPanel = canvasGo.AddComponent<BuilderPanel>();
             builderPanel.Build(canvasGo.transform, arm, sensorHub, trainer);
+
+            // Clickable CONTROL BAR (bottom-center): view + control toggle buttons (mouse-operable).
+            controlBar = canvasGo.AddComponent<ControlBar>();
+            controlBar.Build(canvasGo.transform, controller, arm, sensorViz, gizmos, rig, servoCallouts, trainer);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)

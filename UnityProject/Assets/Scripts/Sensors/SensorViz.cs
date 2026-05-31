@@ -21,13 +21,13 @@ namespace ArmSmith
 
         public void Bind(SensorHub h) { hub = h; }
 
+        // Toggled primarily by the on-screen view buttons (ControlBar). Keys are on the numpad to avoid
+        // clashing with the per-servo letter hotkeys (T/G,Y/H,U/J,I/K,O/L,P/;).
         void Update()
         {
-            // L = lidar view, K... taken. Use: L lidar, ; rangefinder, ' depth. (independent toggles)
-            if (Input.GetKeyDown(KeyCode.L)) showLidar = !showLidar;
-            if (Input.GetKeyDown(KeyCode.Quote)) showDepth = !showDepth;
-            // rangefinder view toggled from UI / a less-used key:
-            if (Input.GetKeyDown(KeyCode.L) && Input.GetKey(KeyCode.LeftShift)) showRangeFinder = !showRangeFinder;
+            if (Input.GetKeyDown(KeyCode.Keypad7)) showLidar = !showLidar;
+            if (Input.GetKeyDown(KeyCode.Keypad8)) showRangeFinder = !showRangeFinder;
+            if (Input.GetKeyDown(KeyCode.Keypad9)) showDepth = !showDepth;
         }
 
         public bool AnyOn => showRangeFinder || showLidar || showDepth;
