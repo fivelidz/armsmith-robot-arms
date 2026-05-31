@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARMSMITH — Training &amp; Generative Solution</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ============================================================
+   window-training.html — Training / Generative Solution Overview
+   ============================================================ */
+
+body {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 60px;
+  min-height: 100vh;
+}
+
+/* ---- Top title bar ---- */
+.trn-titlebar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: var(--card2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.trn-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--teal);
+  flex: 1;
+}
+.trn-scenario-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 10px;
+  border-radius: 2px;
+  background: var(--orange-dim);
+  color: var(--orange);
+  letter-spacing: .06em;
+}
+
+/* ---- Root grid ---- */
+.trn-root {
+  width: 100%;
+  max-width: 1120px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Section block ---- */
+.trn-block {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.trn-block-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  background: var(--card2);
+  border-bottom: 1px solid var(--border);
+}
+.trn-block-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.trn-block-body {
+  padding: 16px;
+}
+
+/* ================================================================
+   PIPELINE DIAGRAM
+   ================================================================ */
+.pipeline-wrap {
+  overflow-x: auto;
+  padding: 4px 0 8px;
+}
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 760px;
+}
+
+.pipe-node {
+  flex: 1;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  min-width: 130px;
+}
+.pipe-node.accent-teal   { border-color: var(--teal-dim);   }
+.pipe-node.accent-orange { border-color: var(--orange-dim); }
+.pipe-node.accent-green  { border-color: var(--green-dim);  }
+
+.pipe-node::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.pipe-node.accent-teal::before   { background: var(--teal); }
+.pipe-node.accent-orange::before { background: var(--orange); }
+.pipe-node.accent-green::before  { background: var(--green); }
+
+.pipe-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pipe-title {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-hi);
+  line-height: 1.1;
+}
+.pipe-title.teal   { color: var(--teal); }
+.pipe-title.orange { color: var(--orange); }
+.pipe-title.green  { color: var(--green); }
+.pipe-desc {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.pipe-example {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--teal-dim);
+  background: rgba(0,212,180,.05);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 4px 7px;
+  line-height: 1.6;
+  margin-top: 2px;
+}
+.pipe-example.orange { color: var(--orange); background: rgba(255,107,43,.05); border-color: var(--border); }
+
+/* Arrow between nodes */
+.pipe-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  position: relative;
+}
+.pipe-arrow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-hi), var(--teal-dim));
+  transform: translateY(-50%);
+}
+.pipe-arrow-head {
+  width: 0; height: 0;
+  border-left: 6px solid var(--teal-dim);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  position: relative;
+  z-index: 1;
+}
+
+/* ================================================================
+   TRAINING MODE SELECTOR
+   ================================================================ */
+.mode-select-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.mode-card {
+  background: var(--card2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+}
+.mode-card:hover { border-color: var(--border-hi); }
+.mode-card.active.motion { border-color: var(--teal); background: var(--teal-glow); }
+.mode-card.active.policy { border-color: var(--orange); background: var(--orange-glow); }
+
+.mode-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+.mode-badge.motion { background: var(--teal-dim);   color: var(--teal); }
+.mode-badge.policy { background: var(--orange-dim); color: var(--orange); }
+.mode-title {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-hi);
+  margin-bottom: 4px;
+}
+.mode-desc {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.mode-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mode-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: rgba(74,96,112,.2);
+  color: var(--muted);
+}
+.mode-tag.hi { background: rgba(0,212,180,.1); color: var(--teal); }
+.mode-tag.hi.orange { background: rgba(255,107,43,.1); color: var(--orange); }
+.mode-radio {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-hi);
+  background: var(--card);
+  transition: all .15s;
+}
+.mode-card.active .mode-radio { border-color: var(--teal); background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+.mode-card.active.policy .mode-radio { border-color: var(--orange); background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+
+/* ================================================================
+   GENERATIVE LOOP FLOW
+   ================================================================ */
+.loop-steps {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  overflow-x: auto;
+}
+.loop-step {
+  flex: 1;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+.loop-step::after {
+  content: '→';
+  position: absolute;
+  right: -8px;
+  top: 22px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--teal-dim);
+  z-index: 1;
+}
+.loop-step:last-child::after { display: none; }
+
+.loop-step-inner {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 12px 10px;
+  margin: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color .15s;
+}
+.loop-step-inner:hover { border-color: var(--border-hi); }
+.loop-step-inner.done  { border-color: var(--teal-dim); }
+.loop-step-inner.active { border-color: var(--teal); background: var(--teal-glow); }
+
+.loop-num {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--teal-dim);
+  color: var(--teal);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.loop-num.done   { background: var(--green-dim);  color: var(--green); }
+.loop-num.active { background: var(--teal); color: var(--bg); box-shadow: 0 0 8px var(--teal); }
+.loop-num.future { background: var(--border); color: var(--muted); }
+
+.loop-step-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-hi);
+  line-height: 1.1;
+}
+.loop-step-desc {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.loop-step-metric {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--teal);
+  margin-top: 2px;
+}
+
+/* ================================================================
+   TRAINING DASHBOARD
+   ================================================================ */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 180px;
+  grid-template-rows: auto auto;
+  gap: 12px;
+}
+
+/* Counter/stats column */
+.dash-stats {
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dash-stat-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.dash-stat-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.dash-stat-value {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--teal);
+  line-height: 1;
+  letter-spacing: -.02em;
+}
+.dash-stat-value.orange { color: var(--orange); }
+.dash-stat-value.green  { color: var(--green); }
+.dash-stat-unit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* Fitness chart */
+.dash-chart {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dash-chart-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chart-legend {
+  display: flex;
+  gap: 10px;
+}
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.chart-legend-line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.chart-svg-wrap {
+  flex: 1;
+  position: relative;
+}
+
+/* Success gauge */
+.dash-gauge {
+  grid-row: 1 / 3;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.gauge-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: 100%;
+  text-align: center;
+}
+
+/* Population grid */
+.pop-grid {
+  grid-column: 1 / 3;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pop-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pop-cells {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+.pop-cell {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 5px 4px 4px;
+  cursor: pointer;
+  transition: border-color .12s;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pop-cell:hover { border-color: var(--teal-dim); }
+.pop-cell.champ { border-color: var(--orange); }
+.pop-cell.sel   { border-color: var(--teal); background: var(--teal-glow); }
+
+.pop-cell-id {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+.pop-fit-bar {
+  height: 3px;
+  background: var(--border-hi);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.pop-fit-fill {
+  height: 100%;
+  border-radius: 1px;
+}
+.pop-cell-score {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--teal);
+  text-align: center;
+  line-height: 1;
+}
+.pop-cell.champ .pop-cell-score { color: var(--orange); }
+
+/* Training buttons */
+.dash-btns {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dash-btn-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+/* ================================================================
+   OBSERVATION READOUT
+   ================================================================ */
+.obs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.obs-module {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.obs-module.included { border-color: var(--teal-dim); }
+.obs-module.excluded { opacity: .45; }
+
+.obs-mod-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.obs-mod-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 700;
+}
+.obs-ch-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: var(--teal-dim);
+  color: var(--teal);
+  margin-left: auto;
+}
+.obs-ch-count.grey { background: rgba(74,96,112,.2); color: var(--muted); }
+.obs-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+.obs-ch-tag {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: rgba(0,212,180,.06);
+  color: var(--teal-dim);
+  border: 1px solid var(--border);
+}
+.obs-ch-tag.off { background: transparent; color: var(--text-dim); }
+
+.obs-total {
+  background: var(--card2);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-mono);
+}
+.obs-total-num {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--teal);
+  line-height: 1;
+}
+.obs-total-lbl {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* Servo colour pills */
+.servo-joints-row {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.servo-joint-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 10px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.servo-pip {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+</style>
+</head>
+<body>
+
+<!-- Title bar -->
+<div class="trn-titlebar">
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <polyline points="1,11 4,7 7,4 10,6 13,2" fill="none" stroke="var(--teal)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="13" y1="2" x2="13" y2="12" stroke="var(--teal)" stroke-width="1" stroke-dasharray="2,2"/>
+    <line x1="1" y1="12" x2="13" y2="12" stroke="var(--teal)" stroke-width="1" stroke-dasharray="2,2"/>
+  </svg>
+  <div class="trn-title">Training — Generative Solution Overview</div>
+  <div class="trn-scenario-badge" id="active-scenario-badge">TrayToTray</div>
+  <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-left:12px;">F8 mode · T start/stop · N +1gen · F11 export</span>
+</div>
+
+<div class="trn-root">
+
+  <!-- ================================================================
+       1. PIPELINE DIAGRAM
+       ================================================================ -->
+  <div class="trn-block">
+    <div class="trn-block-head">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="3" width="8" height="4" rx="1" stroke="var(--teal)" stroke-width="1.2"/><line x1="1" y1="5" x2="9" y2="5" stroke="var(--teal)" stroke-width=".8" stroke-dasharray="1.5,1"/></svg>
+      <span class="trn-block-title">Intelligence Pipeline — Text → Control</span>
+      <span class="panel-badge" style="margin-left:auto;">5 layers</span>
+    </div>
+    <div class="trn-block-body">
+      <div class="pipeline-wrap">
+        <div class="pipeline">
+
+          <!-- Node 1: Text -->
+          <div class="pipe-node accent-teal">
+            <div class="pipe-label">Layer 1</div>
+            <div class="pipe-title teal">TEXT</div>
+            <div class="pipe-desc">Natural language instruction from player or LLM agent</div>
+            <div class="pipe-example">"sort the red cube<br>into the tray"</div>
+          </div>
+          <div class="pipe-arrow"><div class="pipe-arrow-head"></div></div>
+
+          <!-- Node 2: Task Plan -->
+          <div class="pipe-node accent-teal">
+            <div class="pipe-label">Layer 2</div>
+            <div class="pipe-title teal">TASK PLAN</div>
+            <div class="pipe-desc">AgentCommands grammar — fixed verb vocab, unambiguous, inspectable</div>
+            <div class="pipe-example">pick red @P<br>place in tray @T</div>
+          </div>
+          <div class="pipe-arrow"><div class="pipe-arrow-head"></div></div>
+
+          <!-- Node 3: Skill -->
+          <div class="pipe-node">
+            <div class="pipe-label">Layer 3</div>
+            <div class="pipe-title">SKILL</div>
+            <div class="pipe-desc">Parametric skill coroutines: hover → descend → grip → lift</div>
+            <div class="pipe-example">Pick(objPos)<br>Place(targetPos)<br>Reach(pos)</div>
+          </div>
+          <div class="pipe-arrow"><div class="pipe-arrow-head"></div></div>
+
+          <!-- Node 4: Control -->
+          <div class="pipe-node accent-orange">
+            <div class="pipe-label">Layer 4</div>
+            <div class="pipe-title orange">CONTROL</div>
+            <div class="pipe-desc">DLS-IK → joint angles → ServoModel 4096-tick commands</div>
+            <div class="pipe-example orange">IK target + gripper<br>servo ticks (sim↔real)</div>
+            <div style="margin-top:4px;" class="servo-joints-row">
+              <div class="servo-joint-pill"><div class="servo-pip" style="background:#f24d4d"></div>J0</div>
+              <div class="servo-joint-pill"><div class="servo-pip" style="background:#fa9e33"></div>J1</div>
+              <div class="servo-joint-pill"><div class="servo-pip" style="background:#f2d940"></div>J2</div>
+              <div class="servo-joint-pill"><div class="servo-pip" style="background:#59cc66"></div>J3</div>
+              <div class="servo-joint-pill"><div class="servo-pip" style="background:#4da6f2"></div>J4</div>
+              <div class="servo-joint-pill"><div class="servo-pip" style="background:#b373f2"></div>J5</div>
+            </div>
+          </div>
+          <div class="pipe-arrow"><div class="pipe-arrow-head"></div></div>
+
+          <!-- Node 5: Physics -->
+          <div class="pipe-node accent-green">
+            <div class="pipe-label">Layer 5</div>
+            <div class="pipe-title green">PHYSICS</div>
+            <div class="pipe-desc">ArticulationBody + friction make grasping emergent — no cheats</div>
+            <div class="pipe-example" style="color:var(--green);background:rgba(57,255,130,.04);">ArticulationBody<br>+ friction<br>+ reward signal</div>
+          </div>
+
+        </div><!-- /pipeline -->
+      </div><!-- /pipeline-wrap -->
+
+      <div style="margin-top:10px;font-family:var(--font-ui);font-size:10px;color:var(--muted);line-height:1.6;">
+        <span style="color:var(--teal);">Why this works:</span> Text only has to be correct at plan level (discrete, easy). Geometry/timing handled by tested skills + IK.
+        Each layer is independently debuggable. The same plan runs in sim <span style="color:var(--teal);">AND</span> on the real arm (export waypoints).
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       2. TRAINING MODE SELECTOR
+       ================================================================ -->
+  <div class="trn-block">
+    <div class="trn-block-head">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="3.5" stroke="var(--muted)" stroke-width="1.2"/><circle cx="5" cy="5" r="1.5" fill="var(--teal)"/></svg>
+      <span class="trn-block-title">Training Mode</span>
+      <span style="margin-left:auto;font-family:var(--font-mono);font-size:9px;color:var(--muted);">F8 to toggle in-sim</span>
+    </div>
+    <div class="trn-block-body">
+      <div class="mode-select-row">
+
+        <div class="mode-card motion active" id="mode-motion" onclick="selMode('motion')">
+          <div class="mode-radio"></div>
+          <div class="mode-badge motion">Motion GA</div>
+          <div class="mode-title">Motion (Open-loop)</div>
+          <div class="mode-desc">
+            Evolves a <strong>waypoint sequence</strong> — joint angles over time.
+            No sensor feedback during execution. Fast to evaluate, good baseline.
+            Uses <code>MotionGenome</code> (CMA-ES / GA over the trajectory).
+          </div>
+          <div class="mode-tags">
+            <span class="mode-tag hi">MotionGenome</span>
+            <span class="mode-tag">No sensors needed</span>
+            <span class="mode-tag">Open-loop</span>
+            <span class="mode-tag">Fast eval</span>
+          </div>
+        </div>
+
+        <div class="mode-card policy" id="mode-policy" onclick="selMode('policy')">
+          <div class="mode-radio"></div>
+          <div class="mode-badge policy">Policy Net</div>
+          <div class="mode-title">Policy (Closed-loop)</div>
+          <div class="mode-desc">
+            Evolves a <strong>sensor → action network</strong> (PolicyGenome). Reads all
+            enabled sensor channels each step. Robust to object variation + disturbance.
+            Uses CMA-ES over network weights — <em>seed from demo for fast convergence</em>.
+          </div>
+          <div class="mode-tags">
+            <span class="mode-tag hi orange">PolicyGenome</span>
+            <span class="mode-tag hi orange">Uses sensors (52 ch)</span>
+            <span class="mode-tag">Closed-loop</span>
+            <span class="mode-tag">Generalises</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       3. GENERATIVE LOOP FLOW
+       ================================================================ -->
+  <div class="trn-block">
+    <div class="trn-block-head">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 5a4 4 0 0 1 4-4 4 4 0 0 1 3 1.4" stroke="var(--teal)" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M9 5a4 4 0 0 1-4 4 4 4 0 0 1-3-1.4" stroke="var(--muted)" stroke-width="1.2" fill="none" stroke-linecap="round"/><polyline points="7,1 9.4,1.4 9,3.8" fill="none" stroke="var(--teal)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="trn-block-title">Recommended Generative Loop — 5 Steps</span>
+    </div>
+    <div class="trn-block-body">
+      <div class="loop-steps">
+
+        <!-- Step 1 -->
+        <div class="loop-step">
+          <div class="loop-step-inner done">
+            <div class="loop-num done">✓</div>
+            <div class="loop-step-title">Scripted<br>Baseline</div>
+            <div class="loop-step-desc">Hand-written Pick/Place/Sort skills solve the task reliably (slow but correct). Guarantees solvability.</div>
+            <div class="loop-step-metric" style="color:var(--green);">✓ Task solvable</div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="loop-step">
+          <div class="loop-step-inner done">
+            <div class="loop-num done">✓</div>
+            <div class="loop-step-title">Imitation<br>Warm-start</div>
+            <div class="loop-step-desc">Record scripted/hand-driven demos via DemoRecorder. Seed policy population from (obs, action) pairs — start near a working solution, not random.</div>
+            <div class="loop-step-metric" style="color:var(--green);">Demo loaded</div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="loop-step">
+          <div class="loop-step-inner active">
+            <div class="loop-num active">3</div>
+            <div class="loop-step-title">Evolve across<br>Randomised Resets</div>
+            <div class="loop-step-desc">CMA-ES / GA refines the policy over RANDOMISED object positions per reset. Fitness = task reward − time − energy − collisions.</div>
+            <div class="loop-step-metric">⟳ Gen 14 · running…</div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="loop-step">
+          <div class="loop-step-inner">
+            <div class="loop-num future">4</div>
+            <div class="loop-step-title">Select Best</div>
+            <div class="loop-step-desc">Player reviews fitness curve + population grid. Select champion or best-N for next generation. Player is the breeder.</div>
+            <div class="loop-step-metric" style="color:var(--muted);">Pending gen complete</div>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="loop-step">
+          <div class="loop-step-inner">
+            <div class="loop-num future">5</div>
+            <div class="loop-step-title">Export</div>
+            <div class="loop-step-desc">Export best trajectory as waypoints (F10) or policy weights (F11). Same data drives real arm via armsmith_lerobot.py.</div>
+            <div class="loop-step-metric" style="color:var(--muted);">STL · waypoints · policy</div>
+          </div>
+        </div>
+
+      </div><!-- /loop-steps -->
+    </div>
+  </div>
+
+  <!-- ================================================================
+       4. LIVE TRAINING DASHBOARD
+       ================================================================ -->
+  <div class="trn-block">
+    <div class="trn-block-head">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="1" width="8" height="8" rx="1" stroke="var(--teal)" stroke-width="1.2"/><polyline points="2,8 4,5 6,6 8,3" fill="none" stroke="var(--teal)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="trn-block-title">Live Training Dashboard</span>
+      <span class="panel-badge orange" id="training-status" style="margin-left:auto;">● TRAINING</span>
+    </div>
+    <div class="trn-block-body">
+
+      <div class="dash-grid">
+
+        <!-- Stats column -->
+        <div class="dash-stats">
+
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Generation</div>
+            <div class="dash-stat-value" id="gen-counter">14<span class="dash-stat-unit">/ ∞</span></div>
+          </div>
+
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Best Fitness</div>
+            <div class="dash-stat-value orange" id="best-fitness">0.847</div>
+          </div>
+
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Pop. Mean Fitness</div>
+            <div class="dash-stat-value" style="font-size:22px;" id="mean-fitness">0.613</div>
+          </div>
+
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Evaluations (total)</div>
+            <div class="dash-stat-value" style="font-size:22px;">224</div>
+          </div>
+
+          <div class="dash-stat-card">
+            <div class="dash-stat-label">Time Elapsed</div>
+            <div class="dash-stat-value" style="font-size:22px;" id="elapsed-time">04:17</div>
+          </div>
+
+        </div><!-- /dash-stats -->
+
+        <!-- Fitness chart -->
+        <div class="dash-chart">
+          <div class="dash-chart-title">
+            Fitness Over Generations
+            <div class="chart-legend">
+              <div class="chart-legend-item">
+                <div class="chart-legend-line" style="background:var(--teal)"></div> Best
+              </div>
+              <div class="chart-legend-item">
+                <div class="chart-legend-line" style="background:var(--muted)"></div> Mean
+              </div>
+            </div>
+          </div>
+          <div class="chart-svg-wrap">
+            <svg id="fitness-chart" viewBox="0 0 520 140" width="100%" height="140" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible;">
+
+              <!-- Grid lines -->
+              <defs>
+                <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00d4b4" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#00d4b4" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Y-axis grid -->
+              <line x1="40" y1="10" x2="510" y2="10" stroke="#1e2a34" stroke-width="1"/>
+              <line x1="40" y1="42" x2="510" y2="42" stroke="#1e2a34" stroke-width="1"/>
+              <line x1="40" y1="75" x2="510" y2="75" stroke="#1e2a34" stroke-width="1"/>
+              <line x1="40" y1="107" x2="510" y2="107" stroke="#1e2a34" stroke-width="1"/>
+              <line x1="40" y1="130" x2="510" y2="130" stroke="#2a3d50" stroke-width="1"/>
+
+              <!-- Y labels -->
+              <text x="34" y="13"  fill="#4a6070" font-family="Courier New" font-size="9" text-anchor="end">1.0</text>
+              <text x="34" y="45"  fill="#4a6070" font-family="Courier New" font-size="9" text-anchor="end">0.75</text>
+              <text x="34" y="78"  fill="#4a6070" font-family="Courier New" font-size="9" text-anchor="end">0.50</text>
+              <text x="34" y="110" fill="#4a6070" font-family="Courier New" font-size="9" text-anchor="end">0.25</text>
+              <text x="34" y="133" fill="#4a6070" font-family="Courier New" font-size="9" text-anchor="end">0.0</text>
+
+              <!-- X labels (gen 1..14) -->
+              <text x="40"  y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">1</text>
+              <text x="80"  y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">2</text>
+              <text x="120" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">3</text>
+              <text x="160" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">4</text>
+              <text x="200" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">5</text>
+              <text x="240" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">6</text>
+              <text x="280" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">7</text>
+              <text x="320" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">8</text>
+              <text x="360" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">9</text>
+              <text x="400" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">10</text>
+              <text x="440" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">11</text>
+              <text x="480" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">12</text>
+              <text x="510" y="143" fill="#4a6070" font-family="Courier New" font-size="8" text-anchor="middle">14</text>
+
+              <!-- BEST fitness fill area (ascending curve, gen1→14) -->
+              <!-- Points mapped: gen1=0.18, 2=0.27, 3=0.36, 4=0.42, 5=0.50, 6=0.55, 7=0.61, 8=0.66, 9=0.70, 10=0.74, 11=0.78, 12=0.81, 13=0.83, 14=0.847 -->
+              <!-- y = 130 - val*120  (0→130, 1.0→10) -->
+              <polygon
+                points="40,108  80,97  120,86  160,79  200,70  240,64  280,57  320,51  360,46  400,41  440,36  480,33  510,29  510,130  40,130"
+                fill="url(#fillGrad)"/>
+
+              <!-- MEAN fitness line -->
+              <!-- mean: 0.10, 0.16, 0.22, 0.28, 0.35, 0.40, 0.46, 0.50, 0.54, 0.57, 0.59, 0.60, 0.61 -->
+              <polyline
+                points="40,118  80,111  120,103  160,96  200,88  240,82  280,75  320,70  360,65  400,62  440,59  480,58  510,57"
+                fill="none" stroke="#4a6070" stroke-width="1.4" stroke-linejoin="round"/>
+
+              <!-- BEST fitness line -->
+              <polyline
+                points="40,108  80,97  120,86  160,79  200,70  240,64  280,57  320,51  360,46  400,41  440,36  480,33  510,29"
+                fill="none" stroke="#00d4b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+
+              <!-- Current gen indicator -->
+              <line x1="510" y1="10" x2="510" y2="130" stroke="#ff6b2b" stroke-width="1" stroke-dasharray="3,3"/>
+              <circle cx="510" cy="29" r="4" fill="#ff6b2b"/>
+              <text x="504" y="26" fill="#ff6b2b" font-family="Courier New" font-size="8" text-anchor="end">0.847</text>
+
+              <!-- Demo seed marker (gen2) -->
+              <line x1="80" y1="10" x2="80" y2="130" stroke="#4a6070" stroke-width="1" stroke-dasharray="2,3"/>
+              <text x="82" y="22" fill="#4a6070" font-family="Courier New" font-size="8">demo seed</text>
+
+            </svg>
+          </div><!-- /chart-svg-wrap -->
+        </div><!-- /dash-chart -->
+
+        <!-- Success rate gauge -->
+        <div class="dash-gauge">
+          <div class="gauge-title">Success Rate<br>over 20 random resets</div>
+
+          <svg viewBox="0 0 140 80" width="140" height="80">
+            <!-- Arc background -->
+            <path d="M 14 75 A 56 56 0 0 1 126 75" fill="none" stroke="#1e2a34" stroke-width="12" stroke-linecap="round"/>
+            <!-- Arc fill: 72% success = 0.72 of 180° arc -->
+            <!-- Arc from 180deg to 180+72%*180=310deg (sweep ~130°) -->
+            <path d="M 14 75 A 56 56 0 0 1 108 28" fill="none" stroke="#00d4b4" stroke-width="12" stroke-linecap="round" opacity=".9"/>
+            <!-- Needle -->
+            <line x1="70" y1="75" x2="108" y2="28" stroke="#ff6b2b" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="70" cy="75" r="5" fill="#ff6b2b"/>
+            <!-- Labels -->
+            <text x="10" y="88" fill="#4a6070" font-family="Courier New" font-size="9">0%</text>
+            <text x="120" y="88" fill="#4a6070" font-family="Courier New" font-size="9" text-anchor="end">100%</text>
+            <text x="70" y="58" fill="#00d4b4" font-family="Courier New" font-size="16" font-weight="bold" text-anchor="middle">72%</text>
+          </svg>
+
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);text-align:center;line-height:1.6;">
+            14 / 20 resets solved<br>
+            <span style="color:var(--teal);">↑ 12% from gen 10</span>
+          </div>
+
+          <!-- Mini per-reset grid -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:3px;width:100%;">
+            <!-- 14 green, 6 red = 14 out of 20 -->
+            <script>
+              for(var i=0;i<20;i++){
+                document.write('<div style="height:8px;border-radius:1px;background:'+(i<14?'var(--green)':'var(--red-dim)')+'"></div>');
+              }
+            </script>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:8px;color:var(--muted);text-align:center;">■ pass  ■ fail</div>
+        </div><!-- /dash-gauge -->
+
+        <!-- Population grid -->
+        <div class="pop-grid">
+          <div class="pop-title">
+            Population — Generation 14
+            <span class="panel-badge" style="font-size:8px;">16 individuals</span>
+            <span style="margin-left:auto;font-size:9px;color:var(--muted);">click to select · champ = orange border</span>
+          </div>
+          <div class="pop-cells" id="pop-cells">
+            <!-- Generated by JS below -->
+          </div>
+        </div>
+
+        <!-- Control buttons -->
+        <div class="dash-btns">
+          <div class="dash-btn-title">Controls</div>
+          <button class="btn btn-orange btn-full" id="btn-startstop" onclick="toggleTraining()">
+            ■ Stop Training
+          </button>
+          <button class="btn btn-sm btn-full" onclick="nextGen()">
+            +1 Gen  <kbd style="font-size:9px;margin-left:auto;color:var(--muted);">N</kbd>
+          </button>
+          <button class="btn btn-sm btn-full" onclick="seedFromDemo()">
+            ⟳ Seed from Demo
+          </button>
+          <button class="btn btn-sm btn-full btn-green" onclick="exportBest()">
+            ↓ Export Best  <kbd style="font-size:9px;margin-left:auto;color:var(--muted);">F11</kbd>
+          </button>
+          <div style="height:1px;background:var(--border);margin:2px 0;"></div>
+          <button class="btn btn-sm btn-full" onclick="resetTraining()">
+            Reset to Gen 0
+          </button>
+        </div>
+
+      </div><!-- /dash-grid -->
+    </div>
+  </div>
+
+  <!-- ================================================================
+       5. OBSERVATION COMPOSITION
+       ================================================================ -->
+  <div class="trn-block">
+    <div class="trn-block-head">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="1" width="8" height="8" rx="1" stroke="var(--muted)" stroke-width="1.2"/><line x1="3" y1="4" x2="7" y2="4" stroke="var(--teal)" stroke-width="1"/><line x1="3" y1="6" x2="6" y2="6" stroke="var(--teal)" stroke-width="1"/></svg>
+      <span class="trn-block-title">Observation Composition — Policy Input Channels</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+        <div class="obs-total">
+          <span class="obs-total-num" id="obs-total-num">52</span>
+          <span class="obs-total-lbl">channels<br>total</span>
+        </div>
+      </div>
+    </div>
+    <div class="trn-block-body" style="display:flex;flex-direction:column;gap:12px;">
+
+      <div style="font-family:var(--font-ui);font-size:10px;color:var(--muted);line-height:1.6;">
+        The policy network receives a flat observation vector concatenated from all <em>included</em> sensor modules each step.
+        Toggle modules in <strong>Options → Sensors</strong>. Excluded modules are zeroed — their weights still exist but contribute nothing.
+      </div>
+
+      <div class="obs-grid">
+
+        <!-- MotorEncoders -->
+        <div class="obs-module included" onclick="toggleModule(this,24)">
+          <div class="obs-mod-head">
+            <div class="obs-mod-name">MotorEncoders</div>
+            <span class="obs-ch-count">24 ch</span>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);">4 values × 6 joints</div>
+          <div class="obs-channels">
+            <span class="obs-ch-tag">pos×6</span>
+            <span class="obs-ch-tag">vel×6</span>
+            <span class="obs-ch-tag">torque×6</span>
+            <span class="obs-ch-tag">target×6</span>
+          </div>
+          <!-- Servo colour chips -->
+          <div style="display:flex;gap:3px;margin-top:4px;">
+            <div style="width:10px;height:10px;border-radius:2px;background:#f24d4d;" title="J0 base-yaw"></div>
+            <div style="width:10px;height:10px;border-radius:2px;background:#fa9e33;" title="J1 shoulder"></div>
+            <div style="width:10px;height:10px;border-radius:2px;background:#f2d940;" title="J2 elbow"></div>
+            <div style="width:10px;height:10px;border-radius:2px;background:#59cc66;" title="J3 wrist-pitch"></div>
+            <div style="width:10px;height:10px;border-radius:2px;background:#4da6f2;" title="J4 wrist-roll"></div>
+            <div style="width:10px;height:10px;border-radius:2px;background:#b373f2;" title="J5 claw"></div>
+          </div>
+        </div>
+
+        <!-- IMU -->
+        <div class="obs-module included" onclick="toggleModule(this,9)">
+          <div class="obs-mod-head">
+            <div class="obs-mod-name">IMU</div>
+            <span class="obs-ch-count">9 ch</span>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);">Base-mounted inertial</div>
+          <div class="obs-channels">
+            <span class="obs-ch-tag">accel.xyz</span>
+            <span class="obs-ch-tag">gyro.xyz</span>
+            <span class="obs-ch-tag">orient.xyz</span>
+          </div>
+        </div>
+
+        <!-- RangeFinder -->
+        <div class="obs-module included" onclick="toggleModule(this,1)">
+          <div class="obs-mod-head">
+            <div class="obs-mod-name">RangeFinder</div>
+            <span class="obs-ch-count">1 ch</span>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);">Single-beam wrist range</div>
+          <div class="obs-channels">
+            <span class="obs-ch-tag">dist_m</span>
+          </div>
+        </div>
+
+        <!-- Lidar2D -->
+        <div class="obs-module excluded" id="mod-lidar" onclick="toggleModule(this,16)">
+          <div class="obs-mod-head">
+            <div class="obs-mod-name">Lidar2D</div>
+            <span class="obs-ch-count grey">16 ch</span>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);">Excluded — enable in Options</div>
+          <div class="obs-channels">
+            <span class="obs-ch-tag off">ray×16</span>
+          </div>
+        </div>
+
+        <!-- DepthCamera -->
+        <div class="obs-module excluded" id="mod-depth" onclick="toggleModule(this,1)">
+          <div class="obs-mod-head">
+            <div class="obs-mod-name">DepthCamera</div>
+            <span class="obs-ch-count grey">1 ch</span>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);">Excluded — high cost</div>
+          <div class="obs-channels">
+            <span class="obs-ch-tag off">depth_patch</span>
+          </div>
+        </div>
+
+        <!-- EFlesh Tactile -->
+        <div class="obs-module included" onclick="toggleModule(this,1)">
+          <div class="obs-mod-head">
+            <div class="obs-mod-name">EFlesh Tactile</div>
+            <span class="obs-ch-count">1 ch</span>
+          </div>
+          <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);">Fingertip contact pressure</div>
+          <div class="obs-channels">
+            <span class="obs-ch-tag">contact_force</span>
+          </div>
+        </div>
+
+      </div><!-- /obs-grid -->
+
+      <!-- Active channel breakdown bar -->
+      <div style="background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;">
+          Channel allocation (52 active)
+        </div>
+        <div style="display:flex;height:14px;border-radius:3px;overflow:hidden;gap:1px;">
+          <div style="flex:24;background:#007a68;" title="MotorEncoders 24ch"></div>
+          <div style="flex:9; background:#4a6070;" title="IMU 9ch"></div>
+          <div style="flex:1; background:#2a3d50;" title="RangeFinder 1ch"></div>
+          <div style="flex:1; background:#1a2a35;" title="Tactile 1ch"></div>
+          <div style="flex:17;background:#0e1318;border:1px solid #1e2a34;" title="Lidar+Depth (excluded)"></div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:6px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;color:var(--muted);">
+            <div style="width:10px;height:6px;background:#007a68;border-radius:1px;"></div>Encoders 24
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;color:var(--muted);">
+            <div style="width:10px;height:6px;background:#4a6070;border-radius:1px;"></div>IMU 9
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;color:var(--muted);">
+            <div style="width:10px;height:6px;background:#2a3d50;border-radius:1px;"></div>Range+Tactile 2
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:8px;color:var(--muted);">
+            <div style="width:10px;height:6px;background:#0e1318;border:1px solid #1e2a34;border-radius:1px;"></div>Excluded 17
+          </div>
+        </div>
+      </div>
+
+      <!-- Fitness formula -->
+      <div style="background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">
+          Fitness Function
+        </div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-hi);line-height:2;">
+          <span style="color:var(--green);">F</span> =
+          <span style="color:var(--teal);">task_reward</span>
+          <span style="color:var(--muted);">−</span>
+          <span style="color:var(--orange);">λ₁·time</span>
+          <span style="color:var(--muted);">−</span>
+          <span style="color:var(--orange);">λ₂·energy</span>
+          <span style="color:var(--muted);">−</span>
+          <span style="color:var(--red);">λ₃·collisions</span>
+        </div>
+        <div style="font-family:var(--font-ui);font-size:9px;color:var(--muted);margin-top:4px;line-height:1.6;">
+          energy = Σ|τ·Δθ| over all joints per step &nbsp;·&nbsp;
+          λ₁=0.05 &nbsp;·&nbsp; λ₂=0.02 &nbsp;·&nbsp; λ₃=0.10 &nbsp;·&nbsp;
+          success rate measured over K=20 randomised resets (not single run)
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /trn-root -->
+
+<script>
+  // Servo colours
+  const SERVO_COLOURS = ['#f24d4d','#fa9e33','#f2d940','#59cc66','#4da6f2','#b373f2'];
+
+  // Fake population fitness data
+  const popData = [
+    {id:'#01',fit:0.847,sel:true,champ:true},
+    {id:'#02',fit:0.811,sel:false,champ:false},
+    {id:'#03',fit:0.796,sel:true,champ:false},
+    {id:'#04',fit:0.774,sel:false,champ:false},
+    {id:'#05',fit:0.761,sel:false,champ:false},
+    {id:'#06',fit:0.749,sel:false,champ:false},
+    {id:'#07',fit:0.733,sel:false,champ:false},
+    {id:'#08',fit:0.718,sel:false,champ:false},
+    {id:'#09',fit:0.702,sel:false,champ:false},
+    {id:'#10',fit:0.681,sel:false,champ:false},
+    {id:'#11',fit:0.655,sel:false,champ:false},
+    {id:'#12',fit:0.632,sel:false,champ:false},
+    {id:'#13',fit:0.601,sel:false,champ:false},
+    {id:'#14',fit:0.574,sel:false,champ:false},
+    {id:'#15',fit:0.541,sel:false,champ:false},
+    {id:'#16',fit:0.498,sel:false,champ:false},
+  ];
+
+  function fitColour(f) {
+    if (f >= 0.8) return '#00d4b4';
+    if (f >= 0.65) return '#59cc66';
+    if (f >= 0.5) return '#f2d940';
+    return '#ff6b2b';
+  }
+
+  function buildPopGrid() {
+    const container = document.getElementById('pop-cells');
+    container.innerHTML = '';
+    popData.forEach((p, i) => {
+      const div = document.createElement('div');
+      div.className = 'pop-cell' + (p.champ ? ' champ' : '') + (p.sel ? ' sel' : '');
+      div.innerHTML = `
+        <div class="pop-cell-id">${p.id}</div>
+        <div class="pop-fit-bar"><div class="pop-fit-fill" style="width:${Math.round(p.fit*100)}%;background:${fitColour(p.fit)};"></div></div>
+        <div class="pop-cell-score">${p.fit.toFixed(3)}</div>
+      `;
+      div.onclick = function() { togglePop(div, i); };
+      container.appendChild(div);
+    });
+  }
+
+  function togglePop(el, i) {
+    el.classList.toggle('sel');
+    popData[i].sel = el.classList.contains('sel');
+  }
+
+  buildPopGrid();
+
+  // Training toggle
+  let trainingActive = true;
+  let seconds = 4*60+17;
+  let timerHandle = null;
+
+  function toggleTraining() {
+    trainingActive = !trainingActive;
+    const btn = document.getElementById('btn-startstop');
+    const badge = document.getElementById('training-status');
+    if (trainingActive) {
+      btn.textContent = '■ Stop Training';
+      btn.classList.add('btn-orange');
+      btn.classList.remove('btn-green');
+      badge.textContent = '● TRAINING';
+      badge.style.background = 'var(--orange-dim)';
+      badge.style.color = 'var(--orange)';
+      startTimer();
+    } else {
+      btn.textContent = '▶ Start Training';
+      btn.classList.remove('btn-orange');
+      btn.classList.add('btn-green');
+      badge.textContent = '◼ PAUSED';
+      badge.style.background = 'var(--border)';
+      badge.style.color = 'var(--muted)';
+      if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
+    }
+  }
+
+  function startTimer() {
+    if (timerHandle) return;
+    timerHandle = setInterval(() => {
+      seconds++;
+      const m = String(Math.floor(seconds/60)).padStart(2,'0');
+      const s = String(seconds%60).padStart(2,'0');
+      const el = document.getElementById('elapsed-time');
+      if (el) el.textContent = m + ':' + s;
+    }, 1000);
+  }
+  startTimer();
+
+  let gen = 14;
+  function nextGen() {
+    gen++;
+    const el = document.getElementById('gen-counter');
+    if (el) el.innerHTML = gen + '<span class="dash-stat-unit">/ ∞</span>';
+    // Bump fitness a tiny bit
+    const newBest = Math.min(0.99, parseFloat(document.getElementById('best-fitness').textContent) + (Math.random()*0.015)).toFixed(3);
+    document.getElementById('best-fitness').textContent = newBest;
+    console.log('+1 Gen:', gen);
+  }
+
+  function seedFromDemo() {
+    console.log('Seed population from demo recording');
+  }
+
+  function exportBest() {
+    console.log('Export best genome — F11');
+  }
+
+  function resetTraining() {
+    gen = 0;
+    seconds = 0;
+    document.getElementById('gen-counter').innerHTML = '0<span class="dash-stat-unit">/ ∞</span>';
+    document.getElementById('best-fitness').textContent = '0.000';
+    document.getElementById('mean-fitness').textContent = '0.000';
+    console.log('Training reset');
+  }
+
+  function selMode(mode) {
+    document.getElementById('mode-motion').classList.remove('active');
+    document.getElementById('mode-policy').classList.remove('active');
+    document.getElementById('mode-motion').classList.remove('motion','policy');
+    document.getElementById('mode-policy').classList.remove('motion','policy');
+    document.getElementById('mode-motion').classList.add('motion');
+    document.getElementById('mode-policy').classList.add('policy');
+    document.getElementById('mode-' + mode).classList.add('active');
+  }
+
+  // Observation channel counter
+  let includedCh = 24 + 9 + 1 + 1; // 35 active by default (no lidar/depth)
+  function toggleModule(el, ch) {
+    if (el.classList.contains('included')) {
+      el.classList.remove('included');
+      el.classList.add('excluded');
+      includedCh -= ch;
+    } else {
+      el.classList.remove('excluded');
+      el.classList.add('included');
+      includedCh += ch;
+    }
+    document.getElementById('obs-total-num').textContent = includedCh;
+  }
+</script>
+</body>
+</html>
