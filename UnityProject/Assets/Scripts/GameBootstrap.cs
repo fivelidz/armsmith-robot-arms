@@ -29,6 +29,7 @@ namespace ArmSmith
         SensorHub sensorHub;
         MouseInteraction mouse;
         ServoPanel servoPanel;
+        ModuleUsagePanel modulePanel;
         Transform ikTarget;
 
         // HUD
@@ -264,6 +265,10 @@ namespace ArmSmith
             // Servo motor values panel (bottom-left): per-joint angle -> tick, target, bar.
             servoPanel = canvasGo.AddComponent<ServoPanel>();
             servoPanel.Build(canvasGo.transform, arm, controller);
+
+            // Sensor-module usage panel (right): live outputs + USED-IN-TRAINING indicator.
+            modulePanel = canvasGo.AddComponent<ModuleUsagePanel>();
+            modulePanel.Build(canvasGo.transform, sensorHub, trainer);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)
