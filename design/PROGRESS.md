@@ -111,3 +111,19 @@ Append-only build log. See ROADMAP.md for the plan, PROMPT_LOG.md for user promp
 - Bigger servo panel, calibration start pose, claw cam remounted, scenario menu heading, SaveSystem.
 ### Verified
 - All UI clickable; servo arrows drive joints; gauges fill; colours consistent. 0 compile/runtime errors.
+
+## 2026-05-31 — Session 4: grasp fix + STL-arm joint-mapping diagnosis
+### Done
+- Reliable GRASP (parent-carry + hysteresis + graspRadius 0.12) — verified the cube is HELD through
+  transport (moved ~30cm). FixedJoint on ArticulationBody was flaky; kinematic-parent works.
+### DIAGNOSED (STL arm joint-mapping problems — root cause of "can't pick up / impossible joints")
+- shoulder_pan: command -60° -> actual +105° (wrong sign + range mapping).
+- shoulder_lift: earlier fixed (was rotating about own length).
+- IK reach: good on RIGHT side mid-height (0.4cm) but FAILS left side (-X) and table level (8-31cm err).
+- Net: STL arm looks authentic but joint frames/anchors from URDF conversion are inconsistent ->
+  unreliable manipulation. Procedural arm has correct joints + full-workspace IK + working grasp.
+### DECISION POINT (for user)
+Option A: invest in fixing every STL joint anchor/sign + IK (authentic look, more work).
+Option B: ship procedural-arm kinematics (works) but SKIN it with the STL meshes (best of both) — needs
+  mesh alignment to the procedural chain.
+Option C: keep procedural arm default for gameplay; STL arm as a visual-only showcase.
