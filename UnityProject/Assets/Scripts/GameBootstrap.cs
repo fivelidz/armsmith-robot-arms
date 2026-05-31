@@ -31,6 +31,7 @@ namespace ArmSmith
         MouseInteraction mouse;
         ServoPanel servoPanel;
         ModuleUsagePanel modulePanel;
+        ArmSmith.Verification.VerificationPanel verificationPanel;
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
@@ -301,6 +302,10 @@ namespace ArmSmith
             // Sensor-module usage panel (right): live outputs + USED-IN-TRAINING indicator.
             modulePanel = canvasGo.AddComponent<ModuleUsagePanel>();
             modulePanel.Build(canvasGo.transform, sensorHub, trainer);
+
+            // Placement-verification panel (right): checks base fastened, links connected, no penetration.
+            verificationPanel = canvasGo.AddComponent<ArmSmith.Verification.VerificationPanel>();
+            verificationPanel.Build(canvasGo.transform, arm, GameObject.Find("Worktop") != null ? GameObject.Find("Worktop").transform : null);
 
             // Clickable servo callouts: click a joint's yellow hotspot -> leader line + command panel.
             servoCallouts = canvasGo.AddComponent<ServoCallouts>();
