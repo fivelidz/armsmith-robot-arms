@@ -260,3 +260,26 @@ select next transition (IK target) location.
 - I68: Colour the SERVO REGIONS on the 3D arm model itself (tint each link/servo body its servo colour).
 - I69: Camera controls shown on-screen; Alt+LMB drag = orbit (also keep RMB).
 - I70: Click in the world to set the next IK target / transition location.
+
+## P18 — Revert to working procedural arm; fix self-collision/desk-collision; colour 3D motors
+**User prompt (summary):** Arm is colliding THROUGH ITSELF (should be selected against — could damage
+itself). The FIRST initial play (before training/URDF work) was working BEST. Impossible joints again.
+Arm moves THROUGH THE DESK (should be impossible). Colour-code motors on the 3D model.
+**Derived intentions / DECISION:**
+- I71: REVERT default to the PROCEDURAL arm (clean joints + IK + grasp that worked). Keep URDF/STL arm as
+  an OPT-IN that still needs joint-frame work; stop forcing it as default.
+- I72: Ensure SELF-COLLISION is enabled between non-adjacent arm links (and penalised in fitness).
+- I73: Ensure the arm CANNOT pass through the desk (solid worktop collision vs all arm colliders).
+- I74: Self-collision + desk-collision penalty in the training fitness (selected against).
+- I75: Colour-code the servo-motor REGIONS on the 3D model (tint each link/joint body its servo colour).
+
+## P19 — Player-placeable & orientable sensor/camera modules (mount on robot parts)
+**User prompt (summary):** For the modules and camera, their placement and direction should be settable
+by the PLAYER. A way to DROP them onto different robot parts and ORIENT them a particular way.
+**Derived intentions:**
+- I76: Module MOUNTING system: each sensor/camera is a draggable module the player drops onto a robot
+  link/part; it parents to that link.
+- I77: ORIENT the mounted module (rotation handles / gizmo) so it faces a chosen direction.
+- I78: The mounted placement+orientation feeds the sensor (e.g. wrist cam pose, lidar origin/direction)
+  AND is saved with the arm config + exported for the real rig (so sim matches reality).
+- I79: A "mount points" UI: highlight valid robot parts; show current modules + their parent link + pose.

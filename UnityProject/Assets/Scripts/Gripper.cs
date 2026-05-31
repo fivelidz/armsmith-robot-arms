@@ -23,9 +23,9 @@ namespace ArmSmith
 
         [Header("Grasp assist")]
         public bool graspAssist = true;       // attach the held object so contact-rich grasps are reliable
-        public float graspRadius = 0.06f;      // object must be within this of the grasp point to grab
+        public float graspRadius = 0.12f;      // object must be within this of the grasp point to grab
         Rigidbody held;                        // currently held object
-        FixedJoint heldJoint;
+        Transform heldOriginalParent;          // to restore on release
 
         /// <summary>0 = open, 1 = closed.</summary>
         public void SetClose(float t)
@@ -37,10 +37,10 @@ namespace ArmSmith
             ApplyTarget(right, -inward);   // right jaw moves -X toward centre
 
             if (!graspAssist) return;
-            // Closing past half -> try to grab the nearest graspable object at the grasp point.
-            if (closeAmount > 0.6f && held == null) TryGrab();
-            // Opening -> release.
-            if (closeAmount < 0.4f && held != null) Release();
+            // Grab once when closing; only RELEASE on a deliberate full-open (hysteresis prevents the
+            // grab/release oscillation seen when the drive hasn't settled).
+            if (closeAmount > 0.55f && held == null) TryGrab();
+            if (closeAmount < 0.15f && held != null) Release();
         }
 
         void TryGrab()
@@ -58,16 +58,26 @@ namespace ArmSmith
             }
             if (best == null) return;
             held = best;
-            // Attach via a real physics FixedJoint to the gripper body (not a teleport).
-            heldJoint = gameObject.AddComponent<FixedJoint>();
-            heldJoint.connectedBody = best;
-            heldJoint.breakForce = 200f; heldJoint.breakTorque = 200f;
+            // Reliable carry: a FixedJoint between an ArticulationBody gripper and a Rigidbody is flaky,
+            // so we make the object KINEMATIC and PARENT it to the gripper end-effector at the grasp point.
+            // It then rigidly follows the gripper; on release we un-parent and restore dynamics.
+            heldOriginalParent = best.transform.parent;
+            best.linearVelocity = Vector3.zero; best.angularVelocity = Vector3.zero;
+            best.isKinematic = true;
+            Transform anchor = arm != null && arm.endEffector != null ? arm.endEffector : transform;
+            best.transform.SetParent(anchor, true);
+            best.transform.position = TipPosition;   // snap to grasp point between the jaws
         }
 
         void Release()
         {
-            if (heldJoint != null) Destroy(heldJoint);
-            heldJoint = null; held = null;
+            if (held != null)
+            {
+                held.transform.SetParent(heldOriginalParent, true);
+                held.isKinematic = false;
+                held.linearVelocity = Vector3.zero; held.angularVelocity = Vector3.zero;
+            }
+            held = null;
         }
 
         public bool IsHolding => held != null;
