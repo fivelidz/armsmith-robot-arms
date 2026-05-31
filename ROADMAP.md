@@ -100,3 +100,43 @@ So at every mouse position the servos receive a concrete tick target; recording 
 - `CAD_SPEC.md` — in-game parametric CAD + evolution (TODO).
 - `INGAME_AI_SPEC.md` — zero-auth Claude Code agent design (TODO).
 - `TRAINING_SPEC.md` — evolution + RL training and policy export (TODO).
+
+## NEW PILLARS (P13)
+
+### Pillar J: Open-source robot catalogue (importable systems)
+Goal: support many open-source robots, not just SO-101. Each = URDF/MJCF + meshes + joint map.
+- [ ] J1: ORCA Hand (open dexterous hand) - import + control as a gripper/hand module.
+- [ ] J2: Robot catalogue registry: SO-ARM100/101, Seeed reBot, Koch, Mobile ALOHA, OpenArm,
+      Dummy-Robot, LeRobot-supported arms. Each loadable via BuildFromKinematics(<json>).
+- [ ] J3: Generic URDF importer path (drop a URDF + meshes -> playable arm).
+- [ ] J4: eFlesh tactile as a real hardware module (already emulated; map to real sensor later).
+
+### Pillar K: Multi-robot + communication
+Goal: multiple arms, each with multiple modules, that communicate and coordinate.
+- [ ] K1: Spawn N arms in one scene; per-arm controllers/sensors/servo panels.
+- [ ] K2: Shared world state / message bus (arms publish pose+intent, subscribe to others).
+- [ ] K3: Coordinated tasks: object hand-off between two arms; collaborative pick-place; do-not-collide.
+- [ ] K4: Multi-agent training (each arm a policy; cooperative/competitive fitness).
+
+### Module-usage transparency (P13 / I43)
+- [ ] U1: Per-module panel showing live outputs (have ServoPanel for motors; add a SensorPanel).
+- [ ] U2: Each module shows "USED IN TRAINING: yes/no" = is it in the current observation vector?
+- [ ] U3: Observation composition view: which channels feed the policy this generation.
+
+### Record initial training demonstrations (P13 / I44)
+- [ ] D1: Record a hand-driven pick-place-into-tray run (already have BehaviourRecorder waypoints).
+- [ ] D2: Save as a labelled DEMO (task + sensor stream + actions) for imitation seeding.
+- [ ] D3: Seed the policy/evolution population from recorded demos (warm-start training).
+
+### Real-world fidelity (P13 / I46)
+- [ ] F-r1: Servo speed/torque limits per STS3215 datasheet (have rate-limit; add torque saturation).
+- [ ] F-r2: Sensor noise + latency models (IMU drift, lidar noise, camera lag) toggle.
+- [ ] F-r3: Friction/mass calibration to match real cube/tray.
+- [ ] F-r4: DLS/Jacobian IK so the real offset-wrist arm reaches like the physical robot.
+
+### IK reach issue (explanation, for the record)
+CCD (cyclic coordinate descent) rotates one joint at a time toward the target. The real SO-101 wrist has
+an OFFSET TCP (gripper tip ~11 cm off the joint axes + 90deg twist), so single-joint rotations swing the
+tip non-intuitively; CCD oscillates and settles in a local minimum ~20 cm short. Procedural arm had an
+on-axis tip so CCD was exact. Fix = Damped Least Squares (Jacobian) IK: solve all joints together via the
+Jacobian with damping near singularities -> correct reaching for offset wrists (industry standard).

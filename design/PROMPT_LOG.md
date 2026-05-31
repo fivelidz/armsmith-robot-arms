@@ -177,3 +177,25 @@ and have it elements to consider and keep going for everything on the to do list
   (Feetech) you may already own from the prior project?
 - Q2: "0 auth Claude Code in game" — acceptable to call a local agent process / your existing
   opencode-shared auth, vs. truly bundling a key? (security: never embed secrets in the build).
+
+## P13 — Private repo, multi-robot ecosystem, module-usage panels, record training, real-world fidelity
+**User prompt (summary):** Make a PRIVATE GitHub repo for the whole game. Add to roadmap: inclusion of
+other open-source robot systems (ORCA Hand / orcahand and ALL open-source robotic systems). For now it's
+on Unity — run/setup in Unity and test all elements. All module outputs should have a PANEL DISPLAY and
+a NOTICE of whether they are actually being used / factored in when training. Be able to RECORD initial
+training actions (e.g. picking up an object and putting it in a tray). Add to roadmap: MULTIPLE robot
+arms with multiple modules that can COMMUNICATE with each other. Explain the IK reach issue. Want the
+simulated environment to be like the real world.
+**Derived intentions:**
+- I41: Create a PRIVATE GitHub repo and push all game code/docs.
+- I42: ROADMAP - integrate other open-source robot systems: ORCA Hand (open dexterous hand), plus a
+  general open-source robot catalogue (SO-ARM100/101, reBot, LeRobot arms, Koch, Mobile ALOHA, OpenArm,
+  Dummy-Robot, eFlesh tactile, etc). Each = importable URDF/STL + joint map.
+- I43: Module-output PANELS: every sensor module shows live output values AND a clear "USED IN TRAINING:
+  yes/no" indicator (is this module's data actually in the current observation vector?).
+- I44: RECORD initial training demonstrations - capture a hand-driven pick-and-place-into-tray run as a
+  labelled demo usable to seed/bootstrap training (imitation seed).
+- I45: ROADMAP - MULTIPLE robot arms, each with multiple modules, that COMMUNICATE (shared world state /
+  message bus / coordinated tasks; e.g. hand-off an object between two arms).
+- I46: Real-world fidelity - tighten sim to match reality (servo speed/torque, sensor noise, latency,
+  friction). IK reach issue = CCD local-minimum on offset wrist -> implement DLS/Jacobian IK.
