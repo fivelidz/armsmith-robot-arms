@@ -30,13 +30,13 @@ namespace ArmSmith
             var rt = bg.rectTransform;
             rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(0, 0); rt.pivot = new Vector2(0, 0);
             rt.anchoredPosition = new Vector2(10, 10);
-            rt.sizeDelta = new Vector2(360, 200);
+            rt.sizeDelta = new Vector2(420, 230);
 
             var txtGo = new GameObject("txt");
             txtGo.transform.SetParent(go.transform, false);
             text = txtGo.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 14;
+            text.fontSize = 15;
             text.color = Color.white;
             text.supportRichText = true;
             var trt = text.rectTransform;

@@ -30,12 +30,18 @@ namespace ArmSmith
 
         public void Setup(Transform gripper, Vector3 envPos, Vector3 envLookAt)
         {
-            // Wrist cam parented to gripper end (robot's-eye view).
+            // Wrist cam parented to the gripper (robot's-eye view). It must look DOWN the gripper toward
+            // where the jaws grasp (forward), not backward. We parent it, place it slightly behind/above
+            // the tip, then aim it at a point beyond the end-effector tip so it always faces the work.
             if (wristCam != null && gripper != null)
             {
-                wristCam.transform.SetParent(gripper, false);
-                wristCam.transform.localPosition = new Vector3(0f, 0.02f, 0.03f);
-                wristCam.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
+                var t = wristCam.transform;
+                t.SetParent(gripper, false);
+                t.localPosition = new Vector3(0f, -0.03f, 0f);     // just behind the TCP along gripper-local
+                // Aim along the gripper's reach: the end-effector's local +Y is the tool direction.
+                // LookAt a point further along that direction so the camera faces forward toward objects.
+                Vector3 forwardPoint = gripper.position + gripper.up * 0.2f;
+                t.LookAt(forwardPoint, gripper.forward);
                 wristCam.fieldOfView = 80f;
                 wristCam.nearClipPlane = 0.01f;
                 wristRT = new RenderTexture(256, 256, 16) { name = "WristRT" };

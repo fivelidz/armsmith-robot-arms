@@ -254,18 +254,30 @@ namespace ArmSmith
             // Now that panels exist, set up the cameras + RenderTextures and bind them to the panels.
             rig.Setup(arm.endEffector, EnvCamPos, EnvCamLook);
 
-            // info text (top-left)
+            // info text (top-left) — legible: larger font, dark backing panel, outline.
+            var infoBgGo = new GameObject("InfoBg");
+            infoBgGo.transform.SetParent(canvasGo.transform, false);
+            var infoBg = infoBgGo.AddComponent<Image>();
+            infoBg.color = new Color(0.04f, 0.05f, 0.07f, 0.78f);
+            var bgrt = infoBg.rectTransform;
+            bgrt.anchorMin = new Vector2(0, 1); bgrt.anchorMax = new Vector2(0, 1); bgrt.pivot = new Vector2(0, 1);
+            bgrt.anchoredPosition = new Vector2(8, -8);
+            bgrt.sizeDelta = new Vector2(720, 250);
+
             var txtGo = new GameObject("Info");
-            txtGo.transform.SetParent(canvasGo.transform, false);
+            txtGo.transform.SetParent(infoBgGo.transform, false);
             infoText = txtGo.AddComponent<Text>();
             infoText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            infoText.fontSize = 15;
+            infoText.fontSize = 17;
+            infoText.fontStyle = FontStyle.Bold;
             infoText.color = Color.white;
+            infoText.lineSpacing = 1.05f;
+            var outline = txtGo.AddComponent<Outline>();
+            outline.effectColor = new Color(0, 0, 0, 0.9f);
+            outline.effectDistance = new Vector2(1.2f, -1.2f);
             var rt = infoText.rectTransform;
-            rt.anchorMin = new Vector2(0, 1); rt.anchorMax = new Vector2(0, 1);
-            rt.pivot = new Vector2(0, 1);
-            rt.anchoredPosition = new Vector2(10, -10);
-            rt.sizeDelta = new Vector2(640, 320);
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = new Vector2(10, 8); rt.offsetMax = new Vector2(-10, -8);
 
             // Servo motor values panel (bottom-left): per-joint angle -> tick, target, bar.
             servoPanel = canvasGo.AddComponent<ServoPanel>();
@@ -296,7 +308,8 @@ namespace ArmSmith
             infoText.text =
                 $"<b>ARMSMITH</b> — {config.armName}  ({arm.jointBodies.Count} DOF){rec}\n" +
                 $"Mode: {mode} (Tab) | Claw: {grip}  (, open  . close  Space toggle | N/B rotate claw)\n" +
-                $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth: scroll or [/] | dbl-click grab/place | Shift+drag path\n" +
+                $"<color=#fd6>FLY the green target:</color> WASD move, Q/E up-down (drives the claw via IK)\n" +
+                $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth scroll | dbl-click grab/place\n" +
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom, V HUD | B bounds, X axes\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | <color=#f99>DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount + " steps" : "Backspace")}</color>\n" +

@@ -22,7 +22,7 @@ namespace ArmSmith
         public Mode mode = Mode.IK;
 
         [Header("Tuning")]
-        public float keyMoveSpeed = 0.25f;     // m/s for WASD target nudge
+        public float keyMoveSpeed = 0.35f;     // m/s for WASD/QE fly-around of the position indicator
         public float manualJointSpeed = 60f;   // deg/s
         public int ikIterations = 12;
 
@@ -226,15 +226,24 @@ namespace ArmSmith
                 p.y = workPlaneY;
             }
 
-            // Keyboard fine-nudge (works alongside mouse follow).
+            // FLY-AROUND the position indicator (primary keyboard driver): WASD move in the camera's
+            // horizontal plane, Q/E (or R/F) move up/down. Camera-relative so it feels like flying the
+            // target wherever you look. Works whether mouse-follow is on or off.
             Vector3 d = Vector3.zero;
-            if (Input.GetKey(KeyCode.W)) d += Vector3.forward;
-            if (Input.GetKey(KeyCode.S)) d += Vector3.back;
-            if (Input.GetKey(KeyCode.A)) d += Vector3.left;
-            if (Input.GetKey(KeyCode.D)) d += Vector3.right;
-            if (Input.GetKey(KeyCode.R)) d += Vector3.up;
-            if (Input.GetKey(KeyCode.F)) d += Vector3.down;
-            p += d.normalized * keyMoveSpeed * Time.deltaTime;
+            Vector3 camF = mainCamera != null ? mainCamera.transform.forward : Vector3.forward;
+            Vector3 camR = mainCamera != null ? mainCamera.transform.right : Vector3.right;
+            camF.y = 0; camR.y = 0; camF.Normalize(); camR.Normalize();
+            if (Input.GetKey(KeyCode.W)) d += camF;
+            if (Input.GetKey(KeyCode.S)) d -= camF;
+            if (Input.GetKey(KeyCode.D)) d += camR;
+            if (Input.GetKey(KeyCode.A)) d -= camR;
+            if (Input.GetKey(KeyCode.E) || Input.GetKey(KeyCode.R)) d += Vector3.up;
+            if (Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.F)) d += Vector3.down;
+            if (d != Vector3.zero)
+            {
+                p += d.normalized * keyMoveSpeed * Time.deltaTime;
+                workPlaneY = p.y; // keep depth slider in sync
+            }
 
             // Keep the target within the arm's reach so IK stays well-conditioned.
             Vector3 basePos = arm.baseBody != null ? arm.baseBody.transform.position : transform.position;
@@ -274,8 +283,17 @@ namespace ArmSmith
             restLocalRot = new Quaternion[n];
             restLocalOff = new Vector3[n];
 
+            // Use the REAL revolute twist axis of each ArticulationBody (local frame), not the simplified
+            // config enum. For a revolute AB the twist axis is anchorRotation * +X (Unity drive axis).
+            // This makes FK match the real SO-101 chain (the enum axes were wrong -> bad FK -> bad IK).
             for (int i = 0; i < n; i++)
-                jAxisLocal[i] = arm.config.AxisVector(arm.jointSpecs[i].axis);
+            {
+                var ab = arm.jointBodies[i];
+                if (ab.jointType == ArticulationJointType.RevoluteJoint)
+                    jAxisLocal[i] = (ab.anchorRotation * Vector3.right).normalized;
+                else
+                    jAxisLocal[i] = arm.config.AxisVector(arm.jointSpecs[i].axis);
+            }
 
             baseRot0 = arm.jointBodies[0].transform.rotation
                        * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[0], jAxisLocal[0]));
@@ -306,43 +324,112 @@ namespace ArmSmith
             calibrated = true;
         }
 
+        // Which joints IK is allowed to move (positioning joints only; roll = claw rotation, gripper = jaw).
+        bool IsReachJoint(int i)
+        {
+            if (arm.jointSpecs[i].axis == JointAxis.Roll) return false;
+            if (i == wristRollJoint) return false;
+            if (arm.jointSpecs[i].name.ToLower().Contains("gripper")) return false;
+            return true;
+        }
+
+        int[] reachIdx;          // indices of the reach joints
+        float[] dq;              // delta-angles buffer
+        public float dlsDamping = 0.08f;   // DLS lambda (higher = more stable, slower)
+        public float ikStepDeg = 18f;      // max deg change per joint per IK update (smooth)
+
+        // DAMPED LEAST SQUARES (Jacobian) IK. Robust for the real SO-101's OFFSET wrist where CCD gets
+        // stuck in a local minimum. Builds a numerical 3xM position Jacobian over the reach joints and
+        // solves dq = J^T (J J^T + lambda^2 I)^-1 * e, where e = (goal - EE). Iterates a few times.
         void SolveIK()
         {
             int n = arm.jointBodies.Count;
             if (!calibrated || jPos == null || jPos.Length != n + 1) CalibrateIK();
 
+            // collect reach-joint indices once
+            if (reachIdx == null)
+            {
+                var list = new List<int>();
+                for (int i = 0; i < n; i++) if (IsReachJoint(i)) list.Add(i);
+                reachIdx = list.ToArray();
+                dq = new float[reachIdx.Length];
+            }
+            int m = reachIdx.Length;
+            if (m == 0) return;
+
             Vector3 goal = ikTarget.position;
-            for (int iter = 0; iter < ikIterations; iter++)
+            const float h = 0.5f; // finite-diff angle step (deg) for Jacobian
+
+            for (int iter = 0; iter < Mathf.Max(4, ikIterations); iter++)
             {
                 ForwardKinematics(n);
-                bool improved = false;
-                for (int i = n - 1; i >= 0; i--)
+                Vector3 ee = jPos[n];
+                Vector3 err = goal - ee;
+                float errMag = err.magnitude;
+                if (errMag < 0.004f) break;
+                if (errMag > 0.15f) err = err.normalized * 0.15f; // cap target step for stability
+
+                // Numerical Jacobian: columns = d(EE)/d(theta_j) for each reach joint.
+                // J is 3 x m (row = x,y,z). We store as jacobian[j] = Vector3 column.
+                Vector3[] J = new Vector3[m];
+                for (int c = 0; c < m; c++)
                 {
-                    // IK only uses POSITIONING joints. Roll joints (claw rotation) and the gripper joint
-                    // are excluded so IK never spins the wrist_roll around to "reach" — that joint is the
-                    // player's claw-rotation control (N/B), not a reach DOF. Fixes the "360° spin" feel.
-                    if (arm.jointSpecs[i].axis == JointAxis.Roll) continue;
-                    if (i == wristRollJoint) continue;
-                    if (arm.jointSpecs[i].name.ToLower().Contains("gripper")) continue;
-
-                    Vector3 jp = jPos[i];
-                    Vector3 axis = (jRot[i] * jAxisLocal[i]).normalized;
-                    Vector3 ee = jPos[n];
-
-                    Vector3 toEE = Vector3.ProjectOnPlane(ee - jp, axis);
-                    Vector3 toGoal = Vector3.ProjectOnPlane(goal - jp, axis);
-                    if (toEE.sqrMagnitude < 1e-7f || toGoal.sqrMagnitude < 1e-7f) continue;
-
-                    float delta = Vector3.SignedAngle(toEE, toGoal, axis) * 0.6f; // damping
-                    var js = arm.jointSpecs[i];
-                    float na = Mathf.Clamp(targetAngles[i] + delta, js.minAngle, js.maxAngle);
-                    if (Mathf.Abs(na - targetAngles[i]) > 0.01f) improved = true;
-                    targetAngles[i] = na;
+                    int jindex = reachIdx[c];
+                    float saved = targetAngles[jindex];
+                    targetAngles[jindex] = saved + h;
                     ForwardKinematics(n);
+                    Vector3 eePlus = jPos[n];
+                    targetAngles[jindex] = saved;
+                    J[c] = (eePlus - ee) / (h * Mathf.Deg2Rad); // d EE / d theta(rad)
                 }
-                if (!improved) break;
-                if (Vector3.Distance(jPos[n], goal) < 0.005f) break;
+                ForwardKinematics(n); // restore
+
+                // Solve dq = J^T (J J^T + l^2 I)^-1 e   (3x3 system since position-only).
+                // A = J J^T (3x3), b = e. Solve A y = b, then dq = J^T y.
+                float l2 = dlsDamping * dlsDamping;
+                // Build A (3x3)
+                float[,] A = new float[3, 3];
+                for (int c = 0; c < m; c++)
+                {
+                    A[0, 0] += J[c].x * J[c].x; A[0, 1] += J[c].x * J[c].y; A[0, 2] += J[c].x * J[c].z;
+                    A[1, 0] += J[c].y * J[c].x; A[1, 1] += J[c].y * J[c].y; A[1, 2] += J[c].y * J[c].z;
+                    A[2, 0] += J[c].z * J[c].x; A[2, 1] += J[c].z * J[c].y; A[2, 2] += J[c].z * J[c].z;
+                }
+                A[0, 0] += l2; A[1, 1] += l2; A[2, 2] += l2;
+                Vector3 y = Solve3x3(A, err);
+                if (float.IsNaN(y.x)) break;
+
+                // dq_c = J[c] . y  (radians) -> degrees
+                for (int c = 0; c < m; c++)
+                {
+                    float dqi = Vector3.Dot(J[c], y) * Mathf.Rad2Deg;
+                    dqi = Mathf.Clamp(dqi, -ikStepDeg, ikStepDeg);
+                    int jindex = reachIdx[c];
+                    var js = arm.jointSpecs[jindex];
+                    targetAngles[jindex] = Mathf.Clamp(targetAngles[jindex] + dqi, js.minAngle, js.maxAngle);
+                }
             }
+        }
+
+        // Solve a 3x3 linear system A x = b via Cramer's rule (A is small & damped, always invertible).
+        static Vector3 Solve3x3(float[,] A, Vector3 b)
+        {
+            float det =
+                A[0, 0] * (A[1, 1] * A[2, 2] - A[1, 2] * A[2, 1]) -
+                A[0, 1] * (A[1, 0] * A[2, 2] - A[1, 2] * A[2, 0]) +
+                A[0, 2] * (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0]);
+            if (Mathf.Abs(det) < 1e-12f) return new Vector3(float.NaN, 0, 0);
+            float inv = 1f / det;
+            float x = (b.x * (A[1, 1] * A[2, 2] - A[1, 2] * A[2, 1]) -
+                       A[0, 1] * (b.y * A[2, 2] - A[1, 2] * b.z) +
+                       A[0, 2] * (b.y * A[2, 1] - A[1, 1] * b.z)) * inv;
+            float yy = (A[0, 0] * (b.y * A[2, 2] - A[1, 2] * b.z) -
+                       b.x * (A[1, 0] * A[2, 2] - A[1, 2] * A[2, 0]) +
+                       A[0, 2] * (A[1, 0] * b.z - b.y * A[2, 0])) * inv;
+            float z = (A[0, 0] * (A[1, 1] * b.z - b.y * A[2, 1]) -
+                       A[0, 1] * (A[1, 0] * b.z - b.y * A[2, 0]) +
+                       b.x * (A[1, 0] * A[2, 1] - A[1, 1] * A[2, 0])) * inv;
+            return new Vector3(x, yy, z);
         }
 
         // FK using the CALIBRATED rest geometry + current targetAngles (matches the real chain).

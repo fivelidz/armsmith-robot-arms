@@ -34,7 +34,7 @@ namespace ArmSmith
             txtGo.transform.SetParent(go.transform, false);
             text = txtGo.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 12;
+            text.fontSize = 13;
             text.color = Color.white;
             text.supportRichText = true;
             var trt = text.rectTransform;
