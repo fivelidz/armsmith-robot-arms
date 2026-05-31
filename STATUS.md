@@ -29,6 +29,8 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - Per-servo direct keys: T/G Y/H U/J I/K O/L P/; (joints 0..5). Claw open/close `,`/`.`. Claw rotate `N`/`B`.
 - Camera: RMB orbit, MMB pan, Ctrl+scroll zoom. `V` toggle cam HUD, `B` bounds, `X` axes.
 - Scenarios `[`/`]`... (NOTE: conflicts with depth keys — see KNOWN ISSUES). Reset Esc.
+- Calibrate to zero: `Z`/`Home`. Pause/resume (move-on-resume): `Enter`. Manual speed: `Shift+,`/`Shift+.`.
+- Servo callouts: `\` then click a joint -> leader-line panel of its command/output.
 - Train: `T` start/stop, `N` +1 gen, `F8` policy(sensor) vs motion mode, `F11` export best.
 - Sensors toggle: `F2`-`F7`. Module panel `F12`. STL export `F9`, waypoints `F10`.
 - Demo record: `Backspace`. Agent demo: `F1`. Sim speed: `+`/`-`/`0`.

@@ -314,6 +314,7 @@ namespace ArmSmith
                 $"<b>ARMSMITH</b> — {config.armName}  ({arm.jointBodies.Count} DOF){rec}\n" +
                 $"Mode: {mode} (Tab) | Claw: {grip}  (, open  . close  Space toggle | N/B rotate claw)\n" +
                 $"<color=#fd6>FLY the green target:</color> WASD move, Q/E up-down (drives the claw via IK)\n" +
+                $"<color=#9f9>Z/Home</color> calibrate to zero | <color=#9f9>Enter</color> {(controller.paused ? "<color=#f99>PAUSED (Enter=resume->move)</color>" : "pause")} | speed x{controller.speedScale:F1} (Shift+,/.)\n" +
                 $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth scroll | dbl-click grab/place\n" +
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +

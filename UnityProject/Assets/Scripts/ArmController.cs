@@ -83,14 +83,66 @@ namespace ArmSmith
 
         bool directKeyActive;   // true this frame if any per-joint key is held (suppresses IK fighting)
 
+        // --- Calibrate / speed / pause-resume ---
+        [Header("Calibrate / speed / pause")]
+        public float[] zeroPose;             // the calibrated "zero" home pose (deg per joint)
+        [Range(0.1f, 3f)] public float speedScale = 1f;   // manual-control speed multiplier
+        public bool paused = false;          // when paused, the arm HOLDS; new targets are queued
+        float[] queuedTargets;               // target captured while paused -> applied on resume
+        bool hasQueued;
+
         void Update()
         {
             if (arm == null || arm.jointBodies.Count == 0) return;
             HandleModeToggle();
+            HandleSpeedAndPause();
+            HandleCalibrate();
             HandleGripper();
             HandleDirectJointKeys();          // labeled per-servo control (both modes)
             if (mode == Mode.IK) HandleIKInput();
             else HandleManualInput();
+        }
+
+        void HandleSpeedAndPause()
+        {
+            // Speed: < and > ... no (claw uses ,/.). Use - / = already = sim speed. Use [ ] = depth.
+            // Dedicated manual speed keep on keys 9 / 0? Those are scenario-free. Use comma-less: , . taken.
+            // We expose speedScale via UI; keys: hold Left-Ctrl + scroll? Keep it simple: keys '<' '>' shift.
+            if (Input.GetKeyDown(KeyCode.Period) && Input.GetKey(KeyCode.LeftShift)) speedScale = Mathf.Min(3f, speedScale + 0.25f);
+            if (Input.GetKeyDown(KeyCode.Comma) && Input.GetKey(KeyCode.LeftShift)) speedScale = Mathf.Max(0.1f, speedScale - 0.25f);
+
+            // Pause/resume: P pauses (arm holds, new IK target is queued not driven); P again resumes &
+            // the arm moves to the queued target. (Note: 'P' was playback in recorder; we use 'Return'.)
+            if (Input.GetKeyDown(KeyCode.Return))
+            {
+                paused = !paused;
+                if (!paused && hasQueued) { /* on resume, queued target becomes active automatically */ hasQueued = false; }
+            }
+        }
+
+        void HandleCalibrate()
+        {
+            // Home/zero: press Home (or 'Z') to bring all motors back to the calibrated zero pose.
+            if (Input.GetKeyDown(KeyCode.Home) || Input.GetKeyDown(KeyCode.Z))
+                GoToZero();
+        }
+
+        /// <summary>Bring the arm back to its calibrated zero/home pose (all motors to zeroPose).</summary>
+        public void GoToZero()
+        {
+            if (zeroPose == null) zeroPose = new float[targetAngles.Length]; // default = all 0
+            for (int i = 0; i < targetAngles.Length; i++)
+                targetAngles[i] = i < zeroPose.Length ? zeroPose[i] : 0f;
+            // also park the IK target at the resulting tip so IK doesn't yank it away
+            if (ikTarget != null && arm.endEffector != null)
+                ikTarget.position = arm.endEffector.position;
+            mode = Mode.Manual; // hold the zero pose (IK off) until the player moves again
+        }
+
+        /// <summary>Set the current pose as the calibrated zero (like homing a real arm's encoders).</summary>
+        public void SetCurrentAsZero()
+        {
+            zeroPose = (float[])targetAngles.Clone();
         }
 
         // Direct per-servo control via labeled key pairs (T/G, Y/H, ...). Drives joints individually.
@@ -108,7 +160,7 @@ namespace ArmSmith
                     directKeyActive = true;
                     var js = arm.jointSpecs[i];
                     targetAngles[i] = Mathf.Clamp(
-                        targetAngles[i] + dir * manualJointSpeed * Time.deltaTime,
+                        targetAngles[i] + dir * manualJointSpeed * speedScale * Time.deltaTime,
                         js.minAngle, js.maxAngle);
                 }
             }
@@ -123,12 +175,22 @@ namespace ArmSmith
             {
                 settleFrames++;
                 arm.SetJointTargets(targetAngles);
-                if (settleFrames == 30) CalibrateIK();
+                if (settleFrames == 30) { CalibrateIK(); if (zeroPose == null) SetCurrentAsZero(); }
                 return;
             }
-            if (mode == Mode.IK) SolveIK();
+            if (mode == Mode.IK) SolveIK();   // keeps computing the (possibly queued) target angles
+
+            if (paused)
+            {
+                // PAUSED: hold the pose captured at the moment of pausing. targetAngles keeps updating
+                // (the queued goal you set while paused), but we don't drive to it until you resume.
+                if (!hasQueued) { heldPose = (float[])arm.GetJointAngles().Clone(); hasQueued = true; }
+                arm.SetJointTargets(heldPose);
+                return;
+            }
             arm.SetJointTargets(targetAngles);
         }
+        float[] heldPose;
 
         void HandleModeToggle()
         {
@@ -241,7 +303,7 @@ namespace ArmSmith
             if (Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.F)) d += Vector3.down;
             if (d != Vector3.zero)
             {
-                p += d.normalized * keyMoveSpeed * Time.deltaTime;
+                p += d.normalized * keyMoveSpeed * speedScale * Time.deltaTime;
                 workPlaneY = p.y; // keep depth slider in sync
             }
 
