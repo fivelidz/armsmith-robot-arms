@@ -28,7 +28,17 @@ namespace ArmSmith
             var rt = bg.rectTransform;
             rt.anchorMin = new Vector2(0.5f, 1f); rt.anchorMax = new Vector2(0.5f, 1f); rt.pivot = new Vector2(0.5f, 1f);
             rt.anchoredPosition = new Vector2(0, -8);
-            rt.sizeDelta = new Vector2(760, 56);
+            rt.sizeDelta = new Vector2(760, 74);
+
+            // "SCENARIOS" heading
+            var hgo = new GameObject("heading"); hgo.transform.SetParent(go.transform, false);
+            var h = hgo.AddComponent<Text>();
+            h.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            h.fontSize = 13; h.fontStyle = FontStyle.Bold; h.alignment = TextAnchor.UpperCenter;
+            h.color = new Color(0.6f, 0.85f, 1f); h.text = "SCENARIOS";
+            var hrt = h.rectTransform;
+            hrt.anchorMin = new Vector2(0, 1); hrt.anchorMax = new Vector2(1, 1); hrt.pivot = new Vector2(0.5f, 1);
+            hrt.offsetMin = new Vector2(0, -16); hrt.offsetMax = new Vector2(0, -2);
 
             var values = (ScenarioType[])Enum.GetValues(typeof(ScenarioType));
             buttons = new Button[values.Length];
@@ -43,7 +53,7 @@ namespace ArmSmith
                 var brt = img.rectTransform;
                 brt.anchorMin = new Vector2(0, 1); brt.anchorMax = new Vector2(0, 1); brt.pivot = new Vector2(0, 1);
                 brt.sizeDelta = new Vector2(bw - 4, 26);
-                brt.anchoredPosition = new Vector2(8 + i * bw, -4);
+                brt.anchoredPosition = new Vector2(8 + i * bw, -20);
                 var btn = bgo.AddComponent<Button>();
                 buttons[i] = btn;
                 var st = values[i];

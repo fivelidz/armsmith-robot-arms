@@ -11,9 +11,11 @@ namespace ArmSmith
     public class SensorViz : MonoBehaviour
     {
         public SensorHub hub;
-        public bool show = true;
-        public enum View { All, RangeFinder, Lidar2D, DepthCamera }
-        public View view = View.All;
+        // Each VIEW toggles independently of whether the sensor is enabled for training.
+        // (You can watch the lidar footprint without that sensor feeding the policy, and vice-versa.)
+        public bool showRangeFinder = false;
+        public bool showLidar = false;
+        public bool showDepth = false;
 
         static Material lineMat;
 
@@ -21,10 +23,14 @@ namespace ArmSmith
 
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.L) && !Input.GetKey(KeyCode.LeftShift)) show = !show;
-            if (Input.GetKeyDown(KeyCode.L) && Input.GetKey(KeyCode.LeftShift))
-                view = (View)(((int)view + 1) % 4);
+            // L = lidar view, K... taken. Use: L lidar, ; rangefinder, ' depth. (independent toggles)
+            if (Input.GetKeyDown(KeyCode.L)) showLidar = !showLidar;
+            if (Input.GetKeyDown(KeyCode.Quote)) showDepth = !showDepth;
+            // rangefinder view toggled from UI / a less-used key:
+            if (Input.GetKeyDown(KeyCode.L) && Input.GetKey(KeyCode.LeftShift)) showRangeFinder = !showRangeFinder;
         }
+
+        public bool AnyOn => showRangeFinder || showLidar || showDepth;
 
         void EnsureMat()
         {
@@ -37,13 +43,13 @@ namespace ArmSmith
 
         void OnRenderObject()
         {
-            if (!show || hub == null) return;
+            if (!AnyOn || hub == null) return;
             EnsureMat(); lineMat.SetPass(0);
             GL.PushMatrix(); GL.Begin(GL.LINES);
 
-            if (view == View.All || view == View.RangeFinder) DrawRangeFinder();
-            if (view == View.All || view == View.Lidar2D) DrawLidar();
-            if (view == View.All || view == View.DepthCamera) DrawDepth();
+            if (showRangeFinder) DrawRangeFinder();
+            if (showLidar) DrawLidar();
+            if (showDepth) DrawDepth();
 
             GL.End(); GL.PopMatrix();
         }
@@ -51,7 +57,7 @@ namespace ArmSmith
         void DrawRangeFinder()
         {
             var s = hub.Get("RangeFinder") as RangeFinderSensor;
-            if (s == null || !s.Enabled || s.origin == null) return;
+            if (s == null || s.origin == null) return;
             Vector3 dir = s.origin.TransformDirection(s.localDir).normalized;
             float d = s.Observe()[0];
             Vector3 hit = s.origin.position + dir * d;
@@ -65,7 +71,7 @@ namespace ArmSmith
         void DrawLidar()
         {
             var s = hub.Get("Lidar2D") as Lidar2DSensor;
-            if (s == null || !s.Enabled || s.origin == null) return;
+            if (s == null || s.origin == null) return;
             float[] r = s.Observe();
             for (int i = 0; i < r.Length; i++)
             {
@@ -82,7 +88,7 @@ namespace ArmSmith
         void DrawDepth()
         {
             var s = hub.Get("DepthCamera") as DepthCameraSensor;
-            if (s == null || !s.Enabled || s.cam == null) return;
+            if (s == null || s.cam == null) return;
             float[] d = s.Observe();
             int g = Mathf.RoundToInt(Mathf.Sqrt(d.Length));
             GL.Color(new Color(0.6f, 1f, 0.4f, 0.5f));
@@ -104,6 +110,7 @@ namespace ArmSmith
             GL.Vertex(p - Vector3.forward * s); GL.Vertex(p + Vector3.forward * s);
         }
 
-        public string Status() => show ? $"sensor viz: {view}" : "sensor viz: off";
+        public string Status() =>
+            $"lidar:{(showLidar ? "ON" : "off")} range:{(showRangeFinder ? "ON" : "off")} depth:{(showDepth ? "ON" : "off")}";
     }
 }

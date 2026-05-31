@@ -36,6 +36,7 @@ namespace ArmSmith
         BuilderPanel builderPanel;
         DemoRecorder demoRec;
         SequenceEditor sequence;
+        SaveSystem saveSystem;
         Transform ikTarget;
 
         // HUD
@@ -93,6 +94,10 @@ namespace ArmSmith
             var seqGo = new GameObject("SequenceEditor");
             sequence = seqGo.AddComponent<SequenceEditor>();
             sequence.Bind(arm, controller);
+
+            var saveGo = new GameObject("SaveSystem");
+            saveSystem = saveGo.AddComponent<SaveSystem>();
+            saveSystem.Bind(arm, controller, scenarios, sensorHub, sequence, trainer);
         }
 
         void BuildScenarios()
@@ -337,7 +342,7 @@ namespace ArmSmith
                 $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth scroll | dbl-click grab/place\n" +
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
-                $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | <color=#f99>DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount + " steps" : "Backspace")}</color>\n" +
+                $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount : "Backspace")} | <color=#9f9>Ctrl+S save / Ctrl+L load</color>\n" +
                 $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best\n" +
                 $"<color=#cdf>Sequence:</color> K capture pt ({sequence.Count}), J play{(sequence.Playing ? " <color=#6f6>[PLAYING " + (sequence.PlayIndex + 1) + "]</color>" : "")}, Shift+Backspace del, F6... export\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
@@ -346,7 +351,7 @@ namespace ArmSmith
                 $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}\n" +
                 $"<color=#fa6>Servo bus (ticks):</color> {arm.ServoBusString()}\n" +
                 $"<color=#9cf>Sensors</color> (F2-F7 toggle): {sensorHub.Summary()}\n" +
-                $"<color=#6cf>View rays:</color> L toggle, Shift+L cycle [{sensorViz.Status()}]\n" +
+                $"<color=#6cf>Sensor views</color> (independent): L lidar, ' depth, Shift+L range  [{sensorViz.Status()}]\n" +
                 $"<color=#fc6>SIM SPEED: {Time.timeScale:F1}x real time</color> (+/- adjust, 0 pause) | " +
                 $"servo max ~300\u00b0/s \u2014 <color=#999>motors are NOT instant; at {Time.timeScale:F1}x a real {(1f / Mathf.Max(0.1f, Time.timeScale)):F2}s move looks 1s here</color>\n" +
                 $"<color=#7cf>Evolution</color> [{(trainer.policyMode ? "POLICY/sensors" : "motion")}] (F8 toggle) gen {trainer.generation}  " +

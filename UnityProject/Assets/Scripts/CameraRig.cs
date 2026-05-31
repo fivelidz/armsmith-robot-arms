@@ -37,12 +37,15 @@ namespace ArmSmith
             {
                 var t = wristCam.transform;
                 t.SetParent(gripper, false);
-                // Mount the wrist cam BEHIND and slightly ABOVE the gripper so the JAWS are in frame
-                // (the player sees the claw fingers + what they're grasping), looking forward down the tool.
-                t.localPosition = new Vector3(0f, -0.10f, -0.05f);
-                Vector3 forwardPoint = gripper.position + gripper.up * 0.25f;   // aim past the jaws
-                t.LookAt(forwardPoint, gripper.forward);
-                wristCam.fieldOfView = 90f;          // wider so jaws + object both fit
+                // Real wrist-cam mounting: the camera sits on the wrist BEHIND + ABOVE the jaws and looks
+                // DOWN/forward past the fingers, so the jaws appear at the bottom of frame and the object
+                // being grasped is centred below. Mount offset is along the gripper-local frame (gripper
+                // here = the TCP/end-effector whose local +Y is the tool/reach direction).
+                t.localPosition = new Vector3(0f, -0.12f, -0.06f);     // back (−Y tool) + up/out (−Z)
+                // Aim at a point just BELOW/AHEAD of the jaws (where a grasped object is).
+                Vector3 lookTarget = gripper.position + gripper.up * 0.04f;   // the jaw/grasp region
+                t.LookAt(lookTarget, -gripper.forward);
+                wristCam.fieldOfView = 95f;          // wide so both jaws + object fit
                 wristCam.nearClipPlane = 0.01f;
                 wristRT = new RenderTexture(256, 256, 16) { name = "WristRT" };
                 wristCam.targetTexture = wristRT;
