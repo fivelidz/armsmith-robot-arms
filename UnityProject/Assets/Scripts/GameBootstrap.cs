@@ -27,6 +27,7 @@ namespace ArmSmith
         BehaviourRecorder recorder;
         EvolutionTrainer trainer;
         AgentCommands agent;
+        SensorHub sensorHub;
         Transform ikTarget;
 
         // HUD
@@ -47,8 +48,16 @@ namespace ArmSmith
             BuildArm();
             BuildScenarios();
             BuildCameras();   // controller.Bind() sets the home pose here
+            BuildSensors();   // pluggable sensor modules (needs wrist cam from BuildCameras)
             BuildTrainer();   // capture home pose AFTER Bind
             BuildHud();
+        }
+
+        void BuildSensors()
+        {
+            var go = new GameObject("SensorHub");
+            sensorHub = go.AddComponent<SensorHub>();
+            sensorHub.Init(arm, rig);
         }
 
         void BuildTrainer()
@@ -277,6 +286,7 @@ namespace ArmSmith
                 $"Reward: {scenarios.LastReward:F2}   Time: {scenarios.Elapsed:F1}s   " +
                 $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}\n" +
                 $"<color=#fa6>Servo bus (ticks):</color> {arm.ServoBusString()}\n" +
+                $"<color=#9cf>Sensors</color> (F2-F7 toggle): {sensorHub.Summary()}\n" +
                 $"<color=#fc6>Sim speed: {Time.timeScale:F1}x</color>  (+/- adjust, 0 to pause)  " +
                 $"<color=#999>real servos move slower; speed-up is sim-only</color>\n" +
                 $"<color=#7cf>Evolution</color> gen {trainer.generation}  " +
@@ -289,11 +299,25 @@ namespace ArmSmith
                 Time.timeScale = Mathf.Max(0f, Time.timeScale - 0.5f);
             if (Input.GetKeyDown(KeyCode.Alpha0)) Time.timeScale = (Time.timeScale == 0f) ? 1f : 0f;
 
+            // Sensor module toggles (ablation): F2 IMU, F3 RangeFinder, F4 Lidar2D, F5 DepthCamera, F6 eFlesh, F7 MotorEncoders
+            if (Input.GetKeyDown(KeyCode.F2)) Toggle("IMU");
+            if (Input.GetKeyDown(KeyCode.F3)) Toggle("RangeFinder");
+            if (Input.GetKeyDown(KeyCode.F4)) Toggle("Lidar2D");
+            if (Input.GetKeyDown(KeyCode.F5)) Toggle("DepthCamera");
+            if (Input.GetKeyDown(KeyCode.F6)) Toggle("EFleshTactile");
+            if (Input.GetKeyDown(KeyCode.F7)) Toggle("MotorEncoders");
+
             if (Input.GetKeyDown(KeyCode.F9)) ExportStl();
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
             if (Input.GetKeyDown(KeyCode.F11)) ExportBestTrajectory();
             // F1: run the built-in agent demo script (slow-but-correct solution).
             if (Input.GetKeyDown(KeyCode.F1)) agent.Run(AgentCommands.DemoTrayToTray);
+        }
+
+        void Toggle(string sensorName)
+        {
+            var s = sensorHub.Get(sensorName);
+            if (s != null) s.Enabled = !s.Enabled;
         }
 
         void ExportStl()

@@ -58,6 +58,29 @@ behaviours and designs **export and cross over to real hardware**.
 - [ ] R11: Text-agent command interface (parse instructions → actions; generate sequences; seed evolution). (I29)
 - [ ] R12: Success condition fires + is visible; verify each scenario. (I30)
 
+## Sensor module system (P12 — big new pillar "I: Sensors")
+Goal: pluggable add-on sensors so players compare task performance with different information, and
+training uses all available info. Modules implement a common ISensor interface; an ObservationBuilder
+concatenates enabled modules into the training observation.
+- [ ] S1: ISensor interface { string[] Channels; float[] Observe(); string Name } + SensorHub registry.
+- [ ] S2: MotorEncoderSensor — joint angles + servo ticks (baseline; already have via arm.GetJointAngles).
+- [ ] S3: ImuSensor — orientation (quat->euler), angular vel, linear accel at a chosen link (alt to encoders).
+- [ ] S4: RangeFinderSensor — single Raycast from gripper -Y / forward -> distance (1-point ToF lidar).
+- [ ] S5: Lidar2DSensor — N raycasts in a fan/ring -> range array (planar lidar scan).
+- [ ] S6: DepthCameraSensor — read wrist-cam depth (downsampled NxN range grid from camera).
+- [ ] S7: EFleshTactileSensor — per-finger contact normal force + contact point (tactile/grasp feedback).
+- [ ] S8: ObservationBuilder — concatenate enabled sensors -> obs vector; expose to EvolutionTrainer.
+- [ ] S9: HUD/UI toggles for each module; show live channel readouts.
+- [ ] S10: Comparative analytics — per-task best-performing sensor set ("module advisor"); ablation runs.
+- [ ] S11: Train generatively with ALL enabled sensor info (now); subset ablation later.
+- [ ] S12: Sensors as physical add-on visuals on the arm (so attaching a module is visible).
+
+## More mouse control (P12 / I40) — extend the approved control
+- [ ] M-ctrl1: click-to-grab (click an object -> arm moves to it + closes gripper).
+- [ ] M-ctrl2: drag an object to a location (pick + place by mouse).
+- [ ] M-ctrl3: draw-a-path (hold + drag -> arm follows the traced path; record as trajectory/training seed).
+- [ ] M-ctrl4: depth scrub feel — refine scroll depth; observe how mouse motion translates to recorded waypoints.
+
 ### Servo activation chain (R10 design note)
 mouse screen pos → ray → worktop plane hit (work-plane) → IK target → FABRIK → per-joint angle (deg)
 → ServoModel.RateLimit (max deg/s like real motor) → AngleToTick (deg→0..4095) → drive.target (sim)

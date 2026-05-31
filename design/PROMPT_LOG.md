@@ -142,6 +142,36 @@ instead of opening sideways. Jaws never straddle the cube. Fix prismatic axis to
 - I34: Make collision authoritative (jaws+cube+table) — continuous collision on cube, solid contacts.
 - I35: Load the real SO-ARM100 STL meshes per link so the arm LOOKS like the real model (I17).
 
+## P12 — Sensor module system + train with all info + more mouse control
+**User prompt (verbatim):** "An idea for going forward is to also train with all the information
+available. I want to be able to create add on modules so we can see performance with different
+information. such as IMU instead of positioning from motors, lidar, single point range finding lidar,
+depth camera, eflesh sensor etc. This will let players and people know what modules might help the best
+for different tasks. For now generative training should be done with all the information. I'd like to do
+more mouse control and see how that translates as that was working well. Save this stuff to the roadmap
+and have it elements to consider and keep going for everything on the to do list and test."
+**Derived intentions:**
+- I36: SENSOR MODULE SYSTEM — pluggable add-on sensors the player attaches to the arm/scene. Each sensor
+  produces an observation vector. Players toggle modules to compare task performance with different
+  information. Catalogue:
+    * MotorEncoders (joint angles from servos — the baseline/default)
+    * IMU (orientation + accel/gyro at a link, INSTEAD of motor positioning)
+    * Lidar2D (planar scan of ranges around the workspace)
+    * RangeFinder (single-point ToF distance from the gripper, "1-point lidar")
+    * DepthCamera (RGB-D from the wrist cam — depth per pixel / downsampled grid)
+    * EFleshTactile (contact/force at the gripper fingers — magnetic tactile, see eflesh research)
+    * (future) ForceTorque wrist, ProximityIR
+- I37: Each module = a component implementing a common ISensor interface (Observe() -> float[] + a
+  human-readable channel list), discoverable + toggleable. An "observation builder" concatenates the
+  enabled modules' outputs into the training observation vector.
+- I38: For NOW, generative/evolutionary training uses ALL enabled sensor info (full observation). Later:
+  ablation mode (train with subsets) to rank which modules help which task -> "module advisor".
+- I39: Comparative analytics — show per-task which sensor set gives best fitness (the player/dev insight
+  the user wants: "what modules help best for different tasks").
+- I40: MORE MOUSE CONTROL — the cursor->work-plane->CCD-IK control is the winner; extend it (e.g.
+  click-to-grab, drag objects, draw a path the arm follows, scrub depth) and observe how it translates
+  into recorded trajectories / training seeds.
+
 **Open questions to confirm with user later (do not block):**
 - Q1: Which real arm is the primary target to port to — reBot B601-DM (Damiao/CAN) or an SO-ARM100
   (Feetech) you may already own from the prior project?
