@@ -27,7 +27,25 @@ namespace ArmSmith
             public RectTransform panel;    // UI panel
             public Text text;
             public UILine line;            // leader line
+            public RadialGauge gauge;      // circular activation gauge
+            public Button minusBtn, plusBtn; // drive-this-servo arrows
             public bool pinned;
+        }
+
+        Button MakeArrow(Transform parent, string glyph, Vector2 pos)
+        {
+            var go = new GameObject("arrow"); go.transform.SetParent(parent, false);
+            var img = go.AddComponent<Image>(); img.color = new Color(0.2f, 0.25f, 0.3f, 1f);
+            var rt = img.rectTransform; rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.zero;
+            rt.pivot = Vector2.zero; rt.sizeDelta = new Vector2(28, 22); rt.anchoredPosition = pos;
+            var btn = go.AddComponent<Button>();
+            var tgo = new GameObject("g"); tgo.transform.SetParent(go.transform, false);
+            var t = tgo.AddComponent<Text>();
+            t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            t.fontSize = 14; t.alignment = TextAnchor.MiddleCenter; t.color = Color.white; t.text = glyph;
+            var trt = t.rectTransform; trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
+            trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
+            return btn;
         }
 
         readonly List<Callout> callouts = new List<Callout>();
@@ -44,37 +62,56 @@ namespace ArmSmith
         {
             var co = new Callout { joint = joint };
 
-            // 3D clickable hotspot at the joint
+            Color sc = ProceduralArm.ServoColor(joint);   // consistent per-servo colour
+
+            // 3D clickable hotspot at the joint, COLOUR-CODED per servo.
             var hs = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             hs.name = $"ServoHotspot_{joint}";
-            hs.transform.localScale = Vector3.one * 0.03f;
+            hs.transform.localScale = Vector3.one * 0.035f;
             var mr = hs.GetComponent<MeshRenderer>();
             mr.sharedMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"))
-            { color = new Color(1f, 0.8f, 0.1f, 1f) };
+            { color = sc };
             var col = hs.GetComponent<SphereCollider>(); col.isTrigger = false; // raycastable
             co.hotspot = hs;
 
-            // UI panel (hidden until clicked)
+            // UI panel (hidden until clicked) — wider, holds text + radial gauge + arrow buttons.
             var pgo = new GameObject($"Callout_{joint}");
             pgo.transform.SetParent(canvas.transform, false);
             var img = pgo.AddComponent<Image>();
-            img.color = new Color(0.06f, 0.09f, 0.12f, 0.92f);
+            img.color = new Color(0.06f, 0.09f, 0.12f, 0.95f);
             co.panel = img.rectTransform;
             co.panel.anchorMin = Vector2.zero; co.panel.anchorMax = Vector2.zero;  // (0,0) so screen px maps
-            co.panel.sizeDelta = new Vector2(230, 96);
+            co.panel.sizeDelta = new Vector2(250, 110);
             co.panel.pivot = new Vector2(0, 0.5f);
+            // coloured left edge stripe to identify the servo
+            var stripe = new GameObject("stripe"); stripe.transform.SetParent(pgo.transform, false);
+            var simg = stripe.AddComponent<Image>(); simg.color = sc;
+            var srt = simg.rectTransform; srt.anchorMin = new Vector2(0,0); srt.anchorMax = new Vector2(0,1);
+            srt.pivot = new Vector2(0,0.5f); srt.sizeDelta = new Vector2(5, 0); srt.anchoredPosition = Vector2.zero;
 
             var tgo = new GameObject("t"); tgo.transform.SetParent(pgo.transform, false);
             co.text = tgo.AddComponent<Text>();
             co.text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             co.text.fontSize = 13; co.text.color = Color.white; co.text.supportRichText = true;
             var trt = co.text.rectTransform; trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
-            trt.offsetMin = new Vector2(8, 4); trt.offsetMax = new Vector2(-6, -4);
+            trt.offsetMin = new Vector2(12, 30); trt.offsetMax = new Vector2(-58, -4);
+
+            // radial activation gauge (right side of panel)
+            var ggo = new GameObject("gauge"); ggo.transform.SetParent(pgo.transform, false);
+            co.gauge = ggo.AddComponent<RadialGauge>();
+            co.gauge.color = sc;
+            var grt = co.gauge.rectTransform;
+            grt.anchorMin = new Vector2(1, 1); grt.anchorMax = new Vector2(1, 1); grt.pivot = new Vector2(1, 1);
+            grt.sizeDelta = new Vector2(46, 46); grt.anchoredPosition = new Vector2(-6, -6);
+
+            // +/- arrow buttons (drive this servo by mouse, beyond hotkeys)
+            co.minusBtn = MakeArrow(pgo.transform, "\u25C0", new Vector2(14, 4));   // ◀
+            co.plusBtn  = MakeArrow(pgo.transform, "\u25B6", new Vector2(48, 4));   // ▶
 
             // leader line (UI) — full-screen rect anchored at (0,0) so screen coords map directly.
             var lgo = new GameObject($"Line_{joint}"); lgo.transform.SetParent(canvas.transform, false);
             co.line = lgo.AddComponent<UILine>();
-            co.line.color = new Color(1f, 0.8f, 0.1f, 0.9f);
+            co.line.color = sc;
             var lrt = co.line.rectTransform;
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.zero; lrt.pivot = Vector2.zero;
             lrt.anchoredPosition = Vector2.zero; lrt.sizeDelta = Vector2.zero;
@@ -124,7 +161,23 @@ namespace ArmSmith
                 co.panel.position = panelPos;
                 co.line.SetPoints(new Vector2(screen.x, screen.y), panelPos);
                 co.text.text = Info(co.joint);
+                if (co.gauge != null) co.gauge.SetValue(controller != null ? controller.JointFraction(co.joint) : 0.5f);
+
+                // hold the +/- arrows to drive this servo (continuous while pressed).
+                if (controller != null)
+                {
+                    if (IsHeld(co.minusBtn)) controller.NudgeJoint(co.joint, -1f);
+                    if (IsHeld(co.plusBtn)) controller.NudgeJoint(co.joint, +1f);
+                }
             }
+        }
+
+        // True while the pointer is down over this button (for hold-to-drive arrows).
+        static bool IsHeld(Button b)
+        {
+            if (b == null || !Input.GetMouseButton(0)) return false;
+            var rt = b.GetComponent<RectTransform>();
+            return RectTransformUtility.RectangleContainsScreenPoint(rt, Input.mousePosition);
         }
 
         /// <summary>Pin/unpin a joint's callout by index (for scripting/agent use).</summary>
@@ -170,6 +223,45 @@ namespace ArmSmith
             v.position = b + nrm; vh.AddVert(v);
             v.position = b - nrm; vh.AddVert(v);
             vh.AddTriangle(0, 1, 2); vh.AddTriangle(2, 3, 0);
+        }
+    }
+
+    /// <summary>A circular activation gauge: a ring with a radial fill arc showing value [0..1]
+    /// (the servo's angle within its range). Mesh-drawn so it needs no sprite.</summary>
+    public class RadialGauge : Graphic
+    {
+        float value01 = 0.5f;
+        public void SetValue(float v) { value01 = Mathf.Clamp01(v); SetVerticesDirty(); }
+
+        protected override void OnPopulateMesh(VertexHelper vh)
+        {
+            vh.Clear();
+            float r = rectTransform.rect.width * 0.5f;
+            float inner = r * 0.62f;
+            int seg = 40;
+            int filled = Mathf.RoundToInt(seg * value01);
+            // background ring (dim) + filled arc (bright)
+            for (int i = 0; i < seg; i++)
+            {
+                float a0 = -90f + (i / (float)seg) * 360f;
+                float a1 = -90f + ((i + 1) / (float)seg) * 360f;
+                Color c = i < filled ? color : new Color(color.r, color.g, color.b, 0.18f);
+                AddArcQuad(vh, a0, a1, inner, r, c);
+            }
+        }
+
+        void AddArcQuad(VertexHelper vh, float a0Deg, float a1Deg, float inner, float outer, Color c)
+        {
+            float a0 = a0Deg * Mathf.Deg2Rad, a1 = a1Deg * Mathf.Deg2Rad;
+            Vector2 d0 = new Vector2(Mathf.Cos(a0), Mathf.Sin(a0));
+            Vector2 d1 = new Vector2(Mathf.Cos(a1), Mathf.Sin(a1));
+            int idx = vh.currentVertCount;
+            var v = UIVertex.simpleVert; v.color = c;
+            v.position = d0 * inner; vh.AddVert(v);
+            v.position = d0 * outer; vh.AddVert(v);
+            v.position = d1 * outer; vh.AddVert(v);
+            v.position = d1 * inner; vh.AddVert(v);
+            vh.AddTriangle(idx, idx + 1, idx + 2); vh.AddTriangle(idx + 2, idx + 3, idx);
         }
     }
 }

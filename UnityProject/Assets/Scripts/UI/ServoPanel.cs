@@ -63,7 +63,8 @@ namespace ArmSmith
                 int tick = i < arm.servos.Count ? arm.servos[i].AngleToTick(cur) : 0;
                 string bar = Bar(cur, js.minAngle, js.maxAngle, 12);
                 string key = ArmController.JointKeyLabel(i);
-                sb.AppendLine($"<color=#9cf>#{i + 1} {js.name,-12}</color>[{key,-3}] {cur,6:F1}\u00b0 \u2192{tgt,6:F1}\u00b0  <color=#8f8>{tick,4}</color>");
+                string hex = ColorUtility.ToHtmlStringRGB(ProceduralArm.ServoColor(i));
+                sb.AppendLine($"<color=#{hex}>\u25A0</color> <color=#9cf>#{i + 1} {js.name,-12}</color>[{key,-3}] {cur,6:F1}\u00b0 \u2192{tgt,6:F1}\u00b0  <color=#8f8>{tick,4}</color>");
                 sb.AppendLine($"   <color=#456>{bar}</color>  ({js.minAngle:F0}\u00b0..{js.maxAngle:F0}\u00b0)");
             }
             if (arm.gripper != null)

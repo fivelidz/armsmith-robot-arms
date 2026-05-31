@@ -546,5 +546,23 @@ namespace ArmSmith
         }
 
         public int SelectedJoint => selectedJoint;
+
+        /// <summary>Nudge a joint by +/- degrees (used by on-arm arrow buttons). Respects limits + speed.</summary>
+        public void NudgeJoint(int i, float sign)
+        {
+            if (targetAngles == null || i < 0 || i >= targetAngles.Length) return;
+            var js = arm.jointSpecs[i];
+            targetAngles[i] = Mathf.Clamp(
+                targetAngles[i] + sign * manualJointSpeed * speedScale * Time.deltaTime,
+                js.minAngle, js.maxAngle);
+        }
+
+        /// <summary>Normalised position of a joint within its range [0..1] (for the radial gauge).</summary>
+        public float JointFraction(int i)
+        {
+            if (i < 0 || i >= arm.jointSpecs.Count) return 0.5f;
+            var js = arm.jointSpecs[i];
+            return Mathf.InverseLerp(js.minAngle, js.maxAngle, arm.GetJointAngles()[i]);
+        }
     }
 }

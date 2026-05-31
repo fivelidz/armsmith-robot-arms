@@ -39,6 +39,18 @@ namespace ArmSmith
         public readonly List<ServoModel> servos = new List<ServoModel>();
         public bool servoFidelity = true;          // route commands through the servo model
         float[] servoCommandedDeg;                 // last rate-limited command per joint (deg)
+
+        // Consistent per-servo colour used everywhere (on-arm hotspots, panels, callouts, gauges).
+        static readonly Color[] ServoPalette = {
+            new Color(0.95f,0.30f,0.30f), // red    - J0
+            new Color(0.98f,0.62f,0.20f), // orange - J1
+            new Color(0.95f,0.85f,0.25f), // yellow - J2
+            new Color(0.35f,0.80f,0.40f), // green  - J3
+            new Color(0.30f,0.65f,0.95f), // blue   - J4
+            new Color(0.70f,0.45f,0.95f), // purple - J5
+            new Color(0.95f,0.45f,0.75f), // pink   - J6
+        };
+        public static Color ServoColor(int i) => ServoPalette[i % ServoPalette.Length];
         public Transform endEffector;        // tip point between the jaws
         public ArticulationBody leftJaw, rightJaw;
 
@@ -240,7 +252,16 @@ namespace ArmSmith
             for (int i = 0; i < jointBodies.Count; i++)
             {
                 var pos = jointBodies[i].jointPosition;
-                a[i] = pos.dofCount > 0 ? pos[0] * Mathf.Rad2Deg : 0f;
+                float deg = pos.dofCount > 0 ? pos[0] * Mathf.Rad2Deg : 0f;
+                // Wrap to the nearest equivalent inside the joint range so wide joints (wrist_roll) don't
+                // display as e.g. 561° (which is 561-360=201, or -159 within range).
+                if (i < jointSpecs.Count)
+                {
+                    float lo = jointSpecs[i].minAngle, hi = jointSpecs[i].maxAngle;
+                    while (deg > hi && deg - 360f >= lo - 1f) deg -= 360f;
+                    while (deg < lo && deg + 360f <= hi + 1f) deg += 360f;
+                }
+                a[i] = deg;
             }
             return a;
         }

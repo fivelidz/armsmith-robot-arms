@@ -97,3 +97,17 @@ Append-only build log. See ROADMAP.md for the plan, PROMPT_LOG.md for user promp
 2. `python3 scripts/mcp.py tool manage_editor '{"action":"play"}'` to play.
 3. Screenshot: `manage_camera screenshot ... output_folder=Captures max_resolution<=900` then
    resize to <=900px before reading (crash-prevention rule).
+
+## 2026-05-31 — Session 3: base-bend fix + clickable control UI + servo arrows/gauges
+### Done
+- FIXED base-bend (shoulder_lift) wrong-axis/links-detach bug: anchorRotation Euler(0,-90,0)->Euler(0,0,90)
+  so it pitches forward/back (X constant, Y/Z swing). Verified lift=40 keeps X; IK still 0.4cm.
+- Clickable ControlBar (bottom-center): all VIEW + CTRL toggles mouse-operable, live colour state.
+- Sensor-view keys remapped to numpad 7/8/9 (off the servo letter hotkeys); views independent of sensor.
+- Colour-coded servos (ProceduralArm.ServoColor palette) consistent on arm hotspots + servo panel + callouts.
+- On-arm servo CALLOUTS upgraded: coloured hotspots, leader line, +/- arrow buttons (hold to drive),
+  RadialGauge (circular activation fill = angle within range), coloured stripe + gauge per panel.
+- Angle display wrap so wide joints (wrist_roll) don't show 561deg.
+- Bigger servo panel, calibration start pose, claw cam remounted, scenario menu heading, SaveSystem.
+### Verified
+- All UI clickable; servo arrows drive joints; gauges fill; colours consistent. 0 compile/runtime errors.
