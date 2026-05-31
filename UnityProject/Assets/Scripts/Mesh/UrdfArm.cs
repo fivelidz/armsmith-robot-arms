@@ -266,8 +266,11 @@ namespace ArmSmith
                     maxSpeedDegPerSec= 300f
                 });
 
-                // STL visuals for this link
-                if (linkByName.TryGetValue(j.child, out var childLinkData))
+                // STL visuals for this link. SKIP the moving-jaw link mesh here — the visible jaw is
+                // built once by the hand-built `moving_jaw` body below. Attaching it on the gripper
+                // revolute body too caused the "doubled-up" jaw look.
+                if (linkByName.TryGetValue(j.child, out var childLinkData)
+                    && !j.child.ToLower().Contains("jaw"))
                     AttachLinkMeshes(go.transform, j.child, childLinkData.meshes, meshDir);
 
                 // Fallback collider (capsule oriented along -X in local space, which is the link's
@@ -380,10 +383,9 @@ namespace ArmSmith
                 rightJaw.xDrive = rd;
                 rightJaw.mass   = 0.012f;
 
-                // Reuse moving jaw mesh, flipped 180° around Y
-                AttachSingleMesh(go.transform, "moving_jaw_so101_v1.stl", meshDir,
-                    meshPosUrdf: new float[]{0f, 0f, 0.0189f},
-                    meshRpyDeg: new float[]{0f, 180f, 0f});
+                // NO mesh on the fixed jaw: the real SO-101 follower has only ONE moving jaw closing
+                // against the wrist body (there is no separate static-jaw mesh). Adding the moving_jaw
+                // mesh here caused the "doubled-up" look at the claw. This body is a physics reference only.
 
                 var col = go.AddComponent<BoxCollider>();
                 col.size   = new Vector3(0.012f, jawLen, 0.012f);
