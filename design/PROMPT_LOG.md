@@ -214,3 +214,18 @@ scenarios. Create the robot-arm BUILDER UI with the different modules + ability 
 - I50: Robot-arm BUILDER UI: pick arm model + attach sensor modules (toggle), live arm stats, AND a
   training/generations view (start/step training, gen counter, best fitness, population/fitness display).
 - I51: UI polish: clean panel layout, legible, consistent dark console theme.
+
+## P15 — Clickable control buttons, fix base-bend joint, color-coded clickable servos
+**User prompt (summary):** Want clickable BUTTONS for all view toggles + controls, in relevant areas,
+incl. ARROWS for controlling servos beyond hotkeys. The view-toggle keys (L, ', Shift+L) overlap servo
+hotkeys — fix. The BASE bend joint should bend forward/back but instead the whole system rotates on the
+WRONG axis and the link connections visibly DETACH. Want servo motors COLOUR-CODED + clickable while on
+the arm, better labels, and a circular-infill "activation" display per servo for better control + feedback.
+Continue all tasks, test yourself, record prompts, update ROADMAP.
+**Derived intentions:**
+- I52: FIX base-bend joint (shoulder_lift): should pitch fwd/back; currently wrong axis + links detach.
+- I53: Clickable on-screen BUTTONS for every view toggle + control, docked in relevant areas.
+- I54: On-arm SERVO ARROWS: +/- buttons per joint floating at the joint to drive it (beyond hotkeys).
+- I55: Remap sensor-view keys off the servo hotkeys (L/'/Shift+L clash with O/L, P/;).
+- I56: Colour-code each servo (consistent colour on arm + panels + callouts); clickable on the arm.
+- I57: Per-servo CIRCULAR activation gauge (radial infill = angle within range / load) for feedback.

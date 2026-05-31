@@ -140,3 +140,12 @@ an OFFSET TCP (gripper tip ~11 cm off the joint axes + 90deg twist), so single-j
 tip non-intuitively; CCD oscillates and settles in a local minimum ~20 cm short. Procedural arm had an
 on-axis tip so CCD was exact. Fix = Damped Least Squares (Jacobian) IK: solve all joints together via the
 Jacobian with damping near singularities -> correct reaching for offset wrists (industry standard).
+
+## UI control overhaul (P15)
+- [ ] U4: Clickable buttons for all view toggles (lidar/range/depth/bounds/axes/cam-HUD/callouts).
+- [ ] U5: Clickable buttons for mode/gripper/calibrate/pause/speed/train.
+- [ ] U6: Per-servo +/- ARROW buttons floating at each joint (drive without hotkeys).
+- [ ] U7: Colour-code servos consistently (arm hotspot + servo panel + callouts).
+- [ ] U8: Per-servo circular activation gauge (radial fill = angle-in-range).
+- [ ] U9: Remap sensor-view keys off servo hotkeys.
+- [x] BUG: base-bend (shoulder_lift) wrong axis + links detach -> FIXED (see PROGRESS).

@@ -735,7 +735,10 @@ namespace ArmSmith
             if (jointName == null) return Quaternion.Euler(0f, 0f, 90f);
             string n = jointName.ToLowerInvariant();
             if (n == "shoulder_pan")  return Quaternion.Euler(0f,   0f, -90f);
-            if (n == "shoulder_lift") return Quaternion.Euler(0f, -90f,   0f);
+            // shoulder_lift must PITCH forward/back (swing in Y-Z), so its drive axis = world X.
+            // Euler(0,0,90) gives that; the previous Euler(0,-90,0) made it swing sideways (wrong axis,
+            // links appeared to detach because the upper arm rotated about its own length).
+            if (n == "shoulder_lift") return Quaternion.Euler(0f,   0f,  90f);
             if (n == "elbow_flex")    return Quaternion.Euler(0f,   0f,  90f);
             if (n == "wrist_flex")    return Quaternion.Euler(0f,   0f,  90f);
             if (n == "wrist_roll")    return Quaternion.Euler(0f, -90f,   0f);
