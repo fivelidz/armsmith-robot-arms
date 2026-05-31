@@ -11,3 +11,4 @@ UnityProject/mono_crash.*
 *.sln
 .opencode/
 research/external/orcahand/**/.git/
+research/external/orcahand/
