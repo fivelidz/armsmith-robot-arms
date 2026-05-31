@@ -10,3 +10,4 @@ UnityProject/**/*.mem.*.blob
 UnityProject/mono_crash.*
 *.csproj
 *.sln
+research/external/orcahand/
