@@ -296,3 +296,11 @@ feedback. Reveal this to the player IF they have that (tactile/grip) module on.
   feedback (highlight / readout) so objects are easier to pick up; auto/assisted grip when in range.
 - I83: This grip/proximity feedback is REVEALED to the player only if the EFleshTactile (grip) module is
   attached/enabled — ties into the sensor-module system.
+
+## P21 — STL skin made model worse; revert to working 4-DOF procedural arm
+**User prompt (summary):** The STL-skinned model is much worse — connections look wrong, base plate not
+fastened to the table, servo motors appear incorrectly transparent. Much worse than before.
+**DECISION:** Revert to the 4-DOF PROCEDURAL arm that worked well (clean connections, good movement +
+positioning) + restore its tuned ready pose {0,40,-78,-5}. STL skin shelved (looked worse, not better).
+The procedural arm is the shipping default. STL/SO-101 look remains a future task done PROPERLY (full
+URDF kinematics) rather than skinning, OR not at all if the clean arm is preferred.

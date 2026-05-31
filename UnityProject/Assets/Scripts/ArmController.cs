@@ -55,8 +55,10 @@ namespace ArmSmith
             // gripper sits ~3 cm above the worktop near the trays; see PROGRESS notes).
             // Start in the CALIBRATION position = all motors at 0 (the homing reference the real arm
             // zeros to). This is the pose Z/Home returns to, so the arm starts where calibration expects.
-            float[] home4 = { 0f, 0f, 0f, 0f };
-            float[] home6 = { 0f, 0f, 0f, 0f, 0f, 0f };
+            // The 4-DOF procedural arm's tuned "ready" pose (gripper hovering over the worktop) — this is
+            // the pose that worked well. (6-DOF kept for the STL-skin experiment, not the default.)
+            float[] home4 = { 0f, 40f, -78f, -5f };
+            float[] home6 = { 0f, -40f, -30f, -15f, 0f, 0f };
             float[] home = arm.jointBodies.Count >= 6 ? home6 : home4;
             for (int i = 0; i < targetAngles.Length; i++)
                 targetAngles[i] = i < home.Length
