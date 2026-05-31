@@ -283,3 +283,16 @@ by the PLAYER. A way to DROP them onto different robot parts and ORIENT them a p
 - I78: The mounted placement+orientation feeds the sensor (e.g. wrist cam pose, lidar origin/direction)
   AND is saved with the arm config + exported for the real rig (so sim matches reality).
 - I79: A "mount points" UI: highlight valid robot parts; show current modules + their parent link + pose.
+
+## P20 — Option B: procedural kinematics + STL skin; proper collision; grip-detection feedback
+**User prompt (summary):** Go with Option B (procedural arm kinematics that works, SKINNED with the SO-101
+STL meshes). Proper collision mechanics. Make objects easier to pick up via kinetic/grip DETECTION +
+feedback. Reveal this to the player IF they have that (tactile/grip) module on.
+**Derived intentions:**
+- I80: Skin the working PROCEDURAL arm chain with the SO-101 STL meshes (align meshes to procedural links).
+  Keep procedural joints/IK/grasp; STL is the visual layer.
+- I81: Proper COLLISION: arm links vs desk (no pass-through), and self-collision avoidance/penalty.
+- I82: GRIP DETECTION feedback: when the gripper is near/aligned to a graspable object, detect it and give
+  feedback (highlight / readout) so objects are easier to pick up; auto/assisted grip when in range.
+- I83: This grip/proximity feedback is REVEALED to the player only if the EFleshTactile (grip) module is
+  attached/enabled — ties into the sensor-module system.

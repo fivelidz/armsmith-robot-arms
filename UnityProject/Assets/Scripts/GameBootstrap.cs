@@ -179,21 +179,17 @@ namespace ArmSmith
 
             if (useRealStlMeshes)
             {
-                // Build from real SO-101 URDF kinematics + STL meshes.
-                // Populates baseBody, jointBodies (6), jointSpecs (6), servos (6),
-                // endEffector, leftJaw, rightJaw, gripper — same public contract as Build(config).
-                string kinPath = System.IO.Path.Combine(
-                    Application.dataPath, "Meshes", "SOARM100", "kinematics.json");
-                arm.BuildFromKinematics(kinPath);
-                // If kinematics build failed (missing file), fall back to procedural.
-                if (arm.baseBody == null)
-                {
-                    Debug.LogWarning("[GameBootstrap] BuildFromKinematics failed; falling back to Build(config).");
-                    arm.useStlMeshes = false;
-                    arm.Build(config);
-                }
-                else if (arm.config == null)
-                    arm.config = config;  // ensure TotalReach() / AxisVector() have a valid config
+                // OPTION B: use the WORKING procedural kinematics (correct joints + IK + grasp across the
+                // full workspace) but SKIN it with the real SO-101 STL meshes. We build a 6-DOF procedural
+                // arm (matching the SO-101's joint count) then call StlArmSkin to mount the meshes on the
+                // procedural links. This avoids the URDF builder's joint-mapping bugs while keeping the
+                // authentic look. (BuildFromKinematics is kept available but no longer the default.)
+                config = ArmConfig.CreateReBot6DOF();
+                arm.useStlMeshes = false;
+                arm.Build(config);
+                string meshDir = System.IO.Path.Combine(Application.dataPath, "Meshes", "SOARM100");
+                try { StlArmSkin.Apply(arm, meshDir); }
+                catch (System.Exception e) { Debug.LogWarning("[GameBootstrap] STL skin failed: " + e.Message); }
             }
             else
             {
