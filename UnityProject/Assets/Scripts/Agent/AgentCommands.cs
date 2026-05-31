@@ -42,6 +42,92 @@ namespace ArmSmith
         /// <summary>Run a multi-line script of commands.</summary>
         public Coroutine Run(string script) => StartCoroutine(Execute(script));
 
+        // ===================== AUTONOMOUS SORT SOLVER =====================
+        // Finds all "SortCube" objects and pick-and-places each into the green target tray (S_TrayB),
+        // using IK + the gripper. This is the agent solving the SortIntoTray scenario by itself.
+        public Coroutine AutoSort() => StartCoroutine(AutoSortRoutine());
+
+        public IEnumerator AutoSortRoutine()
+        {
+            controller.mouseFollow = false;
+            controller.mode = ArmController.Mode.IK;
+            Time.timeScale = 1f;
+
+            Transform tray = FindByName("S_TrayB");
+            if (tray == null) { Log("no target tray"); yield break; }
+
+            // gather cubes fresh each pass (they move as we place them)
+            for (int pass = 0; pass < 6; pass++)
+            {
+                var cubes = FindAllContaining("SortCube");
+                // pick the nearest cube still OUTSIDE the tray
+                Transform target = null; float bestD = 999f;
+                foreach (var c in cubes)
+                {
+                    Vector3 flat = c.position; flat.y = tray.position.y;
+                    float dToTray = Vector3.Distance(flat, tray.position);
+                    if (dToTray > 0.08f && dToTray < 1f)   // not already in tray
+                    {
+                        float dToBase = c.position.magnitude;
+                        if (dToBase < bestD) { bestD = dToBase; target = c; }
+                    }
+                }
+                if (target == null) { Log("all cubes sorted!"); break; }
+
+                Log($"sorting {target.name} -> tray");
+                yield return PickAndPlace(target.position, tray.position + Vector3.up * 0.06f);
+            }
+            // park
+            yield return MoveTo(new Vector3(0f, 0.20f, 0.28f), 0.8f);
+            Log("AutoSort done");
+        }
+
+        // Pick the object at `pick` and release it above `place`.
+        IEnumerator PickAndPlace(Vector3 pick, Vector3 place)
+        {
+            float hover = 0.14f, grab = 0.045f;
+            if (arm.gripper != null) arm.gripper.SetClose(0f);                 // open
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.0f);     // hover over cube
+            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 0.8f);      // descend
+            if (arm.gripper != null) arm.gripper.SetClose(1f);                 // close
+            yield return Wait(0.6f);
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 0.7f);     // lift
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.0f);   // traverse to tray
+            yield return MoveTo(new Vector3(place.x, place.y, place.z), 0.7f); // descend into tray
+            if (arm.gripper != null) arm.gripper.SetClose(0f);                 // release
+            yield return Wait(0.5f);
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 0.6f);   // retreat
+        }
+
+        IEnumerator MoveTo(Vector3 goal, float dur)
+        {
+            goal.y = Mathf.Max(goal.y, controller != null ? controller.minTargetY : 0.02f);
+            Vector3 start = ikTarget.position; float t = 0f;
+            while (t < dur)
+            {
+                t += Time.deltaTime;
+                ikTarget.position = Vector3.Lerp(start, goal, Mathf.SmoothStep(0, 1, t / dur));
+                yield return null;
+            }
+            ikTarget.position = goal;
+            yield return Wait(0.25f); // let IK + physics settle
+        }
+
+        IEnumerator Wait(float s) { float t = 0; while (t < s) { t += Time.deltaTime; yield return null; } }
+
+        Transform FindByName(string n)
+        {
+            foreach (var g in GameObject.FindObjectsOfType<Transform>()) if (g.name == n) return g;
+            return null;
+        }
+        List<Transform> FindAllContaining(string sub)
+        {
+            var list = new List<Transform>();
+            foreach (var g in GameObject.FindObjectsOfType<Transform>())
+                if (g.name.Contains(sub) && g.GetComponent<Rigidbody>() != null) list.Add(g);
+            return list;
+        }
+
         public IEnumerator Execute(string script)
         {
             foreach (var raw in script.Split('\n'))
@@ -99,6 +185,7 @@ namespace ArmSmith
                     Log($"trained {n} gens, best={(trainer.best != null ? trainer.best.fitness.ToString("F2") : "-")}");
                     break;
                 case "seed": trainer.SeedPopulation(); break;
+                case "sort": yield return AutoSortRoutine(); break;
                 case "say": Log(line.Substring(3).Trim()); break;
                 default: Log($"unknown command: {cmd}"); break;
             }

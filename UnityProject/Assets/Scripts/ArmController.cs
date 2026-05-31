@@ -53,18 +53,22 @@ namespace ArmSmith
             // reach of the trays, instead of standing bolt upright. Two homes — one for the simple
             // procedural 4-DOF arm, one for the real SO-101 6-DOF URDF arm (empirically tuned so the
             // gripper sits ~3 cm above the worktop near the trays; see PROGRESS notes).
-            float[] home4 = { 0f, 40f, -78f, -5f };                       // procedural: yaw,shoulder,elbow,wrist
-            float[] home6 = { 0f, -40f, -30f, -15f, 0f, 0f };             // SO-101: pan,lift,elbow,wristflex,roll,grip
+            // Start in the CALIBRATION position = all motors at 0 (the homing reference the real arm
+            // zeros to). This is the pose Z/Home returns to, so the arm starts where calibration expects.
+            float[] home4 = { 0f, 0f, 0f, 0f };
+            float[] home6 = { 0f, 0f, 0f, 0f, 0f, 0f };
             float[] home = arm.jointBodies.Count >= 6 ? home6 : home4;
             for (int i = 0; i < targetAngles.Length; i++)
                 targetAngles[i] = i < home.Length
                     ? Mathf.Clamp(home[i], arm.jointSpecs[i].minAngle, arm.jointSpecs[i].maxAngle)
                     : 0f;
-            arm.SeedServoState(targetAngles);   // start servo rate-limiter at the home pose
+            arm.SeedServoState(targetAngles);   // start servo rate-limiter at the calibration pose
             arm.SetJointTargets(targetAngles);
 
-            if (ikTarget != null)
-                ikTarget.position = new Vector3(0.0f, 0.12f, 0.30f); // in front of the arm, above the table
+            // Start in MANUAL mode HOLDING the calibration pose (IK off) so the arm sits at calibration
+            // and doesn't immediately fly to an IK target. Press Tab to switch to IK fly-around control.
+            mode = Mode.Manual;
+            // (The IK target is parked at the calibration tip once the arm settles — see FixedUpdate.)
         }
 
         // Per-servo direct keyboard control. Each joint gets a +/- key pair, with a label for the HUD.
@@ -175,7 +179,13 @@ namespace ArmSmith
             {
                 settleFrames++;
                 arm.SetJointTargets(targetAngles);
-                if (settleFrames == 30) { CalibrateIK(); if (zeroPose == null) SetCurrentAsZero(); }
+                if (settleFrames == 30)
+                {
+                    CalibrateIK();
+                    if (zeroPose == null) SetCurrentAsZero();
+                    // park the IK target at the calibration tip so switching to IK mode doesn't yank
+                    if (ikTarget != null && arm.endEffector != null) ikTarget.position = arm.endEffector.position;
+                }
                 return;
             }
             if (mode == Mode.IK) SolveIK();   // keeps computing the (possibly queued) target angles

@@ -27,6 +27,7 @@ namespace ArmSmith
         EvolutionTrainer trainer;
         AgentCommands agent;
         SensorHub sensorHub;
+        SensorViz sensorViz;
         MouseInteraction mouse;
         ServoPanel servoPanel;
         ModuleUsagePanel modulePanel;
@@ -65,6 +66,9 @@ namespace ArmSmith
             var go = new GameObject("SensorHub");
             sensorHub = go.AddComponent<SensorHub>();
             sensorHub.Init(arm, rig);
+
+            sensorViz = go.AddComponent<SensorViz>();
+            sensorViz.Bind(sensorHub);
         }
 
         void BuildTrainer()
@@ -342,8 +346,9 @@ namespace ArmSmith
                 $"{(scenarios.Succeeded ? "<color=#4f4>SUCCESS</color>" : "")}\n" +
                 $"<color=#fa6>Servo bus (ticks):</color> {arm.ServoBusString()}\n" +
                 $"<color=#9cf>Sensors</color> (F2-F7 toggle): {sensorHub.Summary()}\n" +
-                $"<color=#fc6>Sim speed: {Time.timeScale:F1}x</color>  (+/- adjust, 0 to pause)  " +
-                $"<color=#999>real servos move slower; speed-up is sim-only</color>\n" +
+                $"<color=#6cf>View rays:</color> L toggle, Shift+L cycle [{sensorViz.Status()}]\n" +
+                $"<color=#fc6>SIM SPEED: {Time.timeScale:F1}x real time</color> (+/- adjust, 0 pause) | " +
+                $"servo max ~300\u00b0/s \u2014 <color=#999>motors are NOT instant; at {Time.timeScale:F1}x a real {(1f / Mathf.Max(0.1f, Time.timeScale)):F2}s move looks 1s here</color>\n" +
                 $"<color=#7cf>Evolution</color> [{(trainer.policyMode ? "POLICY/sensors" : "motion")}] (F8 toggle) gen {trainer.generation}  " +
                 $"best {(trainer.policyMode ? (trainer.bestPolicy != null ? trainer.bestPolicy.fitness.ToString("F2") : "-") : (trainer.best != null ? trainer.best.fitness.ToString("F2") : "-"))}  [{trainer.status}]";
 
@@ -369,7 +374,12 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.F10)) recorder.StopRecording();
             if (Input.GetKeyDown(KeyCode.F11)) ExportBestTrajectory();
             // F1: run the built-in agent demo script (slow-but-correct solution).
-            if (Input.GetKeyDown(KeyCode.F1)) agent.Run(AgentCommands.DemoTrayToTray);
+            // F1: agent solves the CURRENT scenario autonomously. SortIntoTray -> AutoSort; else tray demo.
+            if (Input.GetKeyDown(KeyCode.F1))
+            {
+                if (scenarios.current == ScenarioType.SortIntoTray) agent.AutoSort();
+                else agent.Run(AgentCommands.DemoTrayToTray);
+            }
         }
 
         // "J0 ShoulderPan[T/G]=12° J1 ShoulderLift[Y/H]=-30° ..." — labeled per-servo readout.
