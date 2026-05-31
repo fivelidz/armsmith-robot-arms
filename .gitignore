@@ -10,3 +10,4 @@ UnityProject/mono_crash.*
 *.csproj
 *.sln
 .opencode/
+research/external/orcahand/**/.git/
