@@ -149,3 +149,34 @@ Jacobian with damping near singularities -> correct reaching for offset wrists (
 - [ ] U8: Per-servo circular activation gauge (radial fill = angle-in-range).
 - [ ] U9: Remap sensor-view keys off servo hotkeys.
 - [x] BUG: base-bend (shoulder_lift) wrong axis + links detach -> FIXED (see PROGRESS).
+
+## Sensor-only play mode (P17 idea)
+- [ ] SP1: A mode where the human player controls the arm using ONLY the sensor-module information
+      (wrist cam + lidar + rangefinder + depth + tactile) — NO god-view of true object positions.
+      The main 3rd-person view is hidden/dimmed; you operate from the sensor panels like a real teleop.
+      This is also the exact information budget a trained policy gets -> direct human-vs-policy comparison.
+
+## MASTER "elements to add/include" list (living checklist)
+Bugs/blockers:
+- [~] Grasp: EE now ~2cm from jaw midpoint (was 9.8). Verify objects are actually gripped + lifted.
+- [ ] IK reach occasionally degrades after mode switches -> ensure recalibrate on play + on arm rebuild.
+Scenario solutions:
+- [ ] Reliable scripted pick-and-place that SUCCEEDS (cube ends in tray) end-to-end.
+- [ ] Per-scenario scripted solver (sort, stack, drop-in-bin).
+Training/learning:
+- [ ] Show BOTH training systems (motion GA + policy net); surface the earlier motion-GA that worked.
+- [ ] Warm-start policy/motion population from a successful scripted demo.
+- [ ] Train-to-success demo on tray-to-tray; success-rate curve.
+UI:
+- [ ] Sensor-modules panel: per-module enable + view-toggle BUTTONS; better layout.
+- [ ] On-arm servo +/- buttons visible (callouts) + reliable.
+- [ ] Colour the SERVO REGIONS on the 3D arm model (tint each link/servo body).
+- [ ] Camera-controls help shown on-screen.
+- [ ] HTML windows (menu/options/training) as real in-game Unity windows.
+Control:
+- [ ] Alt+LMB drag = camera orbit (keep RMB too).
+- [ ] Click in world to set next IK target / transition location.
+- [ ] Sensor-only play mode (SP1).
+Catalogue/multi-robot:
+- [ ] Import ORCA Hand (URDF) as a catalogue arm.
+- [ ] 2nd arm + shared world state + object hand-off.

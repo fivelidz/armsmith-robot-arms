@@ -243,3 +243,20 @@ with other robots.
 - I60: Run training that actually SOLVES a task (warm-start from demos/scripted solver -> evolve faster).
 - I61: Randomized scenario variation (object positions on a random grid; difficulty knob).
 - I62: Multi-arm foundation + ORCA Hand catalogue; future robot-robot interaction tasks.
+
+## P17 — Solve scenarios, fix grasp, training-systems view, sensor panel buttons, colour 3D servo regions, camera controls
+**User prompt (summary):** Create solutions to the scenarios; want to SEE the different training systems
+(one of the EARLIER ones seemed to work). Sensor-modules panel: missing view-toggle buttons + improve it.
+Servo-motor BUTTONS missing. When asking to colour-code servos, meant colour the RESPECTIVE servo-motor
+REGIONS on the 3D MODEL too. Camera CONTROLS should be shown; Alt+mouse-drag for camera. Mouse-click to
+select next transition (IK target) location.
+**Derived intentions:**
+- I63: FIX grasp — EE (IK aim point) must sit between the jaws so closing grips the object (currently
+  EE is ~10cm from the jaw midpoint -> grasp always fails). Then scenarios are solvable.
+- I64: Working scenario SOLUTIONS (scripted skills + the motion-genome GA that worked earlier).
+- I65: Show the different TRAINING SYSTEMS (motion GA vs policy net) + pick which; surface the one that worked.
+- I66: Sensor-modules panel: add per-module view-toggle buttons (lidar/range/depth) + enable toggles; improve layout.
+- I67: On-arm servo +/- BUTTONS visible (callouts) — ensure they show.
+- I68: Colour the SERVO REGIONS on the 3D arm model itself (tint each link/servo body its servo colour).
+- I69: Camera controls shown on-screen; Alt+LMB drag = orbit (also keep RMB).
+- I70: Click in the world to set the next IK target / transition location.
