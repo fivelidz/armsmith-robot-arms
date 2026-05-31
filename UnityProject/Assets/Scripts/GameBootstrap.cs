@@ -15,10 +15,9 @@ namespace ArmSmith
     public class GameBootstrap : MonoBehaviour
     {
         public ArmConfig config;
-        // STL skinning needs the real SO-ARM100 joint frames (URDF) to align; until that's wired,
-        // Procedural arm is the stable shipping default (clean look + approved mouse control work well).
-        // Real SO-101 STL arm (URDF-accurate frames, now aligned). true=real model, false=procedural.
-        public bool useRealStlMeshes = false;
+        // Use the REAL SO-101 STL arm (URDF-accurate frames + downloaded meshes) as the default model.
+        // The new per-servo keyboard controls (T/G, Y/H, ...) drive it directly without needing IK.
+        public bool useRealStlMeshes = true;
         ProceduralArm arm;
         ArmController controller;
         CameraRig rig;
@@ -28,6 +27,8 @@ namespace ArmSmith
         EvolutionTrainer trainer;
         AgentCommands agent;
         SensorHub sensorHub;
+        MouseInteraction mouse;
+        ServoPanel servoPanel;
         Transform ikTarget;
 
         // HUD
@@ -69,6 +70,10 @@ namespace ArmSmith
             var agGo = new GameObject("AgentCommands");
             agent = agGo.AddComponent<AgentCommands>();
             agent.Bind(controller, arm, scenarios, trainer, ikTarget);
+
+            var miGo = new GameObject("MouseInteraction");
+            mouse = miGo.AddComponent<MouseInteraction>();
+            mouse.Bind(controller, arm, ikTarget, rig.mainCam, recorder);
         }
 
         void BuildScenarios()
@@ -254,6 +259,10 @@ namespace ArmSmith
             rt.pivot = new Vector2(0, 1);
             rt.anchoredPosition = new Vector2(10, -10);
             rt.sizeDelta = new Vector2(640, 320);
+
+            // Servo motor values panel (bottom-left): per-joint angle -> tick, target, bar.
+            servoPanel = canvasGo.AddComponent<ServoPanel>();
+            servoPanel.Build(canvasGo.transform, arm, controller);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)
@@ -275,9 +284,9 @@ namespace ArmSmith
             string rec = recorder.IsRecording ? " [REC]" : recorder.IsPlaying ? " [PLAY]" : "";
             infoText.text =
                 $"<b>ARMSMITH</b> — {config.armName}  ({arm.jointBodies.Count} DOF){rec}\n" +
-                $"Mode: {mode} (Tab) | Gripper: {grip}  (, open  . close  Space toggle)\n" +
-                $"IK: arm FOLLOWS MOUSE on work-plane (M toggle); scroll=pick height; WASD/RF nudge\n" +
-                $"Manual: 1-{arm.jointBodies.Count} select joint, Q/E rotate | F1 run agent demo\n" +
+                $"Mode: {mode} (Tab) | Claw: {grip}  (, open  . close  Space toggle | N/B rotate claw)\n" +
+                $"Mouse follow: {(controller.mouseFollow ? "<color=#6f6>ON</color>" : "<color=#f66>OFF</color>")} (M toggle) | depth: scroll or [/] | dbl-click grab/place | Shift+drag path\n" +
+                $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom, V HUD | B bounds, X axes\n" +
                 $"Record G | Playback P | Reset Esc | Export F9 STL / F10 waypoints\n" +
                 $"Scenario: <b>{scenarios.current}</b>  ([ ] change) | Evolve: T train, N +1 gen, F11 export best\n" +
@@ -312,6 +321,21 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.F11)) ExportBestTrajectory();
             // F1: run the built-in agent demo script (slow-but-correct solution).
             if (Input.GetKeyDown(KeyCode.F1)) agent.Run(AgentCommands.DemoTrayToTray);
+        }
+
+        // "J0 ShoulderPan[T/G]=12° J1 ShoulderLift[Y/H]=-30° ..." — labeled per-servo readout.
+        string ServoControlLine()
+        {
+            var sb = new System.Text.StringBuilder();
+            float[] ang = arm.GetJointAngles();
+            int n = arm.jointBodies.Count;
+            for (int i = 0; i < n; i++)
+            {
+                string nm = arm.jointSpecs[i].name;
+                sb.Append($"<color=#9cf>{nm}</color>[{ArmController.JointKeyLabel(i)}]={ang[i]:F0}\u00b0  ");
+            }
+            sb.Append("| claw , . ");
+            return sb.ToString();
         }
 
         void Toggle(string sensorName)

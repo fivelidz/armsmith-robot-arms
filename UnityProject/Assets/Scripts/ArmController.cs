@@ -67,13 +67,51 @@ namespace ArmSmith
                 ikTarget.position = new Vector3(0.0f, 0.12f, 0.30f); // in front of the arm, above the table
         }
 
+        // Per-servo direct keyboard control. Each joint gets a +/- key pair, with a label for the HUD.
+        // Joint 0..5: T/G, Y/H, U/J, I/K, O/L, P/; . Works in BOTH IK and Manual mode (direct keys
+        // temporarily drive the joints; in IK mode they nudge on top of the solution).
+        static readonly (KeyCode up, KeyCode down, string label)[] JointKeys =
+        {
+            (KeyCode.T, KeyCode.G, "T/G"),
+            (KeyCode.Y, KeyCode.H, "Y/H"),
+            (KeyCode.U, KeyCode.J, "U/J"),
+            (KeyCode.I, KeyCode.K, "I/K"),
+            (KeyCode.O, KeyCode.L, "O/L"),
+            (KeyCode.P, KeyCode.Semicolon, "P/;"),
+        };
+        public static string JointKeyLabel(int i) => i < JointKeys.Length ? JointKeys[i].label : "-";
+
+        bool directKeyActive;   // true this frame if any per-joint key is held (suppresses IK fighting)
+
         void Update()
         {
             if (arm == null || arm.jointBodies.Count == 0) return;
             HandleModeToggle();
             HandleGripper();
+            HandleDirectJointKeys();          // labeled per-servo control (both modes)
             if (mode == Mode.IK) HandleIKInput();
             else HandleManualInput();
+        }
+
+        // Direct per-servo control via labeled key pairs (T/G, Y/H, ...). Drives joints individually.
+        void HandleDirectJointKeys()
+        {
+            directKeyActive = false;
+            int n = Mathf.Min(arm.jointBodies.Count, JointKeys.Length);
+            for (int i = 0; i < n; i++)
+            {
+                float dir = 0f;
+                if (Input.GetKey(JointKeys[i].up)) dir += 1f;
+                if (Input.GetKey(JointKeys[i].down)) dir -= 1f;
+                if (dir != 0f)
+                {
+                    directKeyActive = true;
+                    var js = arm.jointSpecs[i];
+                    targetAngles[i] = Mathf.Clamp(
+                        targetAngles[i] + dir * manualJointSpeed * Time.deltaTime,
+                        js.minAngle, js.maxAngle);
+                }
+            }
         }
 
         int settleFrames = 0;
@@ -98,6 +136,8 @@ namespace ArmSmith
                 mode = mode == Mode.IK ? Mode.Manual : Mode.IK;
         }
 
+        public int wristRollJoint = -1;   // index of the claw-rotation joint (auto-found: "wrist_roll" / last Roll)
+
         void HandleGripper()
         {
             if (arm.gripper == null) return;
@@ -106,6 +146,32 @@ namespace ArmSmith
             if (Input.GetKey(KeyCode.Comma))  arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 0f, 3f * Time.deltaTime));
             if (Input.GetKey(KeyCode.Period)) arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 1f, 3f * Time.deltaTime));
             if (Input.GetKeyDown(KeyCode.M)) mouseFollow = !mouseFollow;  // toggle mouse-follow
+
+            // CLAW ROTATION: N / B roll the claw (wrist_roll joint), separate from open/close.
+            if (wristRollJoint < 0) FindWristRoll();
+            if (wristRollJoint >= 0)
+            {
+                float dir = 0f;
+                if (Input.GetKey(KeyCode.N)) dir += 1f;
+                if (Input.GetKey(KeyCode.B)) dir -= 1f;
+                if (dir != 0f)
+                {
+                    var js = arm.jointSpecs[wristRollJoint];
+                    targetAngles[wristRollJoint] = Mathf.Clamp(
+                        targetAngles[wristRollJoint] + dir * manualJointSpeed * Time.deltaTime,
+                        js.minAngle, js.maxAngle);
+                }
+            }
+        }
+
+        void FindWristRoll()
+        {
+            for (int i = 0; i < arm.jointSpecs.Count; i++)
+                if (arm.jointSpecs[i].name.ToLower().Contains("roll")) { wristRollJoint = i; return; }
+            // fallback: last Roll-axis joint
+            for (int i = arm.jointSpecs.Count - 1; i >= 0; i--)
+                if (arm.jointSpecs[i].axis == JointAxis.Roll) { wristRollJoint = i; return; }
+            wristRollJoint = -2; // none
         }
 
         // ---- IK mode -------------------------------------------------------------
@@ -118,24 +184,45 @@ namespace ArmSmith
             // RMB is camera orbit, so we only follow when RMB is NOT held (so orbiting doesn't move the arm).
             if (mouseFollow && mainCamera != null && !Input.GetMouseButton(1))
             {
-                Plane work = new Plane(Vector3.up, new Vector3(0f, workPlaneY, 0f));
                 Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+                // CAMERA-RELATIVE DEPTH: pick the follow-plane based on how the camera looks.
+                //  - Looking down (top view)  -> horizontal ground plane: mouse sets X/Z (placement).
+                //  - Looking from the side     -> a plane facing the camera: mouse Y sets HEIGHT (depth).
+                // We blend by camera pitch so depth feels natural from any angle (ties depth to camera).
+                float pitch = Vector3.Angle(mainCamera.transform.forward, Vector3.down); // 0=top-down
+                bool sideView = pitch > 55f;                 // more horizontal view -> use vertical plane
+
+                Vector3 normal = sideView
+                    ? new Vector3(mainCamera.transform.forward.x, 0f, mainCamera.transform.forward.z).normalized
+                    : Vector3.up;
+                Vector3 planePoint = sideView ? ikTarget.position : new Vector3(0f, workPlaneY, 0f);
+                Plane work = new Plane(normal == Vector3.zero ? Vector3.up : normal, planePoint);
+
                 if (work.Raycast(ray, out float enter))
                 {
                     Vector3 hit = ray.GetPoint(enter);
-                    // smooth toward the cursor point
+                    if (!sideView) hit.y = workPlaneY;        // top view locks height to the depth slider
                     p = Vector3.Lerp(p, hit, 1f - Mathf.Exp(-followLerp * Time.deltaTime));
+                    if (sideView) workPlaneY = p.y;           // keep depth slider in sync when set by mouse
                 }
             }
 
-            // Scroll (without Ctrl, which is zoom) raises/lowers the work-plane height (pick depth).
-            // More sensitive depth control for a better 3D dimension when reaching up/down.
+            // DEPTH (height of the work-plane / pick height):
+            //  - scroll wheel (Shift = fine)
+            //  - [ lower / ] raise  (reliable keyboard depth, always available)
             float scroll = Input.GetAxis("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.0001f && !Input.GetKey(KeyCode.LeftControl) && !Input.GetMouseButton(1))
             {
-                // Shift = fine (precise), default = responsive depth.
                 float step = Input.GetKey(KeyCode.LeftShift) ? scrollDepthFine : scrollDepthSensitivity;
                 workPlaneY = Mathf.Clamp(workPlaneY + scroll * step, 0.0f, 0.45f);
+                p.y = workPlaneY;
+            }
+            float keyDepth = 0f;
+            if (Input.GetKey(KeyCode.RightBracket)) keyDepth += 1f;   // ] raise
+            if (Input.GetKey(KeyCode.LeftBracket))  keyDepth -= 1f;   // [ lower
+            if (keyDepth != 0f)
+            {
+                workPlaneY = Mathf.Clamp(workPlaneY + keyDepth * 0.25f * Time.deltaTime, 0.0f, 0.45f);
                 p.y = workPlaneY;
             }
 
@@ -231,6 +318,13 @@ namespace ArmSmith
                 bool improved = false;
                 for (int i = n - 1; i >= 0; i--)
                 {
+                    // IK only uses POSITIONING joints. Roll joints (claw rotation) and the gripper joint
+                    // are excluded so IK never spins the wrist_roll around to "reach" — that joint is the
+                    // player's claw-rotation control (N/B), not a reach DOF. Fixes the "360° spin" feel.
+                    if (arm.jointSpecs[i].axis == JointAxis.Roll) continue;
+                    if (i == wristRollJoint) continue;
+                    if (arm.jointSpecs[i].name.ToLower().Contains("gripper")) continue;
+
                     Vector3 jp = jPos[i];
                     Vector3 axis = (jRot[i] * jAxisLocal[i]).normalized;
                     Vector3 ee = jPos[n];

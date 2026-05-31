@@ -148,7 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 799354c98e1d802aebefa7e153499d61, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ArmSmith.GameBootstrap
-  useRealStlMeshes: 0
+  useRealStlMeshes: 1
   config:
     armName: Starter-3DOF
     baseHeight: 0.1
