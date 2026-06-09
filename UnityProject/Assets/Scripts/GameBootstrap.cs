@@ -17,7 +17,7 @@ namespace ArmSmith
         public ArmConfig config;
         // Use the REAL SO-101 STL arm (URDF-accurate frames + downloaded meshes) as the default model.
         // The new per-servo keyboard controls (T/G, Y/H, ...) drive it directly without needing IK.
-        public bool useRealStlMeshes = true;
+        public bool useRealStlMeshes = false;
         ProceduralArm arm;
         ArmController controller;
         CameraRig rig;

@@ -107,17 +107,26 @@ namespace ArmSmith
             if (arm.gripper != null) arm.gripper.SetClose(0f);
             yield return MoveTo(new Vector3(pick.x, hover, pick.z), 2.0f);   // hover over object
 
-            // ROBUST GRAB: descend in steps, attempt the grab at each, retry until held (timing-proof).
-            float[] grabHeights = { 0.06f, 0.045f, 0.03f, 0.06f };
+            // ROBUST GRAB: descend, then WAIT until the gripper tip is actually close to the object
+            // (closed-loop proximity gate — proven reliable now that shoulder_pan reaches its angle),
+            // then close. Retry descending lower if not yet holding.
             bool got = false;
+            float[] grabHeights = { 0.06f, 0.05f, 0.04f };
             for (int attempt = 0; attempt < grabHeights.Length && !got; attempt++)
             {
-                yield return MoveTo(new Vector3(pick.x, grabHeights[attempt], pick.z), 1.2f);
-                yield return Wait(0.3f);
-                if (arm.gripper != null) { arm.gripper.SetClose(1f); }
-                yield return Wait(0.5f);
+                yield return MoveTo(new Vector3(pick.x, grabHeights[attempt], pick.z), 1.4f);
+                // wait (up to 2s) for the tip to settle within grasp range of the object
+                float w = 0f;
+                while (w < 2.0f)
+                {
+                    float dToObj = Vector3.Distance(arm.gripper.TipPosition, pick);
+                    if (dToObj < arm.gripper.graspRadius * 0.85f) break;
+                    w += Time.deltaTime; yield return null;
+                }
+                if (arm.gripper != null) arm.gripper.SetClose(1f);
+                yield return Wait(0.6f);
                 got = arm.gripper != null && arm.gripper.IsHolding;
-                if (!got && arm.gripper != null) arm.gripper.SetClose(0f);   // reopen + retry lower
+                if (!got && arm.gripper != null) arm.gripper.SetClose(0f);
             }
             yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.4f);   // lift
             Log(got ? "picked (held)" : "pick FAILED (no grab)");
@@ -287,6 +296,9 @@ namespace ArmSmith
                 case "pick":
                     // pick nearest | pick <color> | pick <objectNameSubstring>
                     {
+                        // Clean IK calibration before the task (FK reference can drift after activity).
+                        controller.Recalibrate();
+                        float w0 = 0f; while (w0 < 1.2f) { w0 += Time.deltaTime; yield return null; }  // settle+calib
                         Transform obj = ResolveObject(tok.Length > 1 ? tok[1] : "nearest");
                         if (obj != null) { controller.mode = ArmController.Mode.IK; controller.mouseFollow = false; yield return PickAt(obj.position); }
                         else Log("pick: no object found");

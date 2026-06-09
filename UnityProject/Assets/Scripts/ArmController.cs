@@ -173,6 +173,23 @@ namespace ArmSmith
         }
 
         int settleFrames = 0;
+        /// <summary>Re-run the proven settle-then-calibrate path from the HOME pose. Call before a task to
+        /// guarantee a clean IK calibration (the FK reference can drift after activity). Sets joints to the
+        /// home pose, lets physics settle, then recalibrates — exactly like startup.</summary>
+        public void Recalibrate()
+        {
+            if (targetAngles == null) return;
+            float[] home6 = { 0f, 0f, 0f, 0f, 0f, 0f };
+            float[] home4 = { 0f, 40f, -78f, -5f };
+            float[] home = arm.jointBodies.Count >= 6 ? home6 : home4;
+            for (int i = 0; i < targetAngles.Length; i++)
+                targetAngles[i] = i < home.Length ? home[i] : 0f;
+            arm.SeedServoState(targetAngles);
+            calibrated = false;
+            settleFrames = 0;        // triggers the settle->calibrate path in FixedUpdate
+            mode = Mode.Manual;      // hold the home pose while settling
+        }
+
         void FixedUpdate()
         {
             if (arm == null || targetAngles == null) return;

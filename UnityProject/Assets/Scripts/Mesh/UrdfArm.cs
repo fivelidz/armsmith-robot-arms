@@ -230,8 +230,10 @@ namespace ArmSmith
                 // anchorRotation that maps anchor-X to the correct physical rotation axis
                 // (the child frame's Y in the parent's local coordinates).
                 Quaternion anchorRot = JointAnchorRotation(j.name);
+                // Higher stiffness + force so each drive actually reaches its commanded angle against the
+                // arm's inertia (esp. shoulder_pan turning the whole arm sideways). forceLimit 40->150.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
-                    stiffness: 9000f, damping: 150f, forceLimit: 40f,
+                    stiffness: 14000f, damping: 250f, forceLimit: 150f,
                     massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f,
                     anchorRotation: anchorRot);
 
@@ -452,11 +454,12 @@ namespace ArmSmith
             ab.xDrive = drive;
 
             ab.mass = Mathf.Max(0.01f, massKg);
-            // Safety: cap joint velocity + add angular damping so the articulation never explodes near a
-            // singularity (matches a real servo's bounded speed, ~300 deg/s, and keeps physics stable).
-            ab.maxAngularVelocity = 8f;          // rad/s cap
-            ab.angularDamping = 2f;
-            ab.jointFriction = 0.05f;
+            // Safety vs mobility balance: cap velocity to prevent singularity explosions, but keep damping
+            // LOW so the drive can actually reach its commanded angle (angularDamping=2 was fighting the
+            // drive — shoulder_pan stalled at 14deg when asked for 31deg, causing all off-centre reach fails).
+            ab.maxAngularVelocity = 6f;          // rad/s cap (still prevents explosions)
+            ab.angularDamping = 0.2f;            // low: don't fight the drive
+            ab.jointFriction = 0.02f;
         }
 
         // ─────────────────────────────────────────────────────────────────────────
