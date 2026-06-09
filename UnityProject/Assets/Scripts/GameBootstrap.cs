@@ -33,6 +33,7 @@ namespace ArmSmith
         ModuleUsagePanel modulePanel;
         ArmSmith.Verification.VerificationPanel verificationPanel;
         GripDetector gripDetector;
+        WorkspaceMap workspaceMap;
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
@@ -204,6 +205,9 @@ namespace ArmSmith
             var selfCol = armGo.AddComponent<SelfCollision>();
             selfCol.Setup(arm);
 
+            // Reachable-workspace map (Shift+\ to compute+show): green=reachable, red=unreachable cells.
+            workspaceMap = armGo.AddComponent<WorkspaceMap>();
+
             // IK target gizmo
             var tgt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             tgt.name = "IKTarget";
@@ -217,6 +221,8 @@ namespace ArmSmith
             recorder = armGo.AddComponent<BehaviourRecorder>();
             recorder.controller = controller;
             recorder.arm = arm;
+
+            workspaceMap.Bind(controller, arm);   // now that the controller exists
         }
 
         // Tray-to-tray scenario (see research/manipulation_repos/TEST_ENVIRONMENTS.md).
