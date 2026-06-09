@@ -34,6 +34,7 @@ namespace ArmSmith
         ArmSmith.Verification.VerificationPanel verificationPanel;
         GripDetector gripDetector;
         WorkspaceMap workspaceMap;
+        ModuleMount moduleMount;
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
@@ -207,6 +208,10 @@ namespace ArmSmith
 
             // Reachable-workspace map (Shift+\ to compute+show): green=reachable, red=unreachable cells.
             workspaceMap = armGo.AddComponent<WorkspaceMap>();
+
+            // Module-mounting system: exposes mount sockets on the arm; modules can be placed/oriented.
+            moduleMount = armGo.AddComponent<ModuleMount>();
+            moduleMount.Setup(arm);
 
             // IK target gizmo
             var tgt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
