@@ -435,6 +435,60 @@ namespace ArmSmith
         /// <summary>FK-only reachability test: how close can the gripper get to `worldGoal`? Runs the DLS
         /// IK on a COPY of the joint angles (doesn't move the live arm) and returns the residual error (m).
         /// Used by the WorkspaceMap to draw where the arm can reach.</summary>
+        /// <summary>Solve IK for a world target and RETURN the joint angles (deg) without driving the live
+        /// arm. Used to build demo motion-keyframes for warm-starting training.</summary>
+        public float[] IKAnglesFor(Vector3 worldGoal)
+        {
+            float[] saved = (float[])targetAngles.Clone();
+            TestReach(worldGoal);               // runs the solve, leaves result in targetAngles internally...
+            // TestReach restores targetAngles, so instead solve in-place here:
+            return SolveAnglesInPlace(worldGoal, saved);
+        }
+
+        // Solve to worldGoal mutating targetAngles, return a copy, then restore. (shared with TestReach)
+        float[] SolveAnglesInPlace(Vector3 worldGoal, float[] restore)
+        {
+            int n = arm.jointBodies.Count;
+            if (!calibrated) CalibrateIK();
+            if (reachIdx == null)
+            {
+                var list = new List<int>();
+                for (int i = 0; i < n; i++) if (IsReachJoint(i)) list.Add(i);
+                reachIdx = list.ToArray(); dq = new float[reachIdx.Length];
+            }
+            for (int i = 0; i < n; i++) targetAngles[i] = 0f;
+            const float h = 0.5f;
+            for (int iter = 0; iter < 30; iter++)
+            {
+                ForwardKinematics(n);
+                Vector3 ee = jPos[n];
+                Vector3 err = worldGoal - ee;
+                if (err.magnitude < 0.004f) break;
+                if (err.magnitude > 0.15f) err = err.normalized * 0.15f;
+                int m2 = reachIdx.Length; Vector3[] J = new Vector3[m2];
+                for (int c = 0; c < m2; c++)
+                {
+                    int ji = reachIdx[c]; float sv = targetAngles[ji];
+                    targetAngles[ji] = sv + h; ForwardKinematics(n); Vector3 ep = jPos[n];
+                    targetAngles[ji] = sv; J[c] = (ep - ee) / (h * Mathf.Deg2Rad);
+                }
+                ForwardKinematics(n);
+                float l2 = dlsDamping * dlsDamping; float[,] A = new float[3, 3];
+                for (int c = 0; c < m2; c++) { A[0,0]+=J[c].x*J[c].x; A[0,1]+=J[c].x*J[c].y; A[0,2]+=J[c].x*J[c].z; A[1,0]+=J[c].y*J[c].x; A[1,1]+=J[c].y*J[c].y; A[1,2]+=J[c].y*J[c].z; A[2,0]+=J[c].z*J[c].x; A[2,1]+=J[c].z*J[c].y; A[2,2]+=J[c].z*J[c].z; }
+                A[0,0]+=l2; A[1,1]+=l2; A[2,2]+=l2;
+                Vector3 y = Solve3x3(A, err); if (float.IsNaN(y.x)) break;
+                for (int c = 0; c < m2; c++)
+                {
+                    float dqi = Mathf.Clamp(Vector3.Dot(J[c], y) * Mathf.Rad2Deg, -ikStepDeg * 3f, ikStepDeg * 3f);
+                    int ji = reachIdx[c]; var js = arm.jointSpecs[ji];
+                    targetAngles[ji] = Mathf.Clamp(targetAngles[ji] + dqi, js.minAngle, js.maxAngle);
+                }
+            }
+            float[] result = (float[])targetAngles.Clone();
+            System.Array.Copy(restore, targetAngles, restore.Length);
+            return result;
+        }
+
         public float TestReach(Vector3 worldGoal)
         {
             int n = arm.jointBodies.Count;

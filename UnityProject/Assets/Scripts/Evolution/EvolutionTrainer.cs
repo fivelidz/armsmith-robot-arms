@@ -87,6 +87,65 @@ namespace ArmSmith
             generation = 0; best = null;
         }
 
+        /// <summary>WARM-START: seed the population from a competent demonstration (a list of joint-angle
+        /// keyframes from a scripted/hand-driven solve). The first genome IS the demo; the rest are
+        /// mutated copies. This turns "evolve from random" (rarely cracks grasp) into "evolve from
+        /// competent" (refines a working motion) — the recommended path for the hard realistic arm.</summary>
+        public void SeedFromDemo(List<MotionKey> demoKeys)
+        {
+            if (demoKeys == null || demoKeys.Count == 0) { SeedPopulation(); return; }
+            keysPerGenome = demoKeys.Count;
+            population.Clear();
+            // genome 0 = the demo verbatim
+            var seed = new MotionGenome { keys = demoKeys.ToArray() };
+            population.Add(seed);
+            // rest = mutated copies (explore around the demo)
+            for (int i = 1; i < populationSize; i++)
+            {
+                var g = seed.Clone();
+                g.Mutate(0.4f, mutationSigma * 0.5f, specs, rng);
+                g.fitness = float.NegativeInfinity;
+                population.Add(g);
+            }
+            generation = 0; best = null;
+            Debug.Log($"[Trainer] warm-started population from a {demoKeys.Count}-key demo");
+        }
+
+        /// <summary>Build a pick-and-place demo (joint keyframes) for the current scenario by IK-solving the
+        /// key waypoints (above-object, grasp, lift, over-target, place, release). Uses the controller's
+        /// TestReach-style IK to get joint angles for each waypoint. Returns null if no object/target.</summary>
+        public List<MotionKey> BuildPickPlaceDemo()
+        {
+            Transform obj = FindByName("S_Cube");
+            Transform tgt = FindByName("S_Pad") ?? FindByName("S_TrayB");
+            if (obj == null || tgt == null || controller == null) return null;
+            Vector3 o = obj.position, t = tgt.position;
+            var wps = new (Vector3 pos, float grip)[] {
+                (new Vector3(o.x, 0.16f, o.z), 0f),   // above object, open
+                (new Vector3(o.x, 0.06f, o.z), 0f),   // descend, open
+                (new Vector3(o.x, 0.06f, o.z), 1f),   // close (grab)
+                (new Vector3(o.x, 0.18f, o.z), 1f),   // lift
+                (new Vector3(0f,  0.20f, 0.28f), 1f), // via-point centre
+                (new Vector3(t.x, 0.16f, t.z), 1f),   // over target
+                (new Vector3(t.x, 0.07f, t.z), 1f),   // descend into target
+                (new Vector3(t.x, 0.07f, t.z), 0f),   // release
+                (new Vector3(t.x, 0.18f, t.z), 0f),   // retreat
+            };
+            var keys = new List<MotionKey>();
+            foreach (var w in wps)
+            {
+                float[] angles = controller.IKAnglesFor(w.pos);   // solve joint angles for this waypoint
+                keys.Add(new MotionKey { angles = angles, gripper = w.grip, hold = 0.8f });
+            }
+            return keys;
+        }
+
+        Transform FindByName(string n)
+        {
+            foreach (var tr in GameObject.FindObjectsOfType<Transform>()) if (tr.name == n) return tr;
+            return null;
+        }
+
         public void StartTraining() { if (!Running) StartCoroutine(TrainLoop()); }
         public void StopTraining() { Running = false; }
 

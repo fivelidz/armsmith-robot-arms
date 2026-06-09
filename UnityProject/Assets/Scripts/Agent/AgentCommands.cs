@@ -288,6 +288,13 @@ namespace ArmSmith
                     Log($"trained {n} gens, best={(trainer.best != null ? trainer.best.fitness.ToString("F2") : "-")}");
                     break;
                 case "seed": trainer.SeedPopulation(); break;
+                case "warmstart":
+                    {
+                        var demo = trainer.BuildPickPlaceDemo();
+                        if (demo != null) { trainer.policyMode = false; trainer.SeedFromDemo(demo); Log("warm-started from pick-place demo ("+demo.Count+" keys)"); }
+                        else Log("warmstart: no object/target to build demo");
+                    }
+                    break;
                 case "sort": yield return AutoSortRoutine(); break;
                 case "reach":
                     // reach <x y z> | reach <anchor>
