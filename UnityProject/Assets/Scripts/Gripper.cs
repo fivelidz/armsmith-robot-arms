@@ -85,7 +85,14 @@ namespace ArmSmith
             held.transform.rotation = ee.rotation * heldLocalRot;
         }
 
-        void FixedUpdate() { HeldFollow(); }
+        void FixedUpdate()
+        {
+            // Continuous grab ONLY when the gripper is firmly closed AND something is right at the grasp
+            // point (tight radius) — lets a closed gripper that arrives at an object still grab it, without
+            // grabbing things it merely passes near. Wider window only matters for fast rollouts.
+            if (graspAssist && held == null && closeAmount > 0.8f) TryGrab();
+            HeldFollow();
+        }
 
         void Release()
         {
