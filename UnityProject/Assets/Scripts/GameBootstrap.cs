@@ -32,6 +32,7 @@ namespace ArmSmith
         ServoPanel servoPanel;
         ModuleUsagePanel modulePanel;
         ArmSmith.Verification.VerificationPanel verificationPanel;
+        GripDetector gripDetector;
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
@@ -311,6 +312,11 @@ namespace ArmSmith
             // Placement-verification panel (right): checks base fastened, links connected, no penetration.
             verificationPanel = canvasGo.AddComponent<ArmSmith.Verification.VerificationPanel>();
             verificationPanel.Build(canvasGo.transform, arm, GameObject.Find("Worktop") != null ? GameObject.Find("Worktop").transform : null);
+
+            // Grip-detection feedback (only revealed when the EFleshTactile module is enabled): highlights
+            // a graspable object in range + shows GRIP READY, so objects are easier to pick up.
+            gripDetector = canvasGo.AddComponent<GripDetector>();
+            gripDetector.Bind(arm, sensorHub, canvasGo.transform);
 
             // Clickable servo callouts: click a joint's yellow hotspot -> leader line + command panel.
             servoCallouts = canvasGo.AddComponent<ServoCallouts>();
