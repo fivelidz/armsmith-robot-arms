@@ -409,8 +409,8 @@ namespace ArmSmith
 
         int[] reachIdx;          // indices of the reach joints
         float[] dq;              // delta-angles buffer
-        public float dlsDamping = 0.08f;   // DLS lambda (higher = more stable, slower)
-        public float ikStepDeg = 18f;      // max deg change per joint per IK update (smooth)
+        public float dlsDamping = 0.14f;   // DLS lambda (higher = more stable near singularities)
+        public float ikStepDeg = 6f;       // max deg change per joint per IK update (gentle, no flinging)
 
         // DAMPED LEAST SQUARES (Jacobian) IK. Robust for the real SO-101's OFFSET wrist where CCD gets
         // stuck in a local minimum. Builds a numerical 3xM position Jacobian over the reach joints and

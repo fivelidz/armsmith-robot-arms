@@ -87,13 +87,13 @@ namespace ArmSmith
         {
             float hover = 0.14f, grab = 0.045f;
             if (arm.gripper != null) arm.gripper.SetClose(0f);                 // open
-            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.0f);     // hover over cube
-            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 0.8f);      // descend
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.8f);     // hover over cube
+            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 1.4f);      // descend
             if (arm.gripper != null) arm.gripper.SetClose(1f);                 // close
             yield return Wait(0.6f);
             yield return MoveTo(new Vector3(pick.x, hover, pick.z), 0.7f);     // lift
-            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.0f);   // traverse to tray
-            yield return MoveTo(new Vector3(place.x, place.y, place.z), 0.7f); // descend into tray
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 2.0f);   // traverse to tray
+            yield return MoveTo(new Vector3(place.x, place.y, place.z), 1.4f); // descend into tray
             if (arm.gripper != null) arm.gripper.SetClose(0f);                 // release
             yield return Wait(0.5f);
             yield return MoveTo(new Vector3(place.x, hover, place.z), 0.6f);   // retreat
@@ -102,23 +102,25 @@ namespace ArmSmith
         // pick (grasp) the object at a position; place (release) above a position. Reusable skills.
         IEnumerator PickAt(Vector3 pick)
         {
-            float hover = 0.14f, grab = 0.045f;
+            // Gentle, slow moves so the offset-wrist URDF arm tracks smoothly (no flinging).
+            float hover = 0.16f, grab = 0.05f;
             if (arm.gripper != null) arm.gripper.SetClose(0f);
-            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.0f);
-            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 0.8f);
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 2.0f);   // hover over object
+            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 1.6f);    // descend onto it
             if (arm.gripper != null) arm.gripper.SetClose(1f);
-            yield return Wait(0.6f);
-            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 0.7f);
+            yield return Wait(0.8f);                                          // let the grasp settle
+            yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.4f);   // lift
             Log("picked");
         }
         IEnumerator PlaceAt(Vector3 place)
         {
-            float hover = 0.14f;
-            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.0f);
-            yield return MoveTo(ClampY(place), 0.7f);
-            if (arm.gripper != null) arm.gripper.SetClose(0f);
-            yield return Wait(0.5f);
-            yield return MoveTo(new Vector3(place.x, hover, place.z), 0.6f);
+            float hover = 0.16f;
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 2.2f); // traverse above target
+            yield return MoveTo(ClampY(place), 1.6f);                        // descend into tray
+            yield return Wait(0.3f);
+            if (arm.gripper != null) arm.gripper.SetClose(0f);              // release
+            yield return Wait(0.6f);
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.2f); // retreat
             Log("placed");
         }
 

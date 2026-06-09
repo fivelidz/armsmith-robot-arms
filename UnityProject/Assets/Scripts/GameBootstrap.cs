@@ -17,7 +17,7 @@ namespace ArmSmith
         public ArmConfig config;
         // Use the REAL SO-101 STL arm (URDF-accurate frames + downloaded meshes) as the default model.
         // The new per-servo keyboard controls (T/G, Y/H, ...) drive it directly without needing IK.
-        public bool useRealStlMeshes = false;
+        public bool useRealStlMeshes = true;
         ProceduralArm arm;
         ArmController controller;
         CameraRig rig;
@@ -181,16 +181,17 @@ namespace ArmSmith
             if (useRealStlMeshes)
             {
                 // OPTION B: use the WORKING procedural kinematics (correct joints + IK + grasp across the
-                // full workspace) but SKIN it with the real SO-101 STL meshes. We build a 6-DOF procedural
-                // arm (matching the SO-101's joint count) then call StlArmSkin to mount the meshes on the
-                // procedural links. This avoids the URDF builder's joint-mapping bugs while keeping the
-                // authentic look. (BuildFromKinematics is kept available but no longer the default.)
-                config = ArmConfig.CreateReBot6DOF();
-                arm.useStlMeshes = false;
-                arm.Build(config);
-                string meshDir = System.IO.Path.Combine(Application.dataPath, "Meshes", "SOARM100");
-                try { StlArmSkin.Apply(arm, meshDir); }
-                catch (System.Exception e) { Debug.LogWarning("[GameBootstrap] STL skin failed: " + e.Message); }
+                // REALISTIC SO-101: build the arm from the REAL URDF kinematics (real servo joint frames,
+                // axes, limits) AND mount the real STL meshes. This is the authentic digital twin. The
+                // joint-axis conversion is being fixed methodically (UrdfArm.cs) so each servo rotates
+                // exactly like the real motor.
+                string kinPath = System.IO.Path.Combine(Application.dataPath, "Meshes", "SOARM100", "kinematics.json");
+                arm.BuildFromKinematics(kinPath);
+                if (arm.baseBody == null)  // safety fallback if kinematics.json missing
+                {
+                    Debug.LogWarning("[GameBootstrap] BuildFromKinematics failed; falling back to procedural.");
+                    config = ArmConfig.CreateStarter(); arm.useStlMeshes = false; arm.Build(config);
+                }
             }
             else
             {
