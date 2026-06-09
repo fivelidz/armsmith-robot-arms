@@ -144,3 +144,17 @@ default and fully functional. Delivered + VERIFIED this session:
 - Realistic wrist camera (WristCamAim: world-space aim at grasp point, 70deg; looks down -0.79Y).
 - Multi-robot foundation (WorldBlackboard pub/sub + RobotAgent; arm1 publishing verified).
 - Full regression: all 11 systems present, 0 runtime errors.
+
+## 2026-06-01 — Session 6: realism priority + control breakthroughs
+- PRIORITY set: realistic SO-101 sim over gameplay convenience (P23). Realistic arm is default.
+- FIX proximal-joint stall: shoulder_pan/lift carry the extended arm's load -> need much stronger drive
+  (stiffness 40000, force 600) than wrist (14000/150). Pan now reaches commanded angle BOTH sides under
+  load (was -35cmd/-8actual); workspace reach 10-14cm -> ~4cm uniform.
+- Realistic arm achieved a FULL pick-place success (cube ON_PAD 6.9cm) — but scripted control is
+  NON-DETERMINISTIC across runs (6.9cm then 62cm then explode) due to physics-timing + marginal
+  offset-wrist IK. This is real robotics difficulty.
+- KEY INSIGHT validated: LEARNED policies are the right control approach for this hard accurate arm, not
+  open-loop scripts. Motion-GA training IMPROVES on it: ReachTouch -1.98->+13.91 (solved);
+  PickPlaceCube -2.24 -> -1.23 over 31 gens (steady monotonic learning on the hard grasp task).
+- Strategy going forward: train/evolve policies on the realistic arm (the sim-to-real path), warm-start
+  from demos to crack grasp-success, rather than perfecting brittle scripted sequences.
