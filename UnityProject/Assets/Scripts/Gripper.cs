@@ -76,7 +76,12 @@ namespace ArmSmith
         {
             if (held == null) return;
             Transform ee = arm != null && arm.endEffector != null ? arm.endEffector : transform;
-            held.transform.position = TipPosition;
+            Vector3 p = TipPosition;
+            // Safety: never drive the held object to a NaN/absurd position (would fling it to infinity).
+            Vector3 basePos = arm != null && arm.baseBody != null ? arm.baseBody.transform.position : transform.position;
+            if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.z) || Vector3.Distance(p, basePos) > 1.5f)
+                return;  // keep the object where it is this frame
+            held.transform.position = p;
             held.transform.rotation = ee.rotation * heldLocalRot;
         }
 

@@ -187,7 +187,9 @@ namespace ArmSmith
                 yield return null;
             }
             ikTarget.position = goal;
-            yield return Wait(0.25f); // let IK + physics settle
+            // Brief settle (gentle, open-loop — closed-loop wait made the arm strain toward marginally-
+            // reachable sub-targets and fling held loads). Velocity caps keep it stable.
+            yield return Wait(0.3f);
         }
 
         IEnumerator Wait(float s) { float t = 0; while (t < s) { t += Time.deltaTime; yield return null; } }
