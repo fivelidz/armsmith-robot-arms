@@ -260,6 +260,7 @@ namespace ArmSmith
                 case "place":
                     // place <anchor> | place <x y z>
                     {
+                        controller.mode = ArmController.Mode.IK; controller.mouseFollow = false;
                         Vector3 where = tok.Length >= 4 ? new Vector3(F(tok[1]), F(tok[2]), F(tok[3])) : Anchor(tok.Length > 1 ? tok[1] : "trayb");
                         yield return PlaceAt(where + Vector3.up * 0.05f);
                     }
