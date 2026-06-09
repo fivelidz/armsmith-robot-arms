@@ -37,16 +37,16 @@ namespace ArmSmith
             {
                 var t = wristCam.transform;
                 t.SetParent(gripper, false);
-                // Real wrist-cam mounting: the camera sits on the wrist BEHIND + ABOVE the jaws and looks
-                // DOWN/forward past the fingers, so the jaws appear at the bottom of frame and the object
-                // being grasped is centred below. Mount offset is along the gripper-local frame (gripper
-                // here = the TCP/end-effector whose local +Y is the tool/reach direction).
-                t.localPosition = new Vector3(0f, -0.12f, -0.06f);     // back (−Y tool) + up/out (−Z)
-                // Aim at a point just BELOW/AHEAD of the jaws (where a grasped object is).
-                Vector3 lookTarget = gripper.position + gripper.up * 0.04f;   // the jaw/grasp region
-                t.LookAt(lookTarget, -gripper.forward);
-                wristCam.fieldOfView = 95f;          // wide so both jaws + object fit
+                // Realistic wrist-cam mount: like the printed UVC32 bracket on the real SO-101, the camera
+                // sits a little BEHIND and ABOVE the gripper tip and looks toward the grasp point. The EE
+                // local frame is twisted, so a WristCamAim component re-aims the camera each frame in WORLD
+                // space (toward the tip, biased downward) — guaranteeing it always sees the jaws + what's
+                // below them, regardless of how the wrist is rotated.
+                t.localPosition = new Vector3(0f, -0.06f, 0f);   // slightly back from the tip along the tool
+                wristCam.fieldOfView = 70f;                      // realistic UVC FOV; jaws + object fit
                 wristCam.nearClipPlane = 0.01f;
+                var aim = wristCam.gameObject.GetComponent<WristCamAim>() ?? wristCam.gameObject.AddComponent<WristCamAim>();
+                aim.gripperTip = gripper;                        // EE tip = grasp point
                 wristRT = new RenderTexture(256, 256, 16) { name = "WristRT" };
                 wristCam.targetTexture = wristRT;
                 if (wristPanel) wristPanel.texture = wristRT;
@@ -98,7 +98,9 @@ namespace ArmSmith
             if (envPanel) envPanel.enabled = !envPanel.enabled;
         }
 
-        /// <summary>Read a camera's RT into a Texture2D (for dataset recording / vision obs).</summary>
+        // (helper class WristCamAim is defined at the bottom of this file)
+
+    /// <summary>Read a camera's RT into a Texture2D (for dataset recording / vision obs).</summary>
         public Texture2D Capture(Camera cam, RenderTexture rt)
         {
             if (cam == null || rt == null) return null;
@@ -109,6 +111,24 @@ namespace ArmSmith
             tex.Apply();
             RenderTexture.active = prev;
             return tex;
+        }
+    }
+
+    /// <summary>Re-aims the wrist camera each frame in WORLD space toward the gripper tip (grasp point),
+    /// biased slightly downward, so it reliably frames the jaws + the object below regardless of the
+    /// twisted end-effector local frame. Mirrors a real wrist UVC camera looking at the grasp zone.</summary>
+    public class WristCamAim : MonoBehaviour
+    {
+        public Transform gripperTip;
+        public float downBias = 0.06f;   // aim a bit below the tip so the workspace under the jaws is framed
+
+        void LateUpdate()
+        {
+            if (gripperTip == null) return;
+            Vector3 look = gripperTip.position - Vector3.up * downBias; // grasp point, slightly below
+            Vector3 dir = look - transform.position;
+            if (dir.sqrMagnitude < 1e-6f) return;
+            transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
         }
     }
 }
