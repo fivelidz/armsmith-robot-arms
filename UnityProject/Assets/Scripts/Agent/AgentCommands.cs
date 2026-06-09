@@ -115,12 +115,19 @@ namespace ArmSmith
         IEnumerator PlaceAt(Vector3 place)
         {
             float hover = 0.16f;
-            yield return MoveTo(new Vector3(place.x, hover, place.z), 2.2f); // traverse above target
-            yield return MoveTo(ClampY(place), 1.6f);                        // descend into tray
+            // Route UP then OVER then DOWN, passing through a well-conditioned via-point in front of the
+            // base (z~0.28, y high) to avoid the offset-wrist singularity that flings loads during a
+            // direct cross-workspace traverse.
+            Vector3 cur = ikTarget.position;
+            yield return MoveTo(new Vector3(cur.x, 0.22f, cur.z), 1.2f);              // lift high
+            yield return MoveTo(new Vector3(0f, 0.22f, 0.28f), 1.6f);                 // via-point (centre, high)
+            yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.6f);          // over the tray, high
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.4f);          // descend
+            yield return MoveTo(ClampY(place), 1.0f);                                 // into tray
             yield return Wait(0.3f);
-            if (arm.gripper != null) arm.gripper.SetClose(0f);              // release
+            if (arm.gripper != null) arm.gripper.SetClose(0f);                        // release
             yield return Wait(0.6f);
-            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.2f); // retreat
+            yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.2f);          // retreat up
             Log("placed");
         }
 
