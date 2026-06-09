@@ -213,6 +213,11 @@ namespace ArmSmith
             moduleMount = armGo.AddComponent<ModuleMount>();
             moduleMount.Setup(arm);
 
+            // Multi-robot foundation: publish this arm's state to the shared WorldBlackboard so future
+            // additional arms can coordinate (hand-offs, do-not-collide, collaborative tasks).
+            var agentRobot = armGo.AddComponent<RobotAgent>();
+            agentRobot.Bind("arm1", arm);
+
             // IK target gizmo
             var tgt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             tgt.name = "IKTarget";
