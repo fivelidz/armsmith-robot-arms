@@ -199,6 +199,10 @@ namespace ArmSmith
                 arm.Build(config);
             }
 
+            // Enable self-collision so the arm can't pass through itself (non-adjacent links collide).
+            var selfCol = armGo.AddComponent<SelfCollision>();
+            selfCol.Setup(arm);
+
             // IK target gizmo
             var tgt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             tgt.name = "IKTarget";

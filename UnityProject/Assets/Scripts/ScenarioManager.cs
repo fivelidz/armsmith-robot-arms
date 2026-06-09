@@ -209,7 +209,9 @@ namespace ArmSmith
                     break;
                 case ScenarioType.TrayToTray:
                     SetActive(trayA, true); SetActive(trayB, true); SetActive(cube, true);
-                    trayA.position = new Vector3(0.18f, 0f, 0.34f); trayB.position = new Vector3(-0.18f, 0f, 0.34f);
+                    // Trays in the arm's well-reachable zone (z~0.30, |x|~0.16) so the offset-wrist IK
+                    // descends into them cleanly without the far-corner singularity.
+                    trayA.position = new Vector3(0.16f, 0f, 0.30f); trayB.position = new Vector3(-0.16f, 0f, 0.30f);
                     Place(cube, RandomSpot(trayA.position + Vector3.up * 0.03f));
                     break;
                 case ScenarioType.StackTwo:

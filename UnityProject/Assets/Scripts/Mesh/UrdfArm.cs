@@ -452,6 +452,11 @@ namespace ArmSmith
             ab.xDrive = drive;
 
             ab.mass = Mathf.Max(0.01f, massKg);
+            // Safety: cap joint velocity + add angular damping so the articulation never explodes near a
+            // singularity (matches a real servo's bounded speed, ~300 deg/s, and keeps physics stable).
+            ab.maxAngularVelocity = 8f;          // rad/s cap
+            ab.angularDamping = 2f;
+            ab.jointFriction = 0.05f;
         }
 
         // ─────────────────────────────────────────────────────────────────────────

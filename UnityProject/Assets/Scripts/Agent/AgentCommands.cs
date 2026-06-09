@@ -121,10 +121,12 @@ namespace ArmSmith
             Vector3 cur = ikTarget.position;
             yield return MoveTo(new Vector3(cur.x, 0.22f, cur.z), 1.2f);              // lift high
             yield return MoveTo(new Vector3(0f, 0.22f, 0.28f), 1.6f);                 // via-point (centre, high)
-            yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.6f);          // over the tray, high
-            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.4f);          // descend
-            yield return MoveTo(ClampY(place), 1.0f);                                 // into tray
-            yield return Wait(0.3f);
+            yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.8f);          // over the tray, high
+            yield return MoveTo(new Vector3(place.x, hover, place.z), 1.6f);          // descend
+            yield return MoveTo(ClampY(place), 1.4f);                                 // into tray
+            // Settle: wait until the tip is over the tray (within 8cm) OR 1s, whichever first (velocity
+            // is capped so no explosion). Only THEN release, so the cube lands in the tray.
+            yield return WaitForReach(new Vector3(place.x, place.y, place.z), 0.08f, 1.0f);
             if (arm.gripper != null) arm.gripper.SetClose(0f);                        // release
             yield return Wait(0.6f);
             yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.2f);          // retreat up
@@ -179,6 +181,20 @@ namespace ArmSmith
         }
 
         IEnumerator Wait(float s) { float t = 0; while (t < s) { t += Time.deltaTime; yield return null; } }
+
+        // Wait until the gripper tip is within `tol` of `worldGoal`, or `maxWait` seconds elapse.
+        // Ensures the arm has actually CONVERGED on the target before we release the object.
+        IEnumerator WaitForReach(Vector3 worldGoal, float tol, float maxWait)
+        {
+            float t = 0f;
+            while (t < maxWait)
+            {
+                Vector3 tip = arm.gripper != null ? arm.gripper.TipPosition : arm.endEffector.position;
+                if (Vector3.Distance(tip, worldGoal) < tol) break;
+                t += Time.deltaTime;
+                yield return null;
+            }
+        }
 
         Transform FindByName(string n)
         {
