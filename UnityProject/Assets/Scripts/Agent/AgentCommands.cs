@@ -103,14 +103,24 @@ namespace ArmSmith
         IEnumerator PickAt(Vector3 pick)
         {
             // Gentle, slow moves so the offset-wrist URDF arm tracks smoothly (no flinging).
-            float hover = 0.16f, grab = 0.05f;
+            float hover = 0.16f;
             if (arm.gripper != null) arm.gripper.SetClose(0f);
             yield return MoveTo(new Vector3(pick.x, hover, pick.z), 2.0f);   // hover over object
-            yield return MoveTo(new Vector3(pick.x, grab, pick.z), 1.6f);    // descend onto it
-            if (arm.gripper != null) arm.gripper.SetClose(1f);
-            yield return Wait(0.8f);                                          // let the grasp settle
+
+            // ROBUST GRAB: descend in steps, attempt the grab at each, retry until held (timing-proof).
+            float[] grabHeights = { 0.06f, 0.045f, 0.03f, 0.06f };
+            bool got = false;
+            for (int attempt = 0; attempt < grabHeights.Length && !got; attempt++)
+            {
+                yield return MoveTo(new Vector3(pick.x, grabHeights[attempt], pick.z), 1.2f);
+                yield return Wait(0.3f);
+                if (arm.gripper != null) { arm.gripper.SetClose(1f); }
+                yield return Wait(0.5f);
+                got = arm.gripper != null && arm.gripper.IsHolding;
+                if (!got && arm.gripper != null) arm.gripper.SetClose(0f);   // reopen + retry lower
+            }
             yield return MoveTo(new Vector3(pick.x, hover, pick.z), 1.4f);   // lift
-            Log("picked");
+            Log(got ? "picked (held)" : "pick FAILED (no grab)");
         }
         IEnumerator PlaceAt(Vector3 place)
         {

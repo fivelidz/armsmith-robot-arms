@@ -25,7 +25,7 @@ namespace ArmSmith
         public bool graspAssist = true;       // attach the held object so contact-rich grasps are reliable
         public float graspRadius = 0.12f;      // object must be within this of the grasp point to grab
         Rigidbody held;                        // currently held object
-        Transform heldOriginalParent;          // to restore on release
+        Vector3 heldLocalPos; Quaternion heldLocalRot = Quaternion.identity;  // grasp offset rel. to EE
 
         /// <summary>0 = open, 1 = closed.</summary>
         public void SetClose(float t)
@@ -58,22 +58,34 @@ namespace ArmSmith
             }
             if (best == null) return;
             held = best;
-            // Reliable carry: a FixedJoint between an ArticulationBody gripper and a Rigidbody is flaky,
-            // so we make the object KINEMATIC and PARENT it to the gripper end-effector at the grasp point.
-            // It then rigidly follows the gripper; on release we un-parent and restore dynamics.
-            heldOriginalParent = best.transform.parent;
+            // Reliable carry WITHOUT corrupting the articulation physics: parenting a kinematic Rigidbody
+            // under an ArticulationBody link makes the joints wind up to insane angles. Instead we make the
+            // held object kinematic, do NOT parent it, and manually drive its transform to follow the grasp
+            // point each FixedUpdate (see HeldFollow). Records the local offset captured at grab time.
             best.linearVelocity = Vector3.zero; best.angularVelocity = Vector3.zero;
             best.isKinematic = true;
-            Transform anchor = arm != null && arm.endEffector != null ? arm.endEffector : transform;
-            best.transform.SetParent(anchor, true);
-            best.transform.position = TipPosition;   // snap to grasp point between the jaws
+            // capture the object's pose relative to the EE so it holds its grabbed orientation
+            Transform ee = arm != null && arm.endEffector != null ? arm.endEffector : transform;
+            heldLocalPos = ee.InverseTransformPoint(TipPosition);   // hold at the grasp point
+            heldLocalRot = Quaternion.Inverse(ee.rotation) * best.transform.rotation;
         }
+
+        // Drive the held object to follow the gripper each physics step (no parenting -> no articulation
+        // wind-up). Called from FixedUpdate.
+        void HeldFollow()
+        {
+            if (held == null) return;
+            Transform ee = arm != null && arm.endEffector != null ? arm.endEffector : transform;
+            held.transform.position = TipPosition;
+            held.transform.rotation = ee.rotation * heldLocalRot;
+        }
+
+        void FixedUpdate() { HeldFollow(); }
 
         void Release()
         {
             if (held != null)
             {
-                held.transform.SetParent(heldOriginalParent, true);
                 held.isKinematic = false;
                 held.linearVelocity = Vector3.zero; held.angularVelocity = Vector3.zero;
             }

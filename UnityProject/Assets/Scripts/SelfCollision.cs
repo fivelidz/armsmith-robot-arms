@@ -29,14 +29,16 @@ namespace ArmSmith
                 AddLinkCollider(c);
             }
 
-            // By default Unity ignores collisions within an articulation. Force-ENABLE for non-adjacent
-            // pairs, and explicitly IGNORE adjacent pairs so the joints don't jam at their shared anchor.
+            // Force-ENABLE collision only between FAR-APART link pairs (gap >= 3 in the chain) — e.g.
+            // base vs forearm/wrist. NEAR pairs (gap 1 or 2) are the tightly-packed wrist/gripper cluster
+            // whose meshes overlap by design; colliding them JAMS the joints at their limits, so we IGNORE
+            // those. This keeps "can't fold back through itself" without wedging the wrist.
             for (int i = 0; i < linkCols.Count; i++)
                 for (int j = i + 1; j < linkCols.Count; j++)
                 {
                     if (linkCols[i] == null || linkCols[j] == null) continue;
-                    bool adjacent = (j == i + 1);
-                    Physics.IgnoreCollision(linkCols[i], linkCols[j], adjacent);
+                    bool near = (j - i) <= 2;              // adjacent + once-removed = ignore (don't jam)
+                    Physics.IgnoreCollision(linkCols[i], linkCols[j], near);
                 }
         }
 
