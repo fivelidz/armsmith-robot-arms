@@ -362,7 +362,7 @@ namespace ArmSmith
         Vector3[] restLocalOff;    // fixed local offset (in joint i frame) to joint i+1 origin
         Quaternion eeLocalRot; // EE local rotation relative to last joint frame
         Vector3 eeLocalOff;    // EE local offset in last joint frame
-        bool calibrated;
+        public bool calibrated;   // true once the IK rest geometry is captured (agent waits on this)
 
         // Capture the real chain geometry once (call after the home pose is applied & physics settled).
         public void CalibrateIK()

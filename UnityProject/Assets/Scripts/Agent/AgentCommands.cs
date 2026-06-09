@@ -143,12 +143,13 @@ namespace ArmSmith
             yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.8f);          // over the tray, high
             yield return MoveTo(new Vector3(place.x, hover, place.z), 1.6f);          // descend
             yield return MoveTo(ClampY(place), 1.4f);                                 // into tray
-            // Settle: wait until the tip is over the tray (within 8cm) OR 1s, whichever first (velocity
-            // is capped so no explosion). Only THEN release, so the cube lands in the tray.
-            yield return WaitForReach(new Vector3(place.x, place.y, place.z), 0.08f, 1.0f);
+            yield return Wait(0.4f);                                                  // brief settle
             if (arm.gripper != null) arm.gripper.SetClose(0f);                        // release
             yield return Wait(0.6f);
             yield return MoveTo(new Vector3(place.x, 0.22f, place.z), 1.2f);          // retreat up
+            // Return toward the home/ready pose so the NEXT task starts from the clean calibrated state
+            // (prevents IK-calibration drift across repeated tasks).
+            yield return MoveTo(new Vector3(0f, 0.20f, 0.28f), 1.4f);
             Log("placed");
         }
 
@@ -296,9 +297,7 @@ namespace ArmSmith
                 case "pick":
                     // pick nearest | pick <color> | pick <objectNameSubstring>
                     {
-                        // Clean IK calibration before the task (FK reference can drift after activity).
-                        controller.Recalibrate();
-                        float w0 = 0f; while (w0 < 1.2f) { w0 += Time.deltaTime; yield return null; }  // settle+calib
+                        // (IK calibration is handled at scenario load / startup, not per-pick.)
                         Transform obj = ResolveObject(tok.Length > 1 ? tok[1] : "nearest");
                         if (obj != null) { controller.mode = ArmController.Mode.IK; controller.mouseFollow = false; yield return PickAt(obj.position); }
                         else Log("pick: no object found");
