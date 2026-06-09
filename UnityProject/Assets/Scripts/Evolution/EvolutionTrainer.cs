@@ -43,6 +43,7 @@ namespace ArmSmith
         // Closed-loop (sensor-driven) policy training. When policyMode is on, genomes are small neural
         // nets that map the SensorHub observation -> joint deltas — i.e. training USES all sensor info.
         public SensorHub sensorHub;
+        public SelfCollision selfCollision;   // for the self-collision fitness penalty
         public bool policyMode = false;
         public int policyHidden = 12;
         public List<PolicyGenome> policyPop = new List<PolicyGenome>();
@@ -56,6 +57,7 @@ namespace ArmSmith
             arm = a; controller = c; scenarios = s;
             specs = arm.jointSpecs.ToArray();
             homePose = (float[])controller.TargetAngles.Clone();
+            selfCollision = arm.GetComponent<SelfCollision>();   // for the self-collision penalty
             SeedPopulation();
         }
 
@@ -160,7 +162,9 @@ namespace ArmSmith
                 }
                 float reward = scenarios.ComputeReward(out bool s2);
                 if (s2) success = true;
-                fitnessSum += reward - energy * 0.001f + (success ? 5f : 0f);
+                // Penalise SELF-COLLISION (folding through itself = could damage a real arm).
+                float selfPen = selfCollision != null ? selfCollision.MaxSelfPenetration() : 0f;
+                fitnessSum += reward - energy * 0.001f - selfPen * 50f + (success ? 5f : 0f);
                 if (success) successes++;
             }
             g.fitness = fitnessSum / resets;
