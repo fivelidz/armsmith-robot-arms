@@ -127,3 +127,20 @@ Option A: invest in fixing every STL joint anchor/sign + IK (authentic look, mor
 Option B: ship procedural-arm kinematics (works) but SKIN it with the STL meshes (best of both) — needs
   mesh alignment to the procedural chain.
 Option C: keep procedural arm default for gameplay; STL arm as a visual-only showcase.
+
+## 2026-06-01 — Session 5: realistic arm solid + major feature batch (Unity recovered post-reboot)
+Unity GUI recovered after the reboot (SDL window-backend issue cleared). Realistic SO-101 arm is the
+default and fully functional. Delivered + VERIFIED this session:
+- Self-collision physics: arm can't pass through itself (10.9mm max fold vs full pass-through).
+- Joint velocity caps (maxAngularVelocity 8, damping) -> no IK singularity explosions.
+- Grasp+carry solid; via-point place routing (no fling); trays moved to reachable zone.
+- GripDetector grip-readiness feedback, revealed only via EFleshTactile module (verified 45%).
+- Training LEARNS to solve a task: ReachTouch motion-GA fitness -1.98 -> +13.91 over 20 gens.
+- Self-collision penalty added to training fitness.
+- Reachable-workspace MAP (green/red grid, ArmController.TestReach FK probe; 28/45 cells).
+- Module-mount system MM1 (ModuleMount: 7 sockets, mount/orient/save; verified WristCam on wrist_roll).
+- CAD primitives layer C1 (ICadPrimitive/CadBox/CadCylinder + CadMeshGen + CadPart -> Evaluate -> STL;
+  ServoBracket verified to 132-tri valid STL).
+- Realistic wrist camera (WristCamAim: world-space aim at grasp point, 70deg; looks down -0.79Y).
+- Multi-robot foundation (WorldBlackboard pub/sub + RobotAgent; arm1 publishing verified).
+- Full regression: all 11 systems present, 0 runtime errors.
