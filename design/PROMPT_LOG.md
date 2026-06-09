@@ -304,3 +304,13 @@ fastened to the table, servo motors appear incorrectly transparent. Much worse t
 positioning) + restore its tuned ready pose {0,40,-78,-5}. STL skin shelved (looked worse, not better).
 The procedural arm is the shipping default. STL/SO-101 look remains a future task done PROPERLY (full
 URDF kinematics) rather than skinning, OR not at all if the clean arm is preferred.
+
+## P23 — PRIORITY: realistic sim + sim-to-real over gameplay convenience
+**User prompt:** "Priority is on a realistic sim and modeling to relate to the real world over gameplay."
+**DECISION (overrides earlier "procedural for reliability"):**
+- I87: Use the REALISTIC SO-101 arm (BuildFromKinematics: real URDF joint frames, real servo limits/
+  speeds, real physics) as the DEFAULT — NOT the simplified procedural arm. Accuracy > ease.
+- I88: Solve control the RIGHT way (closed-loop, real servo dynamics, proper IK) rather than faking it
+  with an idealised arm. A hard-but-accurate arm that transfers to hardware is the goal.
+- I89: Keep the servo digital-twin (STS3215 ticks, rate limits), self-collision, torque limits, sensor
+  realism — these are FEATURES for sim-to-real, not obstacles to remove.

@@ -230,10 +230,15 @@ namespace ArmSmith
                 // anchorRotation that maps anchor-X to the correct physical rotation axis
                 // (the child frame's Y in the parent's local coordinates).
                 Quaternion anchorRot = JointAnchorRotation(j.name);
-                // Higher stiffness + force so each drive actually reaches its commanded angle against the
-                // arm's inertia (esp. shoulder_pan turning the whole arm sideways). forceLimit 40->150.
+                // Drive strength scaled by how much load the joint carries: the proximal joints
+                // (shoulder_pan, shoulder_lift) must hold the whole extended arm against gravity+inertia,
+                // so they need much higher stiffness/force than the wrist. (Realistic: bigger servos/gears
+                // are used proximally on real arms.) Without this, pan/lift stall mid-pose when extended.
+                bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
+                float stiff = proximal ? 40000f : 14000f;
+                float force = proximal ? 600f : 150f;
                 ConfigureUrdfRevolute(ab, limLo, limHi,
-                    stiffness: 14000f, damping: 250f, forceLimit: 150f,
+                    stiffness: stiff, damping: proximal ? 600f : 250f, forceLimit: force,
                     massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f,
                     anchorRotation: anchorRot);
 
