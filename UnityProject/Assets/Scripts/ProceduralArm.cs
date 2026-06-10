@@ -228,6 +228,69 @@ namespace ArmSmith
             }
         }
 
+        /// <summary>
+        /// HARD-reset the whole articulation to the given joint angles (deg), teleporting joint positions
+        /// and zeroing all velocities + drive targets. This is the equivalent of "homing" a real robot
+        /// between tasks: it clears any accumulated bad articulation state (the extreme limit poses that
+        /// can wedge the SO-101 after a contact-rich pick). Pass null for a straight zero pose.
+        /// Must be called from the main thread (it writes jointPosition directly).
+        /// </summary>
+        public void HardResetJoints(IReadOnlyList<float> anglesDeg = null)
+        {
+            if (jointBodies == null || jointBodies.Count == 0) return;
+
+            // Find the articulation ROOT (the only body where SetJointPositions actually teleports the
+            // whole reduced-coordinate chain — writing child .jointPosition individually gets overwritten
+            // by the solver the same frame, which is why a naive per-body teleport silently no-ops).
+            ArticulationBody root = baseBody;
+            while (root != null && !root.isRoot)
+            {
+                var p = root.transform.parent;
+                root = p != null ? p.GetComponentInParent<ArticulationBody>() : null;
+            }
+            if (root == null || !root.isRoot) return;
+
+            // Drive targets first (so when the solver re-evaluates, it holds the new pose).
+            for (int i = 0; i < jointBodies.Count; i++)
+            {
+                var ab = jointBodies[i];
+                if (ab == null) continue;
+                float deg = (anglesDeg != null && i < anglesDeg.Count) ? anglesDeg[i] : 0f;
+                var drive = ab.xDrive;
+                deg = Mathf.Clamp(deg, drive.lowerLimit, drive.upperLimit);
+                drive.target = deg;
+                ab.xDrive = drive;
+            }
+
+            // Teleport the full reduced-coordinate state via the root, then zero all velocities.
+            var positions = new List<float>();
+            var velocities = new List<float>();
+            root.GetJointPositions(positions);
+            root.GetJointVelocities(velocities);
+            // Map our revolute jointBodies (index order) onto the reduced DOF list. The reduced list is in
+            // articulation DOF order; for this 1-DOF-per-joint chain it aligns with jointBodies order, with
+            // any extra DOFs (gripper prismatics) left as-is unless we have an angle for them.
+            int dof = 0;
+            for (int i = 0; i < jointBodies.Count && dof < positions.Count; i++)
+            {
+                var ab = jointBodies[i];
+                if (ab == null) continue;
+                int n = ab.dofCount;
+                if (n <= 0) continue;
+                float deg = (anglesDeg != null && i < anglesDeg.Count) ? anglesDeg[i] : 0f;
+                var drive = ab.xDrive;
+                deg = Mathf.Clamp(deg, drive.lowerLimit, drive.upperLimit);
+                positions[dof] = deg * Mathf.Deg2Rad;
+                velocities[dof] = 0f;
+                dof += n;
+            }
+            root.SetJointPositions(positions);
+            root.SetJointVelocities(velocities);
+
+            // Re-seed the servo rate-limiter so it doesn't snap-rate-limit away from the new pose.
+            SeedServoState(anglesDeg ?? new float[jointBodies.Count]);
+        }
+
         /// <summary>Seed the servo rate-limiter state (call after setting an initial/home pose).</summary>
         public void SeedServoState(IReadOnlyList<float> anglesDeg)
         {

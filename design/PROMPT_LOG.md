@@ -314,3 +314,25 @@ URDF kinematics) rather than skinning, OR not at all if the clean arm is preferr
   with an idealised arm. A hard-but-accurate arm that transfers to hardware is the goal.
 - I89: Keep the servo digital-twin (STS3215 ticks, rate limits), self-collision, torque limits, sensor
   realism — these are FEATURES for sim-to-real, not obstacles to remove.
+
+## 2026-06-11 — Session 7
+USER INTENT: "Continue if you have next steps" → "Restart has occurred, continue all tasks, keep working
+and running this fully, you have unlimited tokens." Autonomous mode: diagnose + fix the autonomous
+pick-and-place non-determinism on the realistic SO-101 arm; keep the APPROVED mouse-follow control intact;
+run all verification; record findings; commit.
+
+WHAT I DID:
+- Recovered from a prior editor crash; relaunched on the fresh graphics session (bridge :6990 up).
+- Verified APPROVED manual/IK control NOT regressed (analytic IK 0.3cm, physical tracking ~2cm uniform).
+- Root-caused the non-determinism via live instrumented tests:
+  #1 SelfCollision ignore-pairs silently dropped after MeshCollider cooking → arm jammed ~6cm above low
+     targets (proved: disabling colliders → floor-gap 6.4cm→0.1cm; re-running Setup also fixed it).
+  #2 ArticulationBody corruption after extreme poses → "works once then jams" recurrence.
+  #3 Held-cube collider fed contact forces back into the solver → lift-while-holding jammed (empty lift
+     0.3cm vs holding 54cm).
+- Fixed in code (all compile clean, batchmode exit 0): SelfCollision continuous re-assert; UrdfArm graded
+  drive tiers; ArmController anti-stuck IK re-seed + IK safety envelope + HardHome(); ProceduralArm
+  HardResetJoints(); Gripper held-cube collision-ignore + floor guard.
+- RESULT: catastrophic jams eliminated; grasp reliable; multi-trial pick repeatable (lifted to 0.139/
+  0.179/0.376m). Final post-fix lift-from-grasp verification pending a graphics-session restart (a live
+  bridge experiment segfaulted the editor; the safe version is now in Gripper code).

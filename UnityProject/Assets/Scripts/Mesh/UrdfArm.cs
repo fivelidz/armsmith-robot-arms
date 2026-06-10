@@ -234,11 +234,21 @@ namespace ArmSmith
                 // (shoulder_pan, shoulder_lift) must hold the whole extended arm against gravity+inertia,
                 // so they need much higher stiffness/force than the wrist. (Realistic: bigger servos/gears
                 // are used proximally on real arms.) Without this, pan/lift stall mid-pose when extended.
+                // Graded drive tiers reflecting real STS3215 servo loading along the chain.
+                // Proximal joints carry the whole extended arm; the wrist must still hold the
+                // forearm+gripper pitch against gravity, so it needs far more than the old 150 N
+                // force limit (which saturated at ~50-60 deg, leaving the gripper unable to point
+                // down at low grasp targets -> the pick-and-place "vertical floor" bug).
+                // STS3215 stall torque ~2.94 N.m; with the lever arms here ~400-600 N force limit
+                // is the realistic equivalent that lets the wrist actually track commanded pitch.
                 bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
-                float stiff = proximal ? 40000f : 14000f;
-                float force = proximal ? 600f : 150f;
+                bool isWrist  = (j.name == "wrist_flex" || j.name == "wrist_roll" || j.name == "elbow_flex");
+                float stiff, force, damp;
+                if (proximal)      { stiff = 40000f; force = 600f; damp = 600f; }
+                else if (isWrist)  { stiff = 22000f; force = 450f; damp = 350f; }  // was 14000/150/250 (saturated)
+                else               { stiff = 14000f; force = 150f; damp = 250f; }  // gripper jaws etc.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
-                    stiffness: stiff, damping: proximal ? 600f : 250f, forceLimit: force,
+                    stiffness: stiff, damping: damp, forceLimit: force,
                     massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f,
                     anchorRotation: anchorRot);
 

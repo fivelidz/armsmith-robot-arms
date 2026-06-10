@@ -145,6 +145,25 @@ namespace ArmSmith
             mode = Mode.Manual; // hold the zero pose (IK off) until the player moves again
         }
 
+        /// <summary>
+        /// HARD-home the arm: teleport the articulation to a clean pose AND reset the controller's internal
+        /// command state, so any accumulated bad/wedged articulation state from a contact-rich task is fully
+        /// cleared. This is the robust "re-home the robot between tasks" primitive — fixes the
+        /// "works once then jams on the next pick" non-determinism. Pass null for the zero pose.
+        /// Switches to Manual so the freshly-homed pose is held until the next deliberate command.
+        /// </summary>
+        public void HardHome(float[] anglesDeg = null)
+        {
+            if (targetAngles == null) return;
+            for (int i = 0; i < targetAngles.Length; i++)
+                targetAngles[i] = (anglesDeg != null && i < anglesDeg.Length) ? anglesDeg[i] : 0f;
+            if (arm != null) arm.HardResetJoints(anglesDeg);
+            if (ikTarget != null && arm != null && arm.endEffector != null)
+                ikTarget.position = arm.endEffector.position;
+            hasQueued = false;       // clear any paused/queued hold
+            mode = Mode.Manual;
+        }
+
         /// <summary>Set the current pose as the calibrated zero (like homing a real arm's encoders).</summary>
         public void SetCurrentAsZero()
         {
@@ -564,7 +583,20 @@ namespace ArmSmith
             int m = reachIdx.Length;
             if (m == 0) return;
 
+            // SAFETY ENVELOPE (applies to ALL paths, incl. programmatic/agent targets that bypass the
+            // mouse-input clamp): keep the goal inside the reachable shell and above the worktop. Driving
+            // the IK toward below-table or out-of-reach goals winds the SO-101 articulation into extreme
+            // limit poses that can corrupt the ArticulationBody solver and wedge the arm — the real source
+            // of the "works once then jams on the next task" non-determinism.
             Vector3 goal = ikTarget.position;
+            {
+                Vector3 basePos = arm.baseBody != null ? arm.baseBody.transform.position : transform.position;
+                float reach = arm.config != null ? arm.config.TotalReach() * 0.98f : 0.40f;
+                Vector3 fromBase = goal - basePos;
+                if (fromBase.magnitude > reach) goal = basePos + fromBase.normalized * reach;
+                if (goal.y < minTargetY) goal.y = minTargetY;
+                ikTarget.position = goal; // reflect the clamp so callers see the honored target
+            }
             const float h = 0.5f; // finite-diff angle step (deg) for Jacobian
 
             for (int iter = 0; iter < Mathf.Max(4, ikIterations); iter++)
@@ -616,7 +648,52 @@ namespace ArmSmith
                     targetAngles[jindex] = Mathf.Clamp(targetAngles[jindex] + dqi, js.minAngle, js.maxAngle);
                 }
             }
+
+            // ---- ANTI-STUCK RESTART ---------------------------------------------------
+            // The DLS Jacobian iterates from the CURRENT pose, so it can lodge in a
+            // collapsed local minimum (e.g. after a low grasp it folds toward the base and
+            // small target changes can't escape -> the pick-and-place "stuck/non-deterministic"
+            // bug). Detect a persistently large residual and nudge toward the analytic
+            // neutral-seed solution, which is computed from a zero pose and does NOT share
+            // the local minimum. We BLEND (not snap) so the visible motion stays smooth and
+            // the approved mouse-follow feel is unchanged when IK is healthy (this path is
+            // inert whenever the residual is already small).
+            ForwardKinematics(n);
+            float residual = (goal - jPos[n]).magnitude;
+            if (residual > ikStuckThreshold && Time.time - lastReseedTime > 0.10f)
+            {
+                lastReseedTime = Time.time;
+                float[] neutral = SolveAnglesInPlace(goal, (float[])targetAngles.Clone());
+                if (neutral != null)
+                {
+                    // Verify the neutral solution is actually better before adopting it.
+                    float[] saved = (float[])targetAngles.Clone();
+                    System.Array.Copy(neutral, targetAngles, neutral.Length);
+                    ForwardKinematics(n);
+                    float neutralResidual = (goal - jPos[n]).magnitude;
+                    System.Array.Copy(saved, targetAngles, saved.Length);
+                    if (neutralResidual < residual - 0.01f)
+                    {
+                        // Blend each reach joint a fraction toward the better solution.
+                        for (int c = 0; c < m; c++)
+                        {
+                            int ji = reachIdx[c];
+                            var js = arm.jointSpecs[ji];
+                            float blended = Mathf.Lerp(targetAngles[ji], neutral[ji], ikReseedBlend);
+                            targetAngles[ji] = Mathf.Clamp(blended, js.minAngle, js.maxAngle);
+                        }
+                    }
+                }
+            }
         }
+
+        [Header("Anti-stuck IK")]
+        [Tooltip("If the IK residual stays above this (m), re-seed from the analytic neutral solution to escape collapsed local minima.")]
+        public float ikStuckThreshold = 0.05f;
+        [Range(0f, 1f)]
+        [Tooltip("How aggressively to blend toward the neutral-seed solution when stuck (per FixedUpdate).")]
+        public float ikReseedBlend = 0.34f;
+        float lastReseedTime = -1f;
 
         // Solve a 3x3 linear system A x = b via Cramer's rule (A is small & damped, always invertible).
         static Vector3 Solve3x3(float[,] A, Vector3 b)

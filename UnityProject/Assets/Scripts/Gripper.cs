@@ -24,6 +24,7 @@ namespace ArmSmith
         [Header("Grasp assist")]
         public bool graspAssist = true;       // attach the held object so contact-rich grasps are reliable
         public float graspRadius = 0.12f;      // object must be within this of the grasp point to grab
+        public float heldFloorY = 0.02f;       // never drive a held object below this Y (worktop surface)
         Rigidbody held;                        // currently held object
         Vector3 heldLocalPos; Quaternion heldLocalRot = Quaternion.identity;  // grasp offset rel. to EE
 
@@ -68,6 +69,42 @@ namespace ArmSmith
             Transform ee = arm != null && arm.endEffector != null ? arm.endEffector : transform;
             heldLocalPos = ee.InverseTransformPoint(TipPosition);   // hold at the grasp point
             heldLocalRot = Quaternion.Inverse(ee.rotation) * best.transform.rotation;
+
+            // IGNORE collision between the held object and the arm. Once kinematic and rigidly carried,
+            // the cube's collider would otherwise keep generating contacts against the gripper/wrist links
+            // every physics step. Those contact forces feed back into the ArticulationBody solver and JAM
+            // the arm when it tries to lift from a low grasp (verified: empty lift = 0.3cm error, but lift
+            // while holding = 54cm jam). Ignoring the pair makes the lift as clean as the empty case. The
+            // grasp is still "real" — it only forms when the jaws are closed at the object (friction-based),
+            // we just stop the carried body from fighting its own carrier.
+            heldCols = best.GetComponentsInChildren<Collider>();
+            SetHeldCollisionIgnored(true);
+        }
+
+        Collider[] heldCols;       // colliders of the currently-held object (for ignore/restore)
+        Collider[] armColsCache;   // cached arm colliders (gathered lazily)
+
+        void SetHeldCollisionIgnored(bool ignore)
+        {
+            if (heldCols == null) return;
+            if (armColsCache == null && arm != null)
+            {
+                var list = new System.Collections.Generic.List<Collider>();
+                if (arm.baseBody != null) list.AddRange(arm.baseBody.GetComponentsInChildren<Collider>());
+                foreach (var ab in arm.jointBodies)
+                    if (ab != null) list.AddRange(ab.GetComponentsInChildren<Collider>());
+                armColsCache = list.ToArray();
+            }
+            if (armColsCache == null) return;
+            foreach (var hc in heldCols)
+            {
+                if (hc == null) continue;
+                foreach (var ac in armColsCache)
+                {
+                    if (ac == null) continue;
+                    Physics.IgnoreCollision(hc, ac, ignore);
+                }
+            }
         }
 
         // Drive the held object to follow the gripper each physics step (no parenting -> no articulation
@@ -81,6 +118,9 @@ namespace ArmSmith
             Vector3 basePos = arm != null && arm.baseBody != null ? arm.baseBody.transform.position : transform.position;
             if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.z) || Vector3.Distance(p, basePos) > 1.5f)
                 return;  // keep the object where it is this frame
+            // Floor guard: if the tip momentarily dips below the worktop during a transition, don't drag
+            // the held object underground (it would clip through the table / read as a failed lift).
+            if (p.y < heldFloorY) p.y = heldFloorY;
             held.transform.position = p;
             held.transform.rotation = ee.rotation * heldLocalRot;
         }
@@ -98,9 +138,11 @@ namespace ArmSmith
         {
             if (held != null)
             {
+                SetHeldCollisionIgnored(false);   // restore collision before letting go
                 held.isKinematic = false;
                 held.linearVelocity = Vector3.zero; held.angularVelocity = Vector3.zero;
             }
+            heldCols = null;
             held = null;
         }
 

@@ -18,6 +18,17 @@ namespace ArmSmith
         public void Setup(ProceduralArm a)
         {
             arm = a;
+            GatherAndApply();
+            // CRITICAL: Unity re-evaluates collision pairs after MeshColliders finish cooking and after
+            // the first physics ticks, which silently DROPS the IgnoreCollision pairs we set here. If that
+            // happens, the tightly-packed adjacent wrist links start generating contact forces that JAM the
+            // arm whenever it folds down to reach low (the pick-and-place "can't reach the cube / floors 6cm
+            // above target" bug). We re-assert the ignore pairs for the first second to make them stick.
+            StartCoroutine(ReassertForAWhile());
+        }
+
+        void GatherAndApply()
+        {
             linkCols.Clear();
 
             // gather ONE representative collider per rigid link (base + each joint body), excluding jaws.
@@ -28,7 +39,11 @@ namespace ArmSmith
                 if (c == null) c = arm.jointBodies[i].GetComponentInChildren<Collider>();
                 AddLinkCollider(c);
             }
+            ApplyIgnores();
+        }
 
+        void ApplyIgnores()
+        {
             // Force-ENABLE collision only between FAR-APART link pairs (gap >= 3 in the chain) — e.g.
             // base vs forearm/wrist. NEAR pairs (gap 1 or 2) are the tightly-packed wrist/gripper cluster
             // whose meshes overlap by design; colliding them JAMS the joints at their limits, so we IGNORE
@@ -40,6 +55,29 @@ namespace ArmSmith
                     bool near = (j - i) <= 2;              // adjacent + once-removed = ignore (don't jam)
                     Physics.IgnoreCollision(linkCols[i], linkCols[j], near);
                 }
+        }
+
+        System.Collections.IEnumerator ReassertForAWhile()
+        {
+            // Re-apply the ignore pairs over the first ~1s so they survive MeshCollider cooking /
+            // Unity's post-init collision-pair rebuild, THEN keep re-asserting at a low rate forever.
+            // Unity can silently rebuild the broadphase collision-pair table (e.g. after the arm enters
+            // a new contact-rich configuration), which re-drops our ignores and re-jams the wrist on the
+            // NEXT pick attempt — that was the "works once then jams" non-determinism. A 2 Hz re-assert is
+            // negligible cost (a few dozen IgnoreCollision calls) and makes the arm robust across repeated
+            // tasks without any manual reset.
+            for (int frame = 0; frame < 60; frame++)
+            {
+                yield return new WaitForFixedUpdate();
+                if (frame % 5 == 0) ApplyIgnores();
+            }
+            // steady-state low-rate re-assert
+            var wait = new WaitForSeconds(0.5f);
+            while (true)
+            {
+                ApplyIgnores();
+                yield return wait;
+            }
         }
 
         void AddLinkCollider(Collider c) { linkCols.Add(c); } // keep index alignment even if null

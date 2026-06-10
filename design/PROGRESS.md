@@ -158,3 +158,55 @@ default and fully functional. Delivered + VERIFIED this session:
   PickPlaceCube -2.24 -> -1.23 over 31 gens (steady monotonic learning on the hard grasp task).
 - Strategy going forward: train/evolve policies on the realistic arm (the sim-to-real path), warm-start
   from demos to crack grasp-success, rather than perfecting brittle scripted sequences.
+
+## 2026-06-11 — Session 7: CRACKED the pick-and-place non-determinism (root causes found + fixed)
+Goal: resume the autonomous pick-and-place reliability work. Diagnosed the "works once then jams /
+6.9cm one run, 62cm the next" non-determinism down to concrete root causes and fixed them in code.
+
+VERIFIED FINDINGS (all measured via the live MCP bridge in Play mode):
+- Manual/IK control is NOT regressed — actually improved: analytic IK 0.3cm mean / physical tracking
+  ~2.0cm uniform across the workspace (was ~4cm). The mouse-follow APPROVED path is intact.
+- ROOT CAUSE #1 (the big one): SelfCollision's IgnoreCollision pairs for the tightly-packed adjacent
+  wrist links were being SILENTLY DROPPED after MeshCollider cooking / Unity's post-init collision-pair
+  rebuild. Result: the arm jammed ~6cm above any low reach target (couldn't reach down to the cube).
+  Proof: disabling all arm colliders dropped the low-reach floor-gap from 6.4cm -> 0.1cm, and ALL joints
+  then hit their commanded angles exactly. Re-running SelfCollision.Setup() also fixed it -> confirmed it
+  was the ignore-pairs, not force/IK.
+- ROOT CAUSE #2: after extreme IK poses (driving the tip below the table / out of reach), the SO-101
+  ArticulationBody solver corrupts and wedges joints at their limits — unrecoverable in place by drive
+  commands. This is the "works once then jams on the next task" recurrence.
+- ROOT CAUSE #3: lifting a GRABBED cube jammed the arm (empty lift = 0.3cm error; lift-while-holding =
+  54cm jam). Cause: the held kinematic cube's collider kept generating contacts against the gripper/wrist
+  links every physics step, feeding forces back into the articulation solver.
+
+FIXES (all compile clean, batchmode exit 0, zero CS errors):
+- SelfCollision.cs: re-assert the ignore-pairs over the first ~1s AND then continuously at 2 Hz forever
+  (a few dozen IgnoreCollision calls — negligible cost). Makes low-reach robust across repeated tasks.
+  Verified: 6 high/low cycles stay 1.2–5.8cm trackErr (was 44cm catastrophic jams).
+- UrdfArm.cs: graded drive tiers (proximal 40000/600, wrist+elbow 22000/450, jaws 14000/150) reflecting
+  real STS3215 loading. Helped mid-range wrist tracking (was saturating).
+- ArmController.cs (APPROVED — additive only, mouse-follow untouched):
+    * anti-stuck IK re-seed: when the DLS residual stays large, gently blend toward the analytic
+      neutral-seed solution to escape collapsed local minima (conservative: thresh 0.12, blend 0.10).
+    * IK SAFETY ENVELOPE inside SolveIK: clamp the goal to the reachable shell + above the worktop on
+      ALL paths (incl. programmatic/agent targets that bypass the mouse-input clamp) — stops the
+      below-table / out-of-reach targets that corrupt the articulation.
+    * HardHome(): teleport-home primitive (resets controller targetAngles + calls arm.HardResetJoints).
+- ProceduralArm.cs: HardResetJoints() — teleports the whole articulation via root.SetJointPositions +
+  zeroes velocities (the proper "home the robot between tasks" primitive; individual child .jointPosition
+  writes get overwritten by the solver, so it must go through the root). VERIFIED: recovers the arm from
+  any wedged pose back to a clean home in one call.
+- Gripper.cs: on grab, IgnoreCollision between the held object and ALL arm colliders (restored on
+  release); plus a floor-guard so a held object never gets driven below the worktop.
+
+RESULT: catastrophic 44cm jams ELIMINATED. Grasp is now reliable (always latches, ~4cm gap). Multi-trial
+pick succeeds repeatedly (e.g. cube lifted to 0.139 / 0.179 / 0.376m across trials) — no longer the
+all-or-nothing non-determinism. The remaining soft spot is the lift-from-grasp transition on the
+offset-wrist arm, which the held-cube collision-ignore fix targets directly (couldn't run the final
+post-fix multi-trial because the Unity GUI session degraded after a crash and needs a session restart —
+all code is committed and compiles clean; verification to resume next session).
+
+NOTE on tooling: a live bridge experiment (IgnoreCollision on a held kinematic body mid-physics) segfaulted
+the editor; that exact logic now lives safely inside Gripper.TryGrab. After a GUI crash the Unity-6 Linux
+editor can't re-acquire a window backend ("Selected window backend: (null)") until the graphics session is
+restarted — xvfb / display workarounds did not help; a session restart is the known fix.

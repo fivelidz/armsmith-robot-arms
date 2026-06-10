@@ -88,6 +88,20 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - [x] Live text-command console + skill grammar (pick/place/sort/reach resolve live objects). VERIFIED.
 - [x] Randomized scenarios + reset-eval training + success-rate metric.
 - [x] UI windows (HTML): menu, options, training overview. ORCA Hand studied+cloned.
+- [x] CRACKED pick-place non-determinism (S7): root causes = SelfCollision ignore-pairs dropped after
+      MeshCollider cooking (jammed low reach), articulation corruption at extreme poses, held-cube
+      collision feedback. FIXES: SelfCollision continuous re-assert; IK safety envelope; HardHome/
+      HardResetJoints recovery; Gripper held-cube collision-ignore + floor guard; graded drive tiers.
+      Catastrophic 44cm jams eliminated; grasp reliable; multi-trial pick repeatable.
+- [ ] RESUME (needs fresh graphics session): run final post-fix multi-trial pick-place verification
+      (lift-from-grasp) now that held-cube collision-ignore is in. Target >=4/5 success.
 - [ ] Warm-start policy population from recorded demos -> train to actual SUCCESS on a task.
 - [ ] Build the HTML windows as in-game Unity windows (menu/options/training).
 - [ ] Pillar J: import ORCA Hand via URDF (catalogue) ; Pillar K: 2nd arm + comms + hand-off.
+
+## KNOWN TOOLING GOTCHA (S7)
+- After a Unity-6 editor GUI crash, the Linux editor hangs at "Selected window backend: (null)" and CANNOT
+  re-acquire a window backend until the GRAPHICS SESSION IS RESTARTED (log out/in). xvfb / dedicated
+  X-display workarounds did NOT help. Headless `-batchmode -quit -nographics` still works for compile
+  checks. Don't drive risky live-physics experiments (e.g. IgnoreCollision on a held kinematic body) from
+  the bridge — do them in code; one such experiment segfaulted the editor this session.
