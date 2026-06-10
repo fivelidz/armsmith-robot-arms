@@ -120,22 +120,26 @@ namespace ArmSmith
             Transform tgt = FindByName("S_Pad") ?? FindByName("S_TrayB");
             if (obj == null || tgt == null || controller == null) return null;
             Vector3 o = obj.position, t = tgt.position;
-            var wps = new (Vector3 pos, float grip)[] {
-                (new Vector3(o.x, 0.16f, o.z), 0f),   // above object, open
-                (new Vector3(o.x, 0.06f, o.z), 0f),   // descend, open
-                (new Vector3(o.x, 0.06f, o.z), 1f),   // close (grab)
-                (new Vector3(o.x, 0.18f, o.z), 1f),   // lift
-                (new Vector3(0f,  0.20f, 0.28f), 1f), // via-point centre
-                (new Vector3(t.x, 0.16f, t.z), 1f),   // over target
-                (new Vector3(t.x, 0.07f, t.z), 1f),   // descend into target
-                (new Vector3(t.x, 0.07f, t.z), 0f),   // release
-                (new Vector3(t.x, 0.18f, t.z), 0f),   // retreat
+            // Grasp height tuned to the verified-good value: the physical tip floors ~2-3cm above a
+            // commanded low target (drive vs gravity at extension), so commanding y=0.05 lands the tip
+            // right at the 4.5cm cube's top -> a solid ~4cm grasp gap (S7 measured). The grab waypoint
+            // holds a touch longer so the proximity-gated latch fires before the lift starts.
+            var wps = new (Vector3 pos, float grip, float hold)[] {
+                (new Vector3(o.x, 0.14f, o.z), 0f, 0.7f),   // above object, open
+                (new Vector3(o.x, 0.05f, o.z), 0f, 0.7f),   // descend to grasp height, open
+                (new Vector3(o.x, 0.05f, o.z), 1f, 1.0f),   // close (grab) — hold for the latch
+                (new Vector3(o.x, 0.16f, o.z), 1f, 0.8f),   // lift
+                (new Vector3(0f,  0.20f, 0.28f), 1f, 0.7f), // via-point centre
+                (new Vector3(t.x, 0.16f, t.z), 1f, 0.7f),   // over target
+                (new Vector3(t.x, 0.07f, t.z), 1f, 0.7f),   // descend into target
+                (new Vector3(t.x, 0.07f, t.z), 0f, 0.8f),   // release
+                (new Vector3(t.x, 0.18f, t.z), 0f, 0.6f),   // retreat
             };
             var keys = new List<MotionKey>();
             foreach (var w in wps)
             {
                 float[] angles = controller.IKAnglesFor(w.pos);   // solve joint angles for this waypoint
-                keys.Add(new MotionKey { angles = angles, gripper = w.grip, hold = 0.8f });
+                keys.Add(new MotionKey { angles = angles, gripper = w.grip, hold = w.hold });
             }
             return keys;
         }
