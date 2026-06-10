@@ -190,8 +190,11 @@ namespace ArmSmith
             {
                 scenarios.Reroll();   // re-randomise object positions
                 controller.mode = ArmController.Mode.Manual;
-                controller.SetTargets(homePose);
-                arm.SetJointTargets(homePose);
+                // HARD-home (teleport + zero velocities) instead of a soft drive-target set, so each reset
+                // starts from a pristine articulation state. A soft set leaves accumulated joint/contact
+                // state that can wedge the arm across rollouts (the "works once then jams" failure) and
+                // poison the fitness signal with garbage rollouts. (S7)
+                controller.HardHome(homePose);
                 yield return new WaitForFixedUpdate();
 
                 float[] cur = (float[])homePose.Clone();
@@ -280,8 +283,9 @@ namespace ArmSmith
             // reset scenario + arm to home
             scenarios.LoadScenario(scenarios.current);
             controller.mode = ArmController.Mode.Manual; // we drive joint targets directly
-            controller.SetTargets(homePose);
-            arm.SetJointTargets(homePose);
+            // HARD-home (teleport + zero velocities) so each genome is evaluated from a pristine
+            // articulation state — no accumulated jam/contact carry-over across rollouts. (S7)
+            controller.HardHome(homePose);
             yield return new WaitForFixedUpdate();
 
             float energy = 0f;
