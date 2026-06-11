@@ -227,3 +227,31 @@ FIX (scripts/unity_start.sh rewritten; old version archived to scripts/archive/u
     * xwayland : original SDL x11 + OpenGL path (last resort).
 - Verified available + healthy: gamescope v3.16.19 (selects RADV, inits Vulkan + nested wayland server),
   vulkaninfo shows RADV Vulkan 1.4.328 solid. Script passes bash -n. Live confirmation pending next launch.
+
+## 2026-06-11 — Session 7c: the editor crashes were SELF-INFLICTED (PhysX), now fixed
+Tested the new render strategy live after a session restart. The staged launcher correctly auto-fell
+through vulkan (failed) and gamescope (SDL backend crashes in detached launch) to xwayland, which brought
+the bridge up. Then — while verifying the S7 fixes — calling HardHome() over the bridge CRASHED the editor.
+
+ROOT CAUSE of the recurring crashes (the thing that poisons XWayland and forces restarts):
+- It was OUR OWN code. HardResetJoints() called ArticulationBody.SetJointPositions() on the root INLINE.
+  When invoked mid physics-frame (a bridge HardHome lands in the editor update loop, overlapping the PhysX
+  step), it corrupts the PhysX solver task descriptor and hard-SIGSEGVs the editor. Verified trace:
+  physx::Dy::PxsSolverStartTask::setupDescTask() <- PhysicsScene::Simulate <- FixedUpdate <- HardHome.
+- So the "graphics session keeps needing restarts" was NOT the session wearing out — each restart-need was
+  triggered by THIS crash poisoning the shared XWayland :0 surface. Fix the crash -> stop the restarts.
+
+FIX (ProceduralArm.cs): HardResetJoints now QUEUES the reset (drive targets + servo reseed applied
+immediately — those are safe) and performs the SetJointPositions/SetJointVelocities teleport at the TOP of
+the arm's own FixedUpdate, the only physics-safe window to write reduced-coordinate articulation state.
+Same clean home, no PhysX corruption. Compiles clean (batchmode exit 0).
+
+LAUNCHER (unity_start.sh): gamescope mode -> --backend wayland (nests into KWin with its own isolated
+Xwayland :1; the SDL backend crashes when launched detached). Bridge wait extended to ~220s + editor-died
+detection so a slow first import isn't misread as a failure. NOTE: gamescope nesting works when started
+from an interactive session shell; launching it fully-detached from the automation shell dies before init,
+so the gamescope isolation is best confirmed by a human-run `RENDER_MODE=gamescope ./scripts/unity_start.sh`.
+
+STATE: XWayland :0 is poisoned by this session's 19:12 PhysX crash (editor now dies instantly on launch),
+so ONE more session restart is needed. After that, the PhysX fix should prevent the crash recurring, which
+should end the restart cycle regardless of gamescope. Final live pick-place verification still pending.
