@@ -210,3 +210,20 @@ NOTE on tooling: a live bridge experiment (IgnoreCollision on a held kinematic b
 the editor; that exact logic now lives safely inside Gripper.TryGrab. After a GUI crash the Unity-6 Linux
 editor can't re-acquire a window backend ("Selected window backend: (null)") until the graphics session is
 restarted — xvfb / display workarounds did not help; a session restart is the known fix.
+
+## 2026-06-11 — Session 7b: crash-isolating render strategy (end the restart cycle)
+Investigated WHY the graphics session needed frequent restarts. Root-caused it (not flaky — specific):
+- Host: KDE Plasma 6.5 *Wayland*, AMD Radeon 8060S (RADV gfx1151), Mesa 25.3.3, kernel 6.18 (CachyOS).
+- Unity 6 editor is X11 -> runs OpenGL via GLX -> XWayland. A HARD Unity crash leaves its XWayland/GLX
+  surface un-released, poisoning the SHARED XWayland; every later launch then hangs at
+  "Selected window backend: (null)". A session restart fixes it ONLY because it respawns XWayland.
+- Plasma X11 session is NOT an option: kwin_x11 was removed in Plasma 6.5 (only kwin_wayland ships).
+FIX (scripts/unity_start.sh rewritten; old version archived to scripts/archive/unity_start_20260611.sh):
+- Staged render strategy, default RENDER_MODE=auto tries vulkan -> gamescope -> xwayland until the bridge
+  answers, with a hang-detector (backend(null) + no log progress) that abandons a wedged mode early.
+    * vulkan   : -force-vulkan on XWayland (Vulkan WSI, sidesteps the GLX surface bug).
+    * gamescope: Unity nested inside `gamescope` (Vulkan-backed surface) ISOLATED from desktop XWayland —
+      a Unity crash takes down only gamescope, NOT the session. This is the durable fix for the restarts.
+    * xwayland : original SDL x11 + OpenGL path (last resort).
+- Verified available + healthy: gamescope v3.16.19 (selects RADV, inits Vulkan + nested wayland server),
+  vulkaninfo shows RADV Vulkan 1.4.328 solid. Script passes bash -n. Live confirmation pending next launch.

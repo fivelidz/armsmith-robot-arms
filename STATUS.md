@@ -9,7 +9,10 @@ Engine: Unity 6000.4.2f1, URP, ArticulationBody physics. Units = metres. Arm = r
 ## HOW TO RUN (every session)
 ```bash
 cd /home/fivelidz/projects/unity_projects/robot_arms
-./scripts/unity_start.sh        # launches editor (SDL x11 fix) + waits for MCP bridge :6990
+./scripts/unity_start.sh        # staged render strategy (vulkan -> gamescope -> xwayland) + waits for bridge :6990
+# Force a single render mode if needed: RENDER_MODE=gamescope ./scripts/unity_start.sh  (or vulkan|xwayland|auto)
+# gamescope mode ISOLATES Unity's GPU surface so a Unity crash no longer poisons the desktop XWayland
+# (that XWayland poisoning was what forced full graphics-session restarts). See "KNOWN TOOLING GOTCHA".
 python3 scripts/mcp.py tool manage_editor '{"action":"play"}'      # play
 python3 scripts/mcp.py tool manage_editor '{"action":"stop"}'      # stop
 python3 scripts/mcp.py tool refresh_unity '{}'                     # recompile after code edits
@@ -99,9 +102,20 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - [ ] Build the HTML windows as in-game Unity windows (menu/options/training).
 - [ ] Pillar J: import ORCA Hand via URDF (catalogue) ; Pillar K: 2nd arm + comms + hand-off.
 
-## KNOWN TOOLING GOTCHA (S7)
-- After a Unity-6 editor GUI crash, the Linux editor hangs at "Selected window backend: (null)" and CANNOT
-  re-acquire a window backend until the GRAPHICS SESSION IS RESTARTED (log out/in). xvfb / dedicated
-  X-display workarounds did NOT help. Headless `-batchmode -quit -nographics` still works for compile
-  checks. Don't drive risky live-physics experiments (e.g. IgnoreCollision on a held kinematic body) from
-  the bridge — do them in code; one such experiment segfaulted the editor this session.
+## KNOWN TOOLING GOTCHA (S7) — ROOT-CAUSED + FIXED
+- SYMPTOM: after a Unity-6 editor GUI crash, the next launch hangs at "Selected window backend: (null)"
+  and only a full graphics-session restart cleared it.
+- ROOT CAUSE: KDE Plasma 6.5 *Wayland* + AMD Radeon 8060S/RADV/Mesa 25.3. Unity renders OpenGL via
+  GLX -> XWayland. A hard crash leaves Unity's XWayland/GLX surface un-released, poisoning the SHARED
+  XWayland for all later launches. A session restart works only because it respawns XWayland. (Plasma X11
+  session is NOT available — kwin_x11 was removed in Plasma 6.5.)
+- FIX (in scripts/unity_start.sh): staged render strategy, default order vulkan -> gamescope -> xwayland.
+    * vulkan   : -force-vulkan on XWayland (Vulkan WSI skips the brittle GLX surface; RADV is solid here).
+    * gamescope: run Unity inside a nested `gamescope` micro-compositor with a Vulkan-backed surface,
+      ISOLATED from the desktop XWayland — so a Unity crash takes down only gamescope, not the session.
+      This is the one that should END the restart cycle. (gamescope v3.16.19 verified: selects RADV,
+      sets up Vulkan + nested wayland server.)
+- Headless `-batchmode -quit -nographics` still works for compile checks regardless.
+- Still: don't drive risky live-physics experiments (e.g. IgnoreCollision on a held kinematic body) from
+  the bridge — do them in code. One such experiment segfaulted the editor this session (that triggered the
+  XWayland poisoning above). The fix moved that logic safely into Gripper.TryGrab.
