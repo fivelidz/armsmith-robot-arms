@@ -77,14 +77,15 @@ launch_mode() {
         echo "[unity_start]   gamescope not installed — skipping this mode"
         return
       fi
-      # Backend selection: when launched from inside the live KDE Wayland session, gamescope's auto/SDL
-      # backend opens a real nested window. GAMESCOPE_BACKEND env overrides if needed (sdl|wayland|auto).
-      # We do NOT force the backend flag so gamescope can pick the working nested path in the live session;
-      # --expose-wayland exposes xdg-shell to the nested Unity, and Unity renders with Vulkan.
-      local gsbk="${GAMESCOPE_BACKEND:-sdl}"
-      echo "[unity_start]   gamescope backend: $gsbk (override via GAMESCOPE_BACKEND=auto|sdl|wayland)"
+      # Backend = WAYLAND: gamescope nests as a proper Wayland client into the running KWin compositor and
+      # spins up its OWN isolated Xwayland (typically :1). The SDL backend tries to grab an SDL window and
+      # crashes in a detached launch context; the wayland backend initialises cleanly (verified: xdg_backend
+      # Initted, Xwayland on :1, exit 0). Unity runs inside it on gamescope's nested Xwayland, so a Unity
+      # crash poisons only gamescope's throwaway :1 — NOT the desktop's :0. Unity renders with Vulkan.
+      local gsbk="${GAMESCOPE_BACKEND:-wayland}"
+      echo "[unity_start]   gamescope backend: $gsbk (override via GAMESCOPE_BACKEND=wayland|sdl|auto)"
       nohup gamescope --backend "$gsbk" -W 1920 -H 1080 --expose-wayland -- \
-        env SDL_VIDEODRIVER=wayland "$UNITY" -force-vulkan -projectPath "$PROJ" -logFile "$LOG" \
+        env SDL_VIDEODRIVER=x11 "$UNITY" -force-vulkan -projectPath "$PROJ" -logFile "$LOG" \
         >/tmp/unity_start.stderr 2>&1 &
       ;;
     xwayland)
@@ -125,9 +126,14 @@ launch_mode() {
     fi
   done
 
-  echo "[unity_start]   waiting for MCP bridge on :$PORT (up to ~150s)..."
-  for i in $(seq 1 15); do
+  echo "[unity_start]   waiting for MCP bridge on :$PORT (up to ~220s; first import is slow)..."
+  for i in $(seq 1 22); do
     sleep 10
+    # If the editor process vanished, the mode failed (crash) — stop waiting.
+    if ! pgrep -f "6000.4.2f1/Editor/Unity -projectPath" >/dev/null; then
+      echo "[unity_start]   editor process died during bridge wait ($mode) — abandoning."
+      return
+    fi
     if ss -tlnp 2>/dev/null | grep -q ":$PORT "; then
       R=$(timeout 12 python3 "$SELF_DIR/mcp.py" console 1 2>&1 | head -c 80)
       if echo "$R" | grep -qE "Retrieved|log entries"; then
@@ -136,7 +142,7 @@ launch_mode() {
         return
       fi
     fi
-    echo "[unity_start]   [$i] still initialising ($mode)..."
+    echo "[unity_start]   [$i/22] still initialising ($mode)... (port=$(ss -tlnp 2>/dev/null | grep -q ":$PORT " && echo up || echo down))"
   done
   echo "[unity_start]   bridge not confirmed for mode '$mode'."
 }

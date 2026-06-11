@@ -238,10 +238,43 @@ namespace ArmSmith
         public void HardResetJoints(IReadOnlyList<float> anglesDeg = null)
         {
             if (jointBodies == null || jointBodies.Count == 0) return;
+            // DO NOT teleport the articulation inline. Calling SetJointPositions on the root while PhysX is
+            // mid solver-step (or about to run one in the same frame) corrupts the solver task descriptor
+            // and HARD-CRASHES the editor (verified: SIGSEGV in physx::Dy::PxsSolverStartTask::setupDescTask
+            // during PhysicsScene::Simulate, triggered by a bridge-invoked HardHome). Instead we QUEUE the
+            // reset and apply it at the safe point — the very start of the next FixedUpdate, before the
+            // physics step runs. This is the only place writing reduced-coordinate articulation state is safe.
+            pendingResetAngles = new float[jointBodies.Count];
+            if (anglesDeg != null)
+                for (int i = 0; i < pendingResetAngles.Length && i < anglesDeg.Count; i++)
+                    pendingResetAngles[i] = anglesDeg[i];
+            hasPendingReset = true;
 
-            // Find the articulation ROOT (the only body where SetJointPositions actually teleports the
-            // whole reduced-coordinate chain — writing child .jointPosition individually gets overwritten
-            // by the solver the same frame, which is why a naive per-body teleport silently no-ops).
+            // Drive targets can be set immediately and safely (they're just PD setpoints, not state writes).
+            for (int i = 0; i < jointBodies.Count; i++)
+            {
+                var ab = jointBodies[i];
+                if (ab == null) continue;
+                float deg = (pendingResetAngles != null && i < pendingResetAngles.Length) ? pendingResetAngles[i] : 0f;
+                var drive = ab.xDrive;
+                deg = Mathf.Clamp(deg, drive.lowerLimit, drive.upperLimit);
+                drive.target = deg;
+                ab.xDrive = drive;
+            }
+            // Re-seed the servo rate-limiter so it doesn't snap-rate-limit away from the new pose.
+            SeedServoState(pendingResetAngles);
+        }
+
+        bool hasPendingReset;
+        float[] pendingResetAngles;
+
+        void FixedUpdate()
+        {
+            // Apply any queued hard-reset HERE — at the top of FixedUpdate, before PhysX simulates this
+            // frame. This is the physics-safe window to write reduced-coordinate articulation state.
+            if (!hasPendingReset) return;
+            hasPendingReset = false;
+
             ArticulationBody root = baseBody;
             while (root != null && !root.isRoot)
             {
@@ -250,26 +283,10 @@ namespace ArmSmith
             }
             if (root == null || !root.isRoot) return;
 
-            // Drive targets first (so when the solver re-evaluates, it holds the new pose).
-            for (int i = 0; i < jointBodies.Count; i++)
-            {
-                var ab = jointBodies[i];
-                if (ab == null) continue;
-                float deg = (anglesDeg != null && i < anglesDeg.Count) ? anglesDeg[i] : 0f;
-                var drive = ab.xDrive;
-                deg = Mathf.Clamp(deg, drive.lowerLimit, drive.upperLimit);
-                drive.target = deg;
-                ab.xDrive = drive;
-            }
-
-            // Teleport the full reduced-coordinate state via the root, then zero all velocities.
             var positions = new List<float>();
             var velocities = new List<float>();
             root.GetJointPositions(positions);
             root.GetJointVelocities(velocities);
-            // Map our revolute jointBodies (index order) onto the reduced DOF list. The reduced list is in
-            // articulation DOF order; for this 1-DOF-per-joint chain it aligns with jointBodies order, with
-            // any extra DOFs (gripper prismatics) left as-is unless we have an angle for them.
             int dof = 0;
             for (int i = 0; i < jointBodies.Count && dof < positions.Count; i++)
             {
@@ -277,7 +294,7 @@ namespace ArmSmith
                 if (ab == null) continue;
                 int n = ab.dofCount;
                 if (n <= 0) continue;
-                float deg = (anglesDeg != null && i < anglesDeg.Count) ? anglesDeg[i] : 0f;
+                float deg = (pendingResetAngles != null && i < pendingResetAngles.Length) ? pendingResetAngles[i] : 0f;
                 var drive = ab.xDrive;
                 deg = Mathf.Clamp(deg, drive.lowerLimit, drive.upperLimit);
                 positions[dof] = deg * Mathf.Deg2Rad;
@@ -286,9 +303,6 @@ namespace ArmSmith
             }
             root.SetJointPositions(positions);
             root.SetJointVelocities(velocities);
-
-            // Re-seed the servo rate-limiter so it doesn't snap-rate-limit away from the new pose.
-            SeedServoState(anglesDeg ?? new float[jointBodies.Count]);
         }
 
         /// <summary>Seed the servo rate-limiter state (call after setting an initial/home pose).</summary>
