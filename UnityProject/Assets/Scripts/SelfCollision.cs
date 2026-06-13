@@ -39,40 +39,47 @@ namespace ArmSmith
                 if (c == null) c = arm.jointBodies[i].GetComponentInChildren<Collider>();
                 AddLinkCollider(c);
             }
-            ApplyIgnores();
+            // S7d: start with ALL self-collision IGNORED. The SO-101 STL links overlap by design at build;
+            // if any pair collides on the first physics step, PhysX tries to depenetrate them violently and
+            // the articulation state spikes to NaN -> setupDescTask segfault. Settle first, THEN enable the
+            // gap>=3 collisions (see ReassertForAWhile).
+            ApplyIgnores(ignoreAll: true);
         }
 
-        void ApplyIgnores()
+        void ApplyIgnores(bool ignoreAll = false)
         {
             // Force-ENABLE collision only between FAR-APART link pairs (gap >= 3 in the chain) — e.g.
             // base vs forearm/wrist. NEAR pairs (gap 1 or 2) are the tightly-packed wrist/gripper cluster
             // whose meshes overlap by design; colliding them JAMS the joints at their limits, so we IGNORE
             // those. This keeps "can't fold back through itself" without wedging the wrist.
+            // When ignoreAll is true, EVERY pair is ignored (used during the initial settle).
             for (int i = 0; i < linkCols.Count; i++)
                 for (int j = i + 1; j < linkCols.Count; j++)
                 {
                     if (linkCols[i] == null || linkCols[j] == null) continue;
-                    bool near = (j - i) <= 2;              // adjacent + once-removed = ignore (don't jam)
+                    bool near = ignoreAll || (j - i) <= 2; // settle: ignore all; else adjacent+once-removed
                     Physics.IgnoreCollision(linkCols[i], linkCols[j], near);
                 }
         }
 
         System.Collections.IEnumerator ReassertForAWhile()
         {
-            // Re-apply the ignore pairs over the first ~1s so they survive Unity's post-init collision-pair
-            // rebuild, THEN keep re-asserting at a LOW rate to catch broadphase rebuilds that would re-drop
-            // our ignores and re-jam the wrist on the next pick ("works once then jams"). The re-assert runs
-            // in a coroutine (between physics steps, timing-safe). S7d: dropped 2 Hz -> 0.5 Hz to minimise
-            // broadphase pair-table churn, which the PhysX crash diagnosis flagged as a stability risk.
-            for (int frame = 0; frame < 60; frame++)
+            // PHASE 1 — SETTLE with ALL self-collision OFF (~40 frames) so the overlapping STL links never
+            // depenetrate violently at build (the first-step PhysX NaN crash). Re-assert ignore-all each few
+            // frames in case Unity rebuilds the pair table during cooking.
+            for (int frame = 0; frame < 40; frame++)
             {
                 yield return new WaitForFixedUpdate();
-                if (frame % 5 == 0) ApplyIgnores();
+                if (frame % 5 == 0) ApplyIgnores(ignoreAll: true);
             }
-            var wait = new WaitForSeconds(2.0f);   // steady-state low-rate re-assert
+            // PHASE 2 — enable the gap>=3 self-collisions now the arm has settled into its rest pose.
+            ApplyIgnores(ignoreAll: false);
+            // PHASE 3 — steady-state low-rate re-assert (0.5 Hz) to survive broadphase rebuilds that would
+            // re-drop our ignores and re-jam the wrist on the next pick. Coroutine = between steps, safe.
+            var wait = new WaitForSeconds(2.0f);
             while (true)
             {
-                ApplyIgnores();
+                ApplyIgnores(ignoreAll: false);
                 yield return wait;
             }
         }
