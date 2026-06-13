@@ -482,14 +482,21 @@ namespace ArmSmith
                 MakeSeed(-60f, -20f, -10f),            // deeper reach
                 MakeSeed(20f, -40f, 10f),              // alternate elbow-down branch
             };
+            // current reach-joint angles (for a continuity bias — avoids flip-flopping between branches
+            // frame-to-frame in the live loop, which caused oscillation).
             float[] best = null; float bestScore = float.MaxValue;
             foreach (var seed in seeds)
             {
                 var cand = SolveAnglesInPlace(worldGoal, saved, seed);
                 if (cand == null) continue;
                 float reach = EvalTipError(cand, worldGoal, out float tipY);
-                // score = reach error, tie-broken toward a LOWER tip (so low targets prefer the down branch)
-                float score = reach + Mathf.Max(0f, tipY - worldGoal.y) * 0.5f;
+                // distance from the CURRENT pose (continuity): how far the arm would have to move.
+                float move = 0f;
+                for (int i = 0; i < cand.Length && i < saved.Length; i++)
+                    if (IsReachJoint(i)) move += Mathf.Abs(cand[i] - saved[i]);
+                // score = reach error (dominant) + low-tip preference + small continuity penalty so we
+                // don't switch branches for a marginal reach gain (stabilises the live IK target loop).
+                float score = reach * 3f + Mathf.Max(0f, tipY - worldGoal.y) * 0.5f + move * 0.0008f;
                 if (score < bestScore) { bestScore = score; best = cand; }
             }
             System.Array.Copy(saved, targetAngles, saved.Length);
@@ -697,7 +704,7 @@ namespace ArmSmith
                         int ji = reachIdx[c]; var js = arm.jointSpecs[ji];
                         targetAngles[ji] = Mathf.Clamp(Mathf.Lerp(targetAngles[ji], good[ji], ikReseedBlend), js.minAngle, js.maxAngle);
                     }
-                    return;   // analytic step this frame; Jacobian fine-tunes once we're close
+                    return;
                 }
             }
 
