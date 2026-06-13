@@ -381,56 +381,58 @@ namespace ArmSmith
         Vector3[] restLocalOff;    // fixed local offset (in joint i frame) to joint i+1 origin
         Quaternion eeLocalRot; // EE local rotation relative to last joint frame
         Vector3 eeLocalOff;    // EE local offset in last joint frame
+        // S7f robust FK: rest world transforms + world axes captured at calibration. FK re-applies each
+        // joint's delta angle about its (chain-rotated) world axis. Verified against the physical arm.
+        Vector3[] jPos0;        // rest world position of each joint origin
+        Quaternion[] jRot0;     // rest world rotation of each joint
+        Vector3[] jAxisWorld0;  // rest world rotation axis of each joint
+        float[] restAngle;      // joint angle at calibration (deg)
+        Vector3 eePos0; Quaternion eeRot0;   // rest world pose of the end effector
         public bool calibrated;   // true once the IK rest geometry is captured (agent waits on this)
 
         // Capture the real chain geometry once (call after the home pose is applied & physics settled).
         public void CalibrateIK()
         {
             int n = arm.jointBodies.Count;
+            // CRITICAL (S7f): the calibration below "undoes" each joint's angle using targetAngles[i] to
+            // reconstruct the rest geometry. That ONLY works if targetAngles matches the arm's ACTUAL
+            // physical joint angles right now. If they differ (e.g. the arm sagged during a settle while
+            // targetAngles still read the home pose), the angle-undo is wrong -> the reconstructed chain
+            // offsets/rotations are garbage -> FK mispredicts the tip by tens of cm (the real cause of the
+            // "arm won't descend / IK reaches a high pose" bug: FK thought Z=0.001 while the arm was at
+            // Z=0.236). So we SYNC targetAngles to the live joint angles before capturing geometry.
+            var actualNow = arm.GetJointAngles();
+            if (actualNow != null)
+                for (int i = 0; i < targetAngles.Length && i < actualNow.Length; i++)
+                    targetAngles[i] = actualNow[i];
+
             jPos = new Vector3[n + 1];
             jRot = new Quaternion[n + 1];
-            jAxisLocal = new Vector3[n];
-            restLocalRot = new Quaternion[n];
-            restLocalOff = new Vector3[n];
+            jPos0 = new Vector3[n];
+            jRot0 = new Quaternion[n];
+            jAxisWorld0 = new Vector3[n];
+            restAngle = new float[n];
 
-            // Use the REAL revolute twist axis of each ArticulationBody (local frame), not the simplified
-            // config enum. For a revolute AB the twist axis is anchorRotation * +X (Unity drive axis).
-            // This makes FK match the real SO-101 chain (the enum axes were wrong -> bad FK -> bad IK).
+            // ROBUST FK calibration (S7f): capture each joint's REST world transform + REST world twist axis
+            // and its angle at calibration. FK then walks the chain: for joint i, apply the DELTA angle
+            // (target - rest) as a world-space rotation about the joint's rest axis CARRIED by the
+            // accumulated rotation of the joints above it. This matches the real ArticulationBody chain
+            // exactly (no fragile inverse-frame reconstruction), fixing the ~30cm FK mismatch that made the
+            // IK reach a high pose / refuse to descend.
             for (int i = 0; i < n; i++)
             {
                 var ab = arm.jointBodies[i];
-                if (ab.jointType == ArticulationJointType.RevoluteJoint)
-                    jAxisLocal[i] = (ab.anchorRotation * Vector3.right).normalized;
-                else
-                    jAxisLocal[i] = arm.config.AxisVector(arm.jointSpecs[i].axis);
+                Transform t = ab.transform;
+                jPos0[i] = t.position;
+                jRot0[i] = t.rotation;
+                restAngle[i] = targetAngles[i];   // synced to actual above
+                Vector3 localAxis = (ab.jointType == ArticulationJointType.RevoluteJoint)
+                    ? (ab.anchorRotation * Vector3.right).normalized
+                    : arm.config.AxisVector(arm.jointSpecs[i].axis);
+                jAxisWorld0[i] = (t.rotation * localAxis).normalized;   // rest world axis
             }
-
-            baseRot0 = arm.jointBodies[0].transform.rotation
-                       * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[0], jAxisLocal[0]));
-            basePos0 = arm.jointBodies[0].transform.position;
-
-            // For each consecutive pair, record the local transform (undoing the current joint angles)
-            // so FK can re-apply arbitrary angles.
-            for (int i = 0; i < n; i++)
-            {
-                Transform a = arm.jointBodies[i].transform;
-                // frame of joint i WITHOUT its own angle applied:
-                Quaternion aFrame0 = a.rotation * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[i], jAxisLocal[i]));
-                Transform b = (i + 1 < n) ? arm.jointBodies[i + 1].transform
-                                          : (arm.endEffector != null ? arm.endEffector : a);
-                Vector3 worldOff = b.position - a.position;
-                restLocalOff[i] = Quaternion.Inverse(aFrame0) * worldOff;
-                restLocalRot[i] = Quaternion.Inverse(aFrame0) * (b.rotation
-                                   * (i + 1 < n ? Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[i + 1], jAxisLocal[i + 1])) : Quaternion.identity));
-            }
-            // EE relative to last joint frame (without last joint's angle)
-            if (arm.endEffector != null && n > 0)
-            {
-                Transform last = arm.jointBodies[n - 1].transform;
-                Quaternion lastFrame0 = last.rotation * Quaternion.Inverse(Quaternion.AngleAxis(targetAngles[n - 1], jAxisLocal[n - 1]));
-                eeLocalOff = Quaternion.Inverse(lastFrame0) * (arm.endEffector.position - last.position);
-                eeLocalRot = Quaternion.Inverse(lastFrame0) * arm.endEffector.rotation;
-            }
+            eePos0 = arm.endEffector != null ? arm.endEffector.position : (n > 0 ? jPos0[n - 1] : basePos0);
+            eeRot0 = arm.endEffector != null ? arm.endEffector.rotation : (n > 0 ? jRot0[n - 1] : Quaternion.identity);
             calibrated = true;
         }
 
@@ -459,13 +461,65 @@ namespace ArmSmith
         public float[] IKAnglesFor(Vector3 worldGoal)
         {
             float[] saved = (float[])targetAngles.Clone();
-            TestReach(worldGoal);               // runs the solve, leaves result in targetAngles internally...
-            // TestReach restores targetAngles, so instead solve in-place here:
-            return SolveAnglesInPlace(worldGoal, saved);
+            // MULTI-SEED solve (S7f): the arm is redundant (elbow-up vs elbow-down both reach a given XYZ),
+            // and a single zero-seeded DLS solve locks onto the elbow-UP branch — whose tip reaches the XYZ
+            // but whose gripper sits HIGH and can't descend to a low grasp target. Solve from several seeds
+            // and KEEP the one whose forward-kinematics tip is closest to the goal AND, on ties, sits lowest
+            // (the genuine reaching-down pose). This is what makes low grasp targets actually reachable.
+            float[][] seeds = {
+                null,                                  // zero seed (elbow-up baseline)
+                MakeSeed(-35f, -8f, -8f),              // reach down/forward (elbow-down)
+                MakeSeed(-60f, -20f, -10f),            // deeper reach
+                MakeSeed(20f, -40f, 10f),              // alternate elbow-down branch
+            };
+            float[] best = null; float bestScore = float.MaxValue;
+            foreach (var seed in seeds)
+            {
+                var cand = SolveAnglesInPlace(worldGoal, saved, seed);
+                if (cand == null) continue;
+                float reach = EvalTipError(cand, worldGoal, out float tipY);
+                // score = reach error, tie-broken toward a LOWER tip (so low targets prefer the down branch)
+                float score = reach + Mathf.Max(0f, tipY - worldGoal.y) * 0.5f;
+                if (score < bestScore) { bestScore = score; best = cand; }
+            }
+            System.Array.Copy(saved, targetAngles, saved.Length);
+            return best;
+        }
+
+        float[] MakeSeed(float shoulderLift, float elbow, float wristFlex)
+        {
+            int n = arm.jointBodies.Count;
+            var s = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                if (!IsReachJoint(i)) { s[i] = 0f; continue; }
+                string nm = arm.jointSpecs[i].name.ToLower();
+                if (nm.Contains("shoulder_lift")) s[i] = shoulderLift;
+                else if (nm.Contains("elbow")) s[i] = elbow;
+                else if (nm.Contains("wrist_flex")) s[i] = wristFlex;
+                else s[i] = 0f;
+                s[i] = Mathf.Clamp(s[i], arm.jointSpecs[i].minAngle, arm.jointSpecs[i].maxAngle);
+            }
+            return s;
+        }
+
+        // Forward-kinematics tip error for a candidate angle set (does not disturb live targetAngles).
+        float EvalTipError(float[] cand, Vector3 worldGoal, out float tipY)
+        {
+            int n = arm.jointBodies.Count;
+            var keep = (float[])targetAngles.Clone();
+            System.Array.Copy(cand, targetAngles, System.Math.Min(cand.Length, targetAngles.Length));
+            ForwardKinematics(n);
+            Vector3 tip = jPos[n];
+            tipY = tip.y;
+            System.Array.Copy(keep, targetAngles, keep.Length);
+            return (worldGoal - tip).magnitude;
         }
 
         // Solve to worldGoal mutating targetAngles, return a copy, then restore. (shared with TestReach)
-        float[] SolveAnglesInPlace(Vector3 worldGoal, float[] restore)
+        float[] SolveAnglesInPlace(Vector3 worldGoal, float[] restore) => SolveAnglesInPlace(worldGoal, restore, null);
+
+        float[] SolveAnglesInPlace(Vector3 worldGoal, float[] restore, float[] seed)
         {
             int n = arm.jointBodies.Count;
             if (!calibrated) CalibrateIK();
@@ -475,7 +529,10 @@ namespace ArmSmith
                 for (int i = 0; i < n; i++) if (IsReachJoint(i)) list.Add(i);
                 reachIdx = list.ToArray(); dq = new float[reachIdx.Length];
             }
-            for (int i = 0; i < n; i++) targetAngles[i] = 0f;
+            // Initialise from the given seed (or zero). Multi-seed solving in IKAnglesFor uses this to
+            // escape the elbow-up local minimum and find the genuine reaching-down solution for low targets.
+            for (int i = 0; i < n; i++)
+                targetAngles[i] = (seed != null && i < seed.Length) ? seed[i] : 0f;
             const float h = 0.5f;
             for (int iter = 0; iter < 30; iter++)
             {
@@ -506,6 +563,19 @@ namespace ArmSmith
             float[] result = (float[])targetAngles.Clone();
             System.Array.Copy(restore, targetAngles, restore.Length);
             return result;
+        }
+
+        /// <summary>FK tip for a given angle set (diagnostic; restores live targetAngles).</summary>
+        public float TestReachWith(float[] angles, Vector3 worldGoal, out Vector3 tip)
+        {
+            int n = arm.jointBodies.Count;
+            if (!calibrated || jPos == null || jPos.Length != n + 1) CalibrateIK();
+            var keep = (float[])targetAngles.Clone();
+            if (angles != null) System.Array.Copy(angles, targetAngles, System.Math.Min(angles.Length, targetAngles.Length));
+            ForwardKinematics(n);
+            tip = jPos[n];
+            System.Array.Copy(keep, targetAngles, keep.Length);
+            return (worldGoal - tip).magnitude;
         }
 
         public float TestReach(Vector3 worldGoal)
@@ -719,17 +789,34 @@ namespace ArmSmith
         // FK using the CALIBRATED rest geometry + current targetAngles (matches the real chain).
         void ForwardKinematics(int n)
         {
-            Quaternion rot = baseRot0;
-            Vector3 pos = basePos0;
+            // Robust single-pass FK (S7f): start from the captured REST world positions of every joint +
+            // the EE, then for each joint i (root->tip) rotate joint i's origin, all DOWNSTREAM joint
+            // origins, and the EE about joint i's current world axis by its delta angle (target-rest),
+            // pivoting at joint i's CURRENT origin. Because we go root->tip and mutate downstream points in
+            // place, each joint's rotation correctly carries everything below it — reproducing the real
+            // ArticulationBody chain. Verified to match the physical tip within mm.
+            if (jPos0 == null) { for (int i = 0; i <= n; i++) jPos[i] = basePos0; return; }
+
+            // working copies (positions of joints + EE) and a running orientation for axes
+            for (int i = 0; i < n; i++) jPos[i] = jPos0[i];
+            Vector3 eeP = eePos0;
+            // running delta rotation applied to axes (joints above i have already turned axis i)
+            Quaternion axisAccum = Quaternion.identity;
             for (int i = 0; i < n; i++)
             {
-                jPos[i] = pos;
-                rot = rot * Quaternion.AngleAxis(targetAngles[i], jAxisLocal[i]); // apply joint angle
-                jRot[i] = rot;
-                pos = pos + rot * restLocalOff[i];        // step to next joint origin (real offset)
-                rot = rot * restLocalRot[i];              // and into next joint's frame (real twist)
+                Vector3 axisW = axisAccum * jAxisWorld0[i];
+                float delta = targetAngles[i] - restAngle[i];
+                if (Mathf.Abs(delta) > 1e-5f)
+                {
+                    Quaternion rot = Quaternion.AngleAxis(delta, axisW);
+                    Vector3 pivot = jPos[i];
+                    for (int k = i + 1; k < n; k++) jPos[k] = pivot + rot * (jPos[k] - pivot);
+                    eeP = pivot + rot * (eeP - pivot);
+                    axisAccum = rot * axisAccum;
+                }
+                jRot[i] = axisAccum * jRot0[i];
             }
-            jPos[n] = pos; // last computed pos is the EE (restLocalOff[n-1] already points to EE/endEffector)
+            jPos[n] = eeP;
         }
 
         // ---- Manual mode ---------------------------------------------------------

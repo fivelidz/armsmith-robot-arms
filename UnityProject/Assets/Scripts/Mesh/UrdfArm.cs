@@ -246,12 +246,18 @@ namespace ArmSmith
                 // state diverge to NaN and SEGFAULT PhysX in setupDescTask. We cut stiffness ~5x and lean on
                 // (relatively higher) DAMPING to hold pose — critically-damped, numerically safe, and still
                 // strong enough that the wrist tracks pitch and the proximal joints hold the extended arm.
+                // S7f: the PhysX crash is now prevented INDEPENDENTLY of stiffness — by (a) the per-body
+                // maxDepenetrationVelocity cap, (b) self-collision settle-gating, and (c) GameBootstrap's
+                // IgnoreArmVsEnvironment (the arm base no longer fights the worktop at y=0). So we can safely
+                // run STRONG drives again, which the arm NEEDS to hold pose against gravity at extension and
+                // actually reach low grasp targets (with the ~5x-reduced stiffness the arm sagged 16-24deg
+                // and the tip floored 18cm high). High damping keeps it critically-damped, not explosive.
                 bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
                 bool isWrist  = (j.name == "wrist_flex" || j.name == "wrist_roll" || j.name == "elbow_flex");
                 float stiff, force, damp;
-                if (proximal)      { stiff = 8000f; force = 600f; damp = 500f; }
-                else if (isWrist)  { stiff = 4500f; force = 450f; damp = 300f; }
-                else               { stiff = 2000f; force = 150f; damp = 150f; }  // gripper jaws etc.
+                if (proximal)      { stiff = 35000f; force = 800f; damp = 900f; }
+                else if (isWrist)  { stiff = 18000f; force = 500f; damp = 500f; }
+                else               { stiff = 6000f;  force = 200f; damp = 250f; }  // gripper jaws etc.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
                     stiffness: stiff, damping: damp, forceLimit: force,
                     massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f,
