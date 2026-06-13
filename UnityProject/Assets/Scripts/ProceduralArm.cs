@@ -270,22 +270,41 @@ namespace ArmSmith
 
         void FixedUpdate()
         {
-            // NaN WATCHDOG (S7d): if the articulation state has diverged to NaN/Inf (the precursor to the
-            // PhysX setupDescTask segfault), force a hard-reset to home BEFORE PhysX simulates this frame.
-            // This converts a hard editor crash into a recoverable auto-rehome. Cheap: one joint read.
+            // STABILITY WATCHDOG (S7d): the PhysX setupDescTask segfault is preceded by the articulation
+            // state diverging — first in VELOCITY, then position, often within a single step during a
+            // contact spike (e.g. closing the gripper on an object). We (1) check the whole reduced state
+            // (position AND velocity) via the root, and (2) PROACTIVELY clamp runaway joint velocities every
+            // frame so a spike is bled off before it can reach NaN. Both run at the top of FixedUpdate,
+            // before Simulate — the safe window.
             if (!hasPendingReset && jointBodies != null && jointBodies.Count > 0)
             {
-                for (int i = 0; i < jointBodies.Count; i++)
+                var wdRoot = ResolveRoot();
+                if (wdRoot != null)
                 {
-                    var ab = jointBodies[i];
-                    if (ab == null || ab.dofCount <= 0) continue;
-                    float jp = ab.jointPosition[0];
-                    if (float.IsNaN(jp) || float.IsInfinity(jp))
+                    _wdPos ??= new List<float>();
+                    _wdVel ??= new List<float>();
+                    wdRoot.GetJointPositions(_wdPos);
+                    wdRoot.GetJointVelocities(_wdVel);
+                    bool bad = false, clampedVel = false;
+                    for (int k = 0; k < _wdPos.Count; k++)
+                        if (float.IsNaN(_wdPos[k]) || float.IsInfinity(_wdPos[k])) { bad = true; break; }
+                    if (!bad)
+                        for (int k = 0; k < _wdVel.Count; k++)
+                        {
+                            float v = _wdVel[k];
+                            if (float.IsNaN(v) || float.IsInfinity(v)) { bad = true; break; }
+                            // Bleed off runaway velocity (rad/s or m/s) before it explodes to NaN.
+                            if (Mathf.Abs(v) > 40f) { _wdVel[k] = Mathf.Sign(v) * 40f; clampedVel = true; }
+                        }
+                    if (bad)
                     {
-                        Debug.LogWarning($"[ProceduralArm] NaN/Inf detected on joint {i} — auto re-homing to prevent PhysX crash.");
+                        Debug.LogWarning("[ProceduralArm] NaN/Inf in articulation state — auto re-homing to prevent PhysX crash.");
                         pendingResetAngles = new float[jointBodies.Count];   // zero pose
                         hasPendingReset = true;
-                        break;
+                    }
+                    else if (clampedVel)
+                    {
+                        wdRoot.SetJointVelocities(_wdVel);   // apply the bled-off velocities
                     }
                 }
             }
@@ -295,13 +314,8 @@ namespace ArmSmith
             if (!hasPendingReset) return;
             hasPendingReset = false;
 
-            ArticulationBody root = baseBody;
-            while (root != null && !root.isRoot)
-            {
-                var p = root.transform.parent;
-                root = p != null ? p.GetComponentInParent<ArticulationBody>() : null;
-            }
-            if (root == null || !root.isRoot) return;
+            ArticulationBody root = ResolveRoot();
+            if (root == null) return;
 
             var positions = new List<float>();
             var velocities = new List<float>();
@@ -323,6 +337,21 @@ namespace ArmSmith
             }
             root.SetJointPositions(positions);
             root.SetJointVelocities(velocities);
+        }
+
+        // Watchdog scratch buffers (reused to avoid per-frame GC).
+        List<float> _wdPos, _wdVel;
+
+        /// <summary>Find the articulation root (the only body where Set/GetJointPositions act on the whole chain).</summary>
+        ArticulationBody ResolveRoot()
+        {
+            ArticulationBody root = baseBody;
+            while (root != null && !root.isRoot)
+            {
+                var p = root.transform.parent;
+                root = p != null ? p.GetComponentInParent<ArticulationBody>() : null;
+            }
+            return (root != null && root.isRoot) ? root : null;
         }
 
         /// <summary>Seed the servo rate-limiter state (call after setting an initial/home pose).</summary>

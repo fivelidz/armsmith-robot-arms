@@ -477,6 +477,13 @@ namespace ArmSmith
             ab.maxAngularVelocity = 6f;          // rad/s cap (still prevents explosions)
             ab.angularDamping = 0.2f;            // low: don't fight the drive
             ab.jointFriction = 0.02f;
+            // S7d PhysX HARDENING: the segfault is an articulation solver descriptor built from a diverging
+            // state, often on the FIRST step when light links overlap. Bound every explosion source:
+            ab.maxLinearVelocity = 5f;           // m/s cap on the link
+            ab.maxDepenetrationVelocity = 1f;    // CRITICAL: stops violent push-out when colliders start
+                                                 // overlapping at build (a prime first-frame NaN source)
+            ab.solverIterations = 20;            // per-body position iters (robust convergence)
+            ab.solverVelocityIterations = 4;
         }
 
         // ─────────────────────────────────────────────────────────────────────────
