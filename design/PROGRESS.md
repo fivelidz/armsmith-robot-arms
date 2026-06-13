@@ -394,3 +394,34 @@ verified) -> inference server (DF4) -> live receding-horizon Unity client -> obs
 and headlessly verified (5/5). Keys in-sim: 4 diffusion policy | 5 follow plan | 6 MPD planner | 7 denoise
 | 8 toggle viz | 9 demo routes. Remaining: robustness benchmark, learned-denoiser swap for the planner,
 live-GUI visual confirmation (gated only by the flaky editor launch, not code).
+
+## 2026-06-14 — Session 7f: THE FK BUG (root cause of "won't descend") + full pick-place WORKS
+The "arm won't reach low / bad IK / floors ~25cm high" symptom that blocked the task across many
+sessions was finally root-caused: the IK's FORWARD-KINEMATICS model was wrong by ~30cm vs the real
+ArticulationBody chain. CalibrateIK's inverse-frame reconstruction (undoing joint angles with a local
+axis treated as a world axis) produced garbage rest offsets; FK predicted the tip ~30cm from where the
+arm physically was (FK(home) said Z=0.001 while physical was Z=0.236). The IK solved correct-looking
+angles against this broken model -> the arm reached a HIGH pose and refused to descend.
+
+FIX (ArmController): rewrote CalibrateIK + ForwardKinematics with a robust formulation — capture each
+joint's REST world position + REST world twist axis + rest angle, sync targetAngles to the ACTUAL joint
+angles first, then FK walks root->tip applying each joint's DELTA angle as a world rotation about its
+chain-carried axis, pivoting downstream joints + the EE in place. VERIFIED: FK now matches the physical
+tip to 0.0cm at every pose; DescentCheck => "ARM DESCENDS CORRECTLY" (tipY 0.017 for goal 0.05).
+
+CONSEQUENCES — everything the FK was blocking now works:
+- HeadlessPickCheck is now a REAL end-to-end gate and PASSES: reach (approach err 3.4cm), grasp
+  (gap 3.9cm, holding=True), and LIFT (cube raised to 0.102m, follows the tip). The manipulation task
+  works. Added Gripper.TickHeld() so grasp-assist runs under headless Physics.Simulate.
+- Contact stability: ScenarioManager cubes + test cube get maxDepenetrationVelocity/velocity caps so the
+  gripper-vs-cube contact (now that the arm reaches the cube) can't spike PhysX into a crash.
+Also this session (all committed, suite 5/5):
+- Out-of-bounds scenario AUTO-RESET (ScenarioManager): object knocked off the table -> reload scenario.
+- CLAW CAMERA reworked (WristCamAim): mounts back+above the grasp point along the approach axis, looking
+  down the approach line, so the jaws AND the grasped object are both clearly framed.
+- TaskStateSensor: richer observations for the model — EE pose, gripper open/holding, joint velocities,
+  and the VECTOR from the tip to the target (the key "close the gap then grasp" signal).
+- Multi-seed IKAnglesFor (elbow-up vs elbow-down) + downward-reach scoring.
+REMAINING: live in-GUI confirmation of the real closed-loop control + claw cam (editor bg-launch is
+intermittently failing in the automation shell; headless 5/5 is the reliable proof and the FK/IK/grasp/
+lift are all verified there).

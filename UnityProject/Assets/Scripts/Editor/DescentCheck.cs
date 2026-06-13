@@ -94,9 +94,10 @@ namespace ArmSmith.EditorTools
                 float cc = DriveAndMeasure(ctrl, arm, goal, dt);
                 Debug.Log($"[DescentCheck] C) arm colliders off: tipY={cc:F3}");
 
-                Debug.Log($"[DescentCheck] VERDICT: full={a:F3} noCube={b:F3} noArmCol={cc:F3} (goal 0.05). " +
-                          (cc < 0.09f && a > 0.13f ? "=> COLLISION is the jam" : "=> not collision / check IK"));
-                return true;
+                bool descends = a < 0.10f;   // with the FK fix the arm should reach near the 0.05 goal
+                Debug.Log($"[DescentCheck] VERDICT: full={a:F3} noCube={b:F3} noArmCol={cc:F3} (goal 0.05) => " +
+                          (descends ? "ARM DESCENDS CORRECTLY (FK ok)" : "STILL FLOORING (FK/drive issue)"));
+                return descends;
             }
             catch (System.Exception e) { Debug.LogError("[DescentCheck] " + e); return false; }
             finally
