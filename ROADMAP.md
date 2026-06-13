@@ -194,24 +194,24 @@ DRAWING the paths / showing more data visually in the world is explicitly wanted
 `research/diffusion_pathfinding/REPORT.md`. Adopt incrementally; keep IK as substrate + baseline.
 
 ### Visualization (do first — pure C#, verifiable headless, no stable-editor dependency)
-- [ ] PV1: `Visualization/PathVisualizer.cs` — draw trajectories in the 3D world: planned path (line
+- [x] PV1: `Visualization/PathVisualizer.cs` — draw trajectories in the 3D world: planned path (line
       ribbon), executed path (different colour), waypoint spheres, start/goal markers. LineRenderer-based.
-- [ ] PV2: MULTIMODAL paths — draw several candidate trajectories at once (the left-vs-right routes a
+- [x] PV2: MULTIMODAL paths — draw several candidate trajectories at once (the left-vs-right routes a
       diffusion planner produces), colour/alpha by cost or probability. This is the core "show the data".
-- [ ] PV3: DENOISING animation — visualize a path refining from noisy -> smooth over diffusion steps
+- [x] PV3: DENOISING animation — visualize a path refining from noisy -> smooth over diffusion steps
       (great explainer of the diffusion concept; data-driven later, scriptable now).
 - [ ] PV4: cost/reachability FIELD overlay (tie into WorkspaceMap green/red grid); obstacle SDF heatmap.
-- [ ] PV5: `Visualization/TrajectoryData.cs` + `ITrajectoryProvider` — one data model so IK paths,
+- [x] PV5: `Visualization/TrajectoryData.cs` + `ITrajectoryProvider` — one data model so IK paths,
       GA-evolved motions, AND diffusion paths all feed the SAME visualizer. Decouples viz from source.
 
 ### Diffusion pipeline (Python/LeRobot trains; Unity = data source + deployment target)
-- [ ] DF1: `armsmith.waypoints.v1 -> LeRobotDataset` converter (Python). Demo-factory step 1.
-- [ ] DF2: repurpose EvolutionTrainer successful rollouts AS demonstrations (GA = demo generator).
+- [x] DF1: `armsmith.waypoints.v1 -> LeRobotDataset` converter (Python). Demo-factory step 1.
+- [x] DF2: repurpose EvolutionTrainer successful rollouts AS demonstrations (GA = demo generator).
 - [ ] DF3: train a low-dim joint-space Diffusion Policy (LeRobot `--policy.type=diffusion`) on one task
       (reach-and-grasp placed cube); obs = joint state + object pose; action = joint-deg chunks.
 - [ ] DF4: inference server (DiffusionPolicy.from_pretrained) -> MCP/socket -> Unity SetTargets, receding
       horizon. Benchmark robustness (move object / perturb) vs open-loop waypoint playback.
-- [ ] DF5: MPD-style DIFFUSION MOTION PLANNER in joint space — collision-free multimodal trajectories
+- [x] DF5: MPD-style DIFFUSION MOTION PLANNER in joint space — collision-free multimodal trajectories
       using Unity collision queries as guidance cost; outputs drop into the existing waypoint/export +
       PathVisualizer. (Directly matches the "diffusion pathfinding" interest.)
 - [ ] DF6: branch options — DP3 (synthetic point clouds from Unity depth) / EquiDiff (sample-eff) /
@@ -225,3 +225,14 @@ DRAWING the paths / showing more data visually in the world is explicitly wanted
       auto-rehome; self-collision GATED OFF for first ~40 settle frames then enabled.
 - [ ] Verify the settle-gating eliminates the non-deterministic first-step crash across many play cycles.
 - [x] NOTE: editor launch failures were a LAPSED UNITY LICENSE (re-activated via Hub), not graphics.
+
+### Diffusion progress note (S7d cont.)
+- [x] PV4 partial: ObstacleField cost/SDF model from scene colliders (obstacle heatmap viz TODO).
+- [x] DF5 DONE: DiffusionMotionPlanner (planning-as-denoising: seed noise -> smooth+cost-guide+anchor)
+      produces multimodal collision-free EE paths; ObstacleField guidance; headless-verified chosen path
+      collision-free (cost 0.0) and IK-reachable (24/24 pts <4cm).
+- [x] PlannedPathFollower: closes PLAN->MOTION (drives IK target along the chosen path). Keys: 6 planner
+      viz, 5 follow plan, 8 toggle all, 9 demo routes, 7 denoise.
+- [ ] DF3: train a real low-dim joint-space Diffusion Policy in LeRobot from collected demos (next).
+- [ ] DF4: inference server -> MCP -> Unity (receding horizon), robustness benchmark vs open-loop.
+- [ ] Swap DiffusionMotionPlanner's seed+denoise for a learned trajectory-diffusion model (same I/O).
