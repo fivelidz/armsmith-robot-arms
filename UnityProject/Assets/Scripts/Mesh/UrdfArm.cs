@@ -241,12 +241,17 @@ namespace ArmSmith
                 // down at low grasp targets -> the pick-and-place "vertical floor" bug).
                 // STS3215 stall torque ~2.94 N.m; with the lever arms here ~400-600 N force limit
                 // is the realistic equivalent that lets the wrist actually track commanded pitch.
+                // S7d STABILITY: the old stiffness (40000 / 22000 / 14000) on 0.01-0.15 kg links gave an
+                // effective natural frequency ωn·dt far above the stable range, which let the articulation
+                // state diverge to NaN and SEGFAULT PhysX in setupDescTask. We cut stiffness ~5x and lean on
+                // (relatively higher) DAMPING to hold pose — critically-damped, numerically safe, and still
+                // strong enough that the wrist tracks pitch and the proximal joints hold the extended arm.
                 bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
                 bool isWrist  = (j.name == "wrist_flex" || j.name == "wrist_roll" || j.name == "elbow_flex");
                 float stiff, force, damp;
-                if (proximal)      { stiff = 40000f; force = 600f; damp = 600f; }
-                else if (isWrist)  { stiff = 22000f; force = 450f; damp = 350f; }  // was 14000/150/250 (saturated)
-                else               { stiff = 14000f; force = 150f; damp = 250f; }  // gripper jaws etc.
+                if (proximal)      { stiff = 8000f; force = 600f; damp = 500f; }
+                else if (isWrist)  { stiff = 4500f; force = 450f; damp = 300f; }
+                else               { stiff = 2000f; force = 150f; damp = 150f; }  // gripper jaws etc.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
                     stiffness: stiff, damping: damp, forceLimit: force,
                     massKg: linkByName.TryGetValue(j.child, out var cLk) ? cLk.inertial.mass_kg : 0.1f,
@@ -354,8 +359,8 @@ namespace ArmSmith
                 var ld = leftJaw.xDrive;
                 ld.lowerLimit = -jawWidth;
                 ld.upperLimit =  jawWidth;
-                ld.stiffness  = 9000f;
-                ld.damping    = 150f;
+                ld.stiffness  = 1500f;   // S7d: was 9000 on a 0.012 kg body (ωn·dt ~7 -> NaN -> PhysX crash)
+                ld.damping    = 120f;
                 ld.forceLimit = 80f;
                 leftJaw.xDrive = ld;
                 leftJaw.mass   = 0.012f;
@@ -388,16 +393,13 @@ namespace ArmSmith
                 rightJaw = go.AddComponent<ArticulationBody>();
                 rightJaw.jointType     = ArticulationJointType.PrismaticJoint;
                 rightJaw.anchorRotation = Quaternion.identity;
-                rightJaw.linearLockX   = ArticulationDofLock.LimitedMotion;
+                // S7d: this is a "physics reference only" jaw — make it a truly STATIC (locked) DOF instead
+                // of a live, very-stiff, near-zero-mass prismatic joint. A driven 0.012 kg DOF at stiffness
+                // 9000 was a prime contributor to the articulation NaN blowup that segfaulted PhysX. Locking
+                // all axes removes the DOF from the solver descriptor while keeping the collider for grasping.
+                rightJaw.linearLockX   = ArticulationDofLock.LockedMotion;
                 rightJaw.linearLockY   = ArticulationDofLock.LockedMotion;
                 rightJaw.linearLockZ   = ArticulationDofLock.LockedMotion;
-                var rd = rightJaw.xDrive;
-                rd.lowerLimit = -jawWidth;
-                rd.upperLimit =  jawWidth;
-                rd.stiffness  = 9000f;
-                rd.damping    = 150f;
-                rd.forceLimit = 80f;
-                rightJaw.xDrive = rd;
                 rightJaw.mass   = 0.012f;
 
                 // NO mesh on the fixed jaw: the real SO-101 follower has only ONE moving jaw closing

@@ -50,9 +50,14 @@ namespace ArmSmith
 
         void Start()
         {
-            Physics.defaultSolverIterations = 24;          // crisp joint physics
-            Physics.defaultSolverVelocityIterations = 8;
+            // PhysX stability (S7d): 24/8 solver iterations combined with very stiff drives on light
+            // links drove the articulation state to NaN, segfaulting PhysX in PxsSolverStartTask::
+            // setupDescTask on the next Simulate (verified crash on AMD/Mesa Linux). Sane iteration
+            // counts + lower stiffness (see UrdfArm) keep the solver numerically stable.
+            Physics.defaultSolverIterations = 10;
+            Physics.defaultSolverVelocityIterations = 2;
             Time.fixedDeltaTime = 1f / 120f;               // 120 Hz physics for stable articulation
+            Time.maximumDeltaTime = 0.05f;                 // cap substep pile-up so timescale spikes can't blow up the solver
 
             // ArmConfig is [Serializable] (plain class) so Unity never leaves it null — it
             // deserializes a default instance with an EMPTY joints list. Guard on joint count.

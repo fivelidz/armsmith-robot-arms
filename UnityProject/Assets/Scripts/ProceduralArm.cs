@@ -270,6 +270,26 @@ namespace ArmSmith
 
         void FixedUpdate()
         {
+            // NaN WATCHDOG (S7d): if the articulation state has diverged to NaN/Inf (the precursor to the
+            // PhysX setupDescTask segfault), force a hard-reset to home BEFORE PhysX simulates this frame.
+            // This converts a hard editor crash into a recoverable auto-rehome. Cheap: one joint read.
+            if (!hasPendingReset && jointBodies != null && jointBodies.Count > 0)
+            {
+                for (int i = 0; i < jointBodies.Count; i++)
+                {
+                    var ab = jointBodies[i];
+                    if (ab == null || ab.dofCount <= 0) continue;
+                    float jp = ab.jointPosition[0];
+                    if (float.IsNaN(jp) || float.IsInfinity(jp))
+                    {
+                        Debug.LogWarning($"[ProceduralArm] NaN/Inf detected on joint {i} — auto re-homing to prevent PhysX crash.");
+                        pendingResetAngles = new float[jointBodies.Count];   // zero pose
+                        hasPendingReset = true;
+                        break;
+                    }
+                }
+            }
+
             // Apply any queued hard-reset HERE — at the top of FixedUpdate, before PhysX simulates this
             // frame. This is the physics-safe window to write reduced-coordinate articulation state.
             if (!hasPendingReset) return;

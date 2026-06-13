@@ -59,20 +59,17 @@ namespace ArmSmith
 
         System.Collections.IEnumerator ReassertForAWhile()
         {
-            // Re-apply the ignore pairs over the first ~1s so they survive MeshCollider cooking /
-            // Unity's post-init collision-pair rebuild, THEN keep re-asserting at a low rate forever.
-            // Unity can silently rebuild the broadphase collision-pair table (e.g. after the arm enters
-            // a new contact-rich configuration), which re-drops our ignores and re-jams the wrist on the
-            // NEXT pick attempt — that was the "works once then jams" non-determinism. A 2 Hz re-assert is
-            // negligible cost (a few dozen IgnoreCollision calls) and makes the arm robust across repeated
-            // tasks without any manual reset.
+            // Re-apply the ignore pairs over the first ~1s so they survive Unity's post-init collision-pair
+            // rebuild, THEN keep re-asserting at a LOW rate to catch broadphase rebuilds that would re-drop
+            // our ignores and re-jam the wrist on the next pick ("works once then jams"). The re-assert runs
+            // in a coroutine (between physics steps, timing-safe). S7d: dropped 2 Hz -> 0.5 Hz to minimise
+            // broadphase pair-table churn, which the PhysX crash diagnosis flagged as a stability risk.
             for (int frame = 0; frame < 60; frame++)
             {
                 yield return new WaitForFixedUpdate();
                 if (frame % 5 == 0) ApplyIgnores();
             }
-            // steady-state low-rate re-assert
-            var wait = new WaitForSeconds(0.5f);
+            var wait = new WaitForSeconds(2.0f);   // steady-state low-rate re-assert
             while (true)
             {
                 ApplyIgnores();
