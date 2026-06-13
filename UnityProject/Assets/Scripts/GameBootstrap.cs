@@ -35,6 +35,12 @@ namespace ArmSmith
         GripDetector gripDetector;
         WorkspaceMap workspaceMap;
         ModuleMount moduleMount;
+        // Path visualization (S7d)
+        ArmSmith.Visualization.PathVisualizer pathViz;
+        ArmSmith.Visualization.DiffusionPathDemo diffDemo;
+        ArmSmith.Visualization.DenoisePathDemo denoiseDemo;
+        ArmSmith.Visualization.TrajectorySample executedPath;
+        float execTrailTimer;
         ServoCallouts servoCallouts;
         ScenarioMenu scenarioMenu;
         BuilderPanel builderPanel;
@@ -238,6 +244,34 @@ namespace ArmSmith
             recorder.arm = arm;
 
             workspaceMap.Bind(controller, arm);   // now that the controller exists
+
+            // ── In-world PATH VISUALIZATION (S7d) ──────────────────────────────────────
+            // Draw trajectories in 3D: live IK preview, multimodal "diffusion" candidate paths, a
+            // denoising animation, and the executed tip trail. The visualizer is source-agnostic
+            // (ITrajectoryProvider), so the real diffusion/MPD planner output will plug straight in.
+            pathViz = armGo.AddComponent<ArmSmith.Visualization.PathVisualizer>();
+
+            var ikProv = armGo.AddComponent<ArmSmith.Visualization.IKPathProvider>();
+            ikProv.controller = controller; ikProv.arm = arm;
+            pathViz.Register(ikProv);
+
+            // Multimodal candidate-path demo (stand-in for the diffusion planner until DF5 is wired).
+            var diffGo = new GameObject("DiffusionPathDemo");
+            diffGo.transform.SetParent(armGo.transform, false);
+            diffDemo = diffGo.AddComponent<ArmSmith.Visualization.DiffusionPathDemo>();
+            diffDemo.vizEnabled = false;          // off by default; toggle with the 'P' key (see Update)
+            pathViz.Register(diffDemo);
+
+            // Denoising explainer animation (off by default; toggle with 'O').
+            var denGo = new GameObject("DenoisePathDemo");
+            denGo.transform.SetParent(armGo.transform, false);
+            denoiseDemo = denGo.AddComponent<ArmSmith.Visualization.DenoisePathDemo>();
+            denoiseDemo.vizEnabled = false;
+            pathViz.Register(denoiseDemo);
+
+            // Executed-tip trail accumulator.
+            executedPath = new ArmSmith.Visualization.TrajectorySample { label = "executed" };
+            pathViz.SetExecuted(executedPath);
         }
 
         // Tray-to-tray scenario (see research/manipulation_repos/TEST_ENVIRONMENTS.md).
@@ -373,6 +407,28 @@ namespace ArmSmith
 
         void Update()
         {
+            // ── Path-visualization controls (S7d) ──────────────────────────────────────
+            // 8 = toggle all path viz, 9 = toggle diffusion multimodal demo, 0 = toggle denoise demo.
+            if (Input.GetKeyDown(KeyCode.Alpha8) && pathViz != null) pathViz.show = !pathViz.show;
+            if (Input.GetKeyDown(KeyCode.Alpha9) && diffDemo != null) diffDemo.vizEnabled = !diffDemo.vizEnabled;
+            if (Input.GetKeyDown(KeyCode.Alpha0) && denoiseDemo != null) denoiseDemo.vizEnabled = !denoiseDemo.vizEnabled;
+            // Accumulate the executed tip trail (every ~30 ms, capped length).
+            if (executedPath != null && arm != null && arm.endEffector != null)
+            {
+                execTrailTimer += Time.deltaTime;
+                if (execTrailTimer >= 0.03f)
+                {
+                    execTrailTimer = 0f;
+                    var p = arm.endEffector.position;
+                    if (executedPath.points.Count == 0 ||
+                        Vector3.Distance(executedPath.points[executedPath.points.Count - 1], p) > 0.004f)
+                    {
+                        executedPath.points.Add(p);
+                        if (executedPath.points.Count > 240) executedPath.points.RemoveAt(0);
+                    }
+                }
+            }
+
             if (infoText == null) return;
             string mode = controller.mode.ToString();
             string grip = arm.gripper != null ? (arm.gripper.closeAmount > 0.5f ? "CLOSED" : "OPEN") : "-";

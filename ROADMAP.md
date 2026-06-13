@@ -187,3 +187,41 @@ Catalogue/multi-robot:
 - [x] CAD spec (design/specs/CAD_SPEC.md) — extensible parametric-CAD architecture + milestones C1-C6.
 - [x] Module-mount spec (design/specs/MODULE_MOUNT_SPEC.md) — player-placeable/orientable modules; pose drives sensing; sim->real; milestones MM1-MM6.
 - [ ] BLOCKED on Unity editor display: verify in GUI, finish grip-detection feedback wiring, build CAD/module systems.
+
+## Diffusion-model control & in-world data visualization (P-DIFFUSION, added S7d)
+Direction (user): diffusion models are a more powerful way to DIRECT the arms than scripted IK, and
+DRAWING the paths / showing more data visually in the world is explicitly wanted. Full research in
+`research/diffusion_pathfinding/REPORT.md`. Adopt incrementally; keep IK as substrate + baseline.
+
+### Visualization (do first — pure C#, verifiable headless, no stable-editor dependency)
+- [ ] PV1: `Visualization/PathVisualizer.cs` — draw trajectories in the 3D world: planned path (line
+      ribbon), executed path (different colour), waypoint spheres, start/goal markers. LineRenderer-based.
+- [ ] PV2: MULTIMODAL paths — draw several candidate trajectories at once (the left-vs-right routes a
+      diffusion planner produces), colour/alpha by cost or probability. This is the core "show the data".
+- [ ] PV3: DENOISING animation — visualize a path refining from noisy -> smooth over diffusion steps
+      (great explainer of the diffusion concept; data-driven later, scriptable now).
+- [ ] PV4: cost/reachability FIELD overlay (tie into WorkspaceMap green/red grid); obstacle SDF heatmap.
+- [ ] PV5: `Visualization/TrajectoryData.cs` + `ITrajectoryProvider` — one data model so IK paths,
+      GA-evolved motions, AND diffusion paths all feed the SAME visualizer. Decouples viz from source.
+
+### Diffusion pipeline (Python/LeRobot trains; Unity = data source + deployment target)
+- [ ] DF1: `armsmith.waypoints.v1 -> LeRobotDataset` converter (Python). Demo-factory step 1.
+- [ ] DF2: repurpose EvolutionTrainer successful rollouts AS demonstrations (GA = demo generator).
+- [ ] DF3: train a low-dim joint-space Diffusion Policy (LeRobot `--policy.type=diffusion`) on one task
+      (reach-and-grasp placed cube); obs = joint state + object pose; action = joint-deg chunks.
+- [ ] DF4: inference server (DiffusionPolicy.from_pretrained) -> MCP/socket -> Unity SetTargets, receding
+      horizon. Benchmark robustness (move object / perturb) vs open-loop waypoint playback.
+- [ ] DF5: MPD-style DIFFUSION MOTION PLANNER in joint space — collision-free multimodal trajectories
+      using Unity collision queries as guidance cost; outputs drop into the existing waypoint/export +
+      PathVisualizer. (Directly matches the "diffusion pathfinding" interest.)
+- [ ] DF6: branch options — DP3 (synthetic point clouds from Unity depth) / EquiDiff (sample-eff) /
+      Consistency Policy (real-time). Sim-to-real via existing LeRobot bridge (armsmith_lerobot.py).
+
+### PhysX articulation stability (P-PHYSX, S7d — blocker for live verification)
+- [x] Root-caused: setupDescTask segfault = over-stiff drives on light links + violent first-step
+      depenetration of overlapping SO-101 STL meshes (AMD/Mesa/kernel-6.18 + Unity6).
+- [x] Fixes: solver iters 24->10; stiffness ~5x lower + higher damping; lock fixed_jaw; per-body
+      maxDepenetrationVelocity/maxLinearVelocity caps + per-body solver iters; NaN/velocity watchdog
+      auto-rehome; self-collision GATED OFF for first ~40 settle frames then enabled.
+- [ ] Verify the settle-gating eliminates the non-deterministic first-step crash across many play cycles.
+- [x] NOTE: editor launch failures were a LAPSED UNITY LICENSE (re-activated via Hub), not graphics.
