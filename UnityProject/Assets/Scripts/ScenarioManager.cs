@@ -143,6 +143,12 @@ namespace ArmSmith
             if (phys)
             {
                 var rb = go.AddComponent<Rigidbody>(); rb.mass = mass;
+                // S7f: cap depenetration + max velocity so a hard gripper-vs-cube contact can't spike the
+                // physics solver into a NaN/crash (same class of fix as the arm bodies). Keeps the grasp
+                // contact stable now that the arm actually reaches the cube. Also lower the solver work.
+                rb.maxDepenetrationVelocity = 1f;
+                rb.maxLinearVelocity = 5f;
+                rb.maxAngularVelocity = 20f;
                 go.GetComponent<BoxCollider>().material =
                     new PhysicsMaterial("c") { dynamicFriction = 1.1f, staticFriction = 1.3f };
             }

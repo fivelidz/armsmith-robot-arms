@@ -51,6 +51,11 @@ namespace ArmSmith.EditorTools
                 var selfCol = armGo.AddComponent<SelfCollision>();
                 selfCol.Setup(arm);
 
+                // Ignore arm-vs-worktop (the arm is mounted on the table; same as GameBootstrap does).
+                var groundCol = ground.GetComponent<Collider>();
+                if (arm.baseBody != null) foreach (var c in arm.baseBody.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(c, groundCol, true);
+                foreach (var ab in arm.jointBodies) foreach (var c in ab.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(c, groundCol, true);
+
                 // Controller + IK target
                 var tgtGo = new GameObject("ikTarget");
                 var ctrl = armGo.AddComponent<ArmController>();
@@ -65,6 +70,8 @@ namespace ArmSmith.EditorTools
                 cubeGo.transform.position = new Vector3(0.16f, 0.031f, 0.30f);
                 var crb = cubeGo.AddComponent<Rigidbody>();
                 crb.mass = 0.05f;
+                crb.maxDepenetrationVelocity = 1f;   // S7f: stop gripper-vs-cube contact spiking PhysX
+                crb.maxLinearVelocity = 5f;
 
                 // Settle the arm at home for a bit (lets self-collision settle-gating run).
                 Step(arm, dt, 60, null);
