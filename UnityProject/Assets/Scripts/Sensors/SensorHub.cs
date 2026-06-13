@@ -22,6 +22,7 @@ namespace ArmSmith
             arm = a; rig = camRig;
             // Attach the default catalogue of modules (all enabled = train with all info).
             Add<MotorEncoderSensor>();
+            Add<TaskStateSensor>();   // EE pose, gripper, joint velocities, vector-to-target (key for manip)
             Add<ImuSensor>();
             var rf = Add<RangeFinderSensor>();
             Add<Lidar2DSensor>();

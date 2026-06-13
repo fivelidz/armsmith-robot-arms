@@ -190,4 +190,57 @@ namespace ArmSmith
             return false;
         }
     }
+
+    /// <summary>
+    /// TASK-STATE sensor — the high-value, manipulation-specific observations a policy needs to actually
+    /// solve pick-and-place (and what a real teleop operator sees): end-effector world pose, gripper open
+    /// amount + holding flag, joint velocities (rad/s), and — crucially — the VECTOR from the gripper tip
+    /// to the active task object (the cube), in WORLD axes + its distance. With this, a diffusion/RL policy
+    /// can learn "close the gap to the object, then grasp" directly. Target resolved by name (S_Cube) so it
+    /// works across scenarios; if absent, those channels are zero.
+    /// Channels (16): eeX,eeY,eeZ, gripperOpen, holding, jv0..jv5, toTargetX,toTargetY,toTargetZ,
+    ///                targetDist, targetPresent.
+    /// </summary>
+    public class TaskStateSensor : SensorBase
+    {
+        public Transform targetOverride;   // optional explicit target; else find S_Cube
+        Transform target;
+
+        public override string Name => "TaskState";
+        public override string[] Channels => new[]{
+            "eeX","eeY","eeZ","gripperOpen","holding",
+            "jv0","jv1","jv2","jv3","jv4","jv5",
+            "toTargetX","toTargetY","toTargetZ","targetDist","targetPresent"
+        };
+
+        Transform ResolveTarget()
+        {
+            if (targetOverride != null) return targetOverride;
+            if (target == null) { var g = GameObject.Find("S_Cube"); if (g != null) target = g.transform; }
+            return target;
+        }
+
+        public override float[] Observe()
+        {
+            var v = new float[16];
+            if (arm == null) return v;
+            Vector3 ee = arm.gripper != null ? arm.gripper.TipPosition
+                        : (arm.endEffector != null ? arm.endEffector.position : Vector3.zero);
+            v[0] = ee.x; v[1] = ee.y; v[2] = ee.z;
+            v[3] = arm.gripper != null ? 1f - Mathf.Clamp01(arm.gripper.closeAmount) : 1f;   // 1=open
+            v[4] = arm.gripper != null && arm.gripper.IsHolding ? 1f : 0f;
+            for (int i = 0; i < 6 && i < arm.jointBodies.Count; i++)
+            {
+                var ab = arm.jointBodies[i];
+                v[5 + i] = (ab != null && ab.jointVelocity.dofCount > 0) ? ab.jointVelocity[0] : 0f;
+            }
+            var tgt = ResolveTarget();
+            if (tgt != null)
+            {
+                Vector3 d = tgt.position - ee;
+                v[11] = d.x; v[12] = d.y; v[13] = d.z; v[14] = d.magnitude; v[15] = 1f;
+            }
+            return v;
+        }
+    }
 }
