@@ -218,6 +218,7 @@ namespace ArmSmith.Visualization
 
         public TrajectorySet GetTrajectories()
         {
+            if (work.Count < 2) { ResolveScene(); BuildClean(); ResetNoise(); }   // lazy init if OnEnable hasn't run
             if (work.Count < 2) return null;
             var set = new TrajectorySet { source = "denoise", start = start, goal = goal, hasStartGoal = true };
             float prog = steps > 0 ? step / (float)steps : 1f;
