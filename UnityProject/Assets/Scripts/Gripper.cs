@@ -134,6 +134,14 @@ namespace ArmSmith
             HeldFollow();
         }
 
+        /// <summary>Manually step the grab/hold logic (for headless Physics.Simulate loops where Unity's
+        /// FixedUpdate does not fire). Mirrors FixedUpdate.</summary>
+        public void TickHeld()
+        {
+            if (graspAssist && held == null && closeAmount > 0.8f) TryGrab();
+            HeldFollow();
+        }
+
         void Release()
         {
             if (held != null)

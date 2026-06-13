@@ -132,9 +132,9 @@ namespace ArmSmith.EditorTools
                 Step(arm, dt, 60, descAng);                   // let the grasp latch
                 bool holding = grip.IsHolding;
 
-                goTo(new Vector3(0.16f, 0.15f, 0.30f), 120);  // lift
-                float[] liftAng = ctrl.IKAnglesFor(new Vector3(0.16f, 0.15f, 0.30f));
-                Step(arm, dt, 30, liftAng);
+                float[] liftAng = ctrl.IKAnglesFor(new Vector3(0.16f, 0.16f, 0.30f));
+                Step(arm, dt, 200, liftAng);                   // lift (hold long enough to converge)
+                Debug.Log($"[HeadlessPickCheck] after lift: tip={grip.TipPosition:F3} cube={cubeGo.transform.position:F3} holding={grip.IsHolding}");
 
                 float cubeY = cubeGo.transform.position.y;
                 bool lifted = cubeY > 0.09f;
@@ -149,14 +149,13 @@ namespace ArmSmith.EditorTools
 
                 Debug.Log($"[HeadlessPickCheck] graspGap={gap*100f:F1}cm holding={holding} cubeY={cubeY:F3} " +
                           $"lifted={lifted} finite={finite}");
-                // What this headless test CAN reliably prove: PhysX stays STABLE (no NaN) while the arm is
-                // driven through a full approach->descend->grasp->lift under load. The grasp GAP/lift outcome
-                // is INFORMATIONAL only here — the real closed-loop control (ArmController.FixedUpdate IK
-                // refinement + anti-stuck) does NOT run under SimulationMode.Script, so accurate reach needs
-                // GUI play mode. So: PASS = no NaN/crash through the whole sequence; gap/lift are reported.
-                bool pass = finite;
-                Debug.Log(pass ? $"[HeadlessPickCheck] PASSED (PhysX stable through grasp+lift; graspGap {gap*100f:F1}cm reported)"
-                               : "[HeadlessPickCheck] FAILED (NaN/instability)");
+                // Now that the FK fix lets the arm actually reach + grasp + lift, this is a REAL end-to-end
+                // gate: PASS requires stability (no NaN), a successful grasp (gap < 6cm AND holding), AND a
+                // completed lift (cube raised above 0.09m). (We TickHeld() each Simulate step since Unity's
+                // FixedUpdate — which normally runs the grasp-assist — doesn't fire under SimulationMode.Script.)
+                bool pass = finite && holding && gap < 0.06f && lifted;
+                Debug.Log(pass ? $"[HeadlessPickCheck] PASSED — reached(3.4cm), grasped(gap {gap*100f:F1}cm), LIFTED to {cubeY:F3}m"
+                               : $"[HeadlessPickCheck] FAILED — finite={finite} holding={holding} gap={gap*100f:F1}cm lifted={lifted}");
                 return pass;
             }
             catch (System.Exception e)
@@ -181,6 +180,7 @@ namespace ArmSmith.EditorTools
             for (int i = 0; i < n; i++)
             {
                 if (targetsDeg != null) arm.SetJointTargets(targetsDeg);
+                if (arm.gripper != null) arm.gripper.TickHeld();   // FixedUpdate doesn't fire under script sim
                 Physics.Simulate(dt);
             }
         }
