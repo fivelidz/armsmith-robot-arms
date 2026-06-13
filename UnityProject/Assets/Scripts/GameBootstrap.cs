@@ -439,7 +439,12 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.Alpha8) && pathViz != null) pathViz.show = !pathViz.show;
             if (Input.GetKeyDown(KeyCode.Alpha9) && diffDemo != null) diffDemo.vizEnabled = !diffDemo.vizEnabled;
             if (Input.GetKeyDown(KeyCode.Alpha7) && denoiseDemo != null) denoiseDemo.vizEnabled = !denoiseDemo.vizEnabled;
-            if (Input.GetKeyDown(KeyCode.Alpha6) && mpdPlanner != null) { mpdPlanner.vizEnabled = !mpdPlanner.vizEnabled; mpdPlanner.ReplanNow(); }
+            if (Input.GetKeyDown(KeyCode.Alpha6) && mpdPlanner != null)
+            {
+                mpdPlanner.vizEnabled = !mpdPlanner.vizEnabled; mpdPlanner.ReplanNow();
+                // show/hide the obstacle rings the planner is routing around (PV4)
+                if (pathViz != null) pathViz.SetObstacleField(mpdPlanner.vizEnabled ? mpdPlanner.Field : null);
+            }
             if (Input.GetKeyDown(KeyCode.Alpha5) && pathFollower != null) { if (mpdPlanner != null) mpdPlanner.vizEnabled = true; pathFollower.Begin(); }
             if (Input.GetKeyDown(KeyCode.Alpha4) && policyClient != null) { if (policyClient.Running) policyClient.Stop(); else policyClient.Begin(); }
             // Accumulate the executed tip trail (every ~30 ms, capped length).

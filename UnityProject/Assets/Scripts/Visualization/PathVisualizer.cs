@@ -43,6 +43,12 @@ namespace ArmSmith.Visualization
         TrajectorySet pushedPlanned;     // candidate / planned trajectories
         TrajectorySample pushedExecuted; // the actually-executed path (drawn distinctly)
 
+        // PV4: optional obstacle field to visualize (drawn as wire rings so you SEE what the planner dodges)
+        public bool drawObstacles = true;
+        public Color obstacleColor = new Color(1f, 0.4f, 0.2f, 0.5f);
+        ObstacleField obstacleField;
+        public void SetObstacleField(ObstacleField f) { obstacleField = f; }
+
         // ---- public API ----------------------------------------------------------------
         public void Register(ITrajectoryProvider p) { if (p != null && !providers.Contains(p)) providers.Add(p); }
         public void Unregister(ITrajectoryProvider p) { providers.Remove(p); }
@@ -85,7 +91,38 @@ namespace ArmSmith.Visualization
             if (pushedExecuted != null && pushedExecuted.Count > 1)
                 DrawPolyline(pushedExecuted.points, executedColor, Mathf.Max(lineThickness, 2));
 
+            if (drawObstacles && obstacleField != null) DrawObstacles(obstacleField);
+
             GL.PopMatrix();
+        }
+
+        // PV4: draw each obstacle as 3 orthogonal wire circles (cheap, clearly readable) so the human sees
+        // exactly what the diffusion planner is routing around.
+        void DrawObstacles(ObstacleField f)
+        {
+            const int seg = 20;
+            for (int i = 0; i < f.Count; i++)
+            {
+                var s = f.Spheres[i];
+                DrawCircle(s.center, s.radius, Vector3.up, Vector3.right, seg);     // horizontal
+                DrawCircle(s.center, s.radius, Vector3.right, Vector3.forward, seg); // vertical-x
+                DrawCircle(s.center, s.radius, Vector3.forward, Vector3.up, seg);    // vertical-z
+            }
+        }
+
+        void DrawCircle(Vector3 c, float r, Vector3 axisA, Vector3 axisB, int seg)
+        {
+            GL.Begin(GL.LINES);
+            GL.Color(obstacleColor);
+            Vector3 prev = c + axisA * r;
+            for (int k = 1; k <= seg; k++)
+            {
+                float t = k / (float)seg * Mathf.PI * 2f;
+                Vector3 p = c + (axisA * Mathf.Cos(t) + axisB * Mathf.Sin(t)) * r;
+                GL.Vertex(prev); GL.Vertex(p);
+                prev = p;
+            }
+            GL.End();
         }
 
         void DrawSet(TrajectorySet set)
