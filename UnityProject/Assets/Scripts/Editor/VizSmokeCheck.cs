@@ -79,6 +79,51 @@ namespace ArmSmith.EditorTools
                 if (!ts.samples[1].chosen || ts.samples[0].chosen || ts.samples[2].chosen)
                 { Debug.LogError("[Viz] MarkBestChosen picked wrong sample"); fails++; }
 
+                // 5) ObstacleField cost/gradient sanity
+                var of = new ObstacleField();
+                of.AddSphere(new Vector3(0, 0.05f, 0.3f), 0.06f);
+                if (of.Cost(new Vector3(0, 0.05f, 0.3f)) <= 0f) { Debug.LogError("[Viz] cost at obstacle center should be >0"); fails++; }
+                if (of.Cost(new Vector3(1f, 0.05f, 0.3f)) != 0f) { Debug.LogError("[Viz] cost far away should be 0"); fails++; }
+                var grad = of.Gradient(new Vector3(0.04f, 0.05f, 0.3f));
+                if (grad.x <= 0f) { Debug.LogError("[Viz] gradient should push +x away from obstacle"); fails++; }
+
+                // 6) DiffusionMotionPlanner — multimodal, anchored, AVOIDS the obstacle, best is collision-free
+                var mpd = go.AddComponent<DiffusionMotionPlanner>();
+                mpd.autoResolveScene = false;
+                mpd.start = new Vector3(0.16f, 0.06f, 0.30f);
+                mpd.goal  = new Vector3(-0.16f, 0.06f, 0.30f);
+                mpd.candidates = 5;
+                // put an obstacle right on the straight line between start and goal
+                mpd.Field.Clear();
+                mpd.Field.AddSphere(new Vector3(0f, 0.06f, 0.30f), 0.05f);
+                var plan = mpd.Plan(false);   // plan against the manually-set field (no scene repopulate)
+                if (plan == null || plan.Count < 3) { Debug.LogError($"[Viz] planner produced {(plan==null?0:plan.Count)} paths"); fails++; }
+                else
+                {
+                    // endpoints anchored?
+                    foreach (var smp in plan.samples)
+                    {
+                        if (Vector3.Distance(smp.points[0], mpd.start) > 1e-3f) { Debug.LogError("[Viz] planner start not anchored"); fails++; break; }
+                        if (Vector3.Distance(smp.points[smp.Count-1], mpd.goal) > 1e-3f) { Debug.LogError("[Viz] planner goal not anchored"); fails++; break; }
+                    }
+                    if (!Finite(plan.samples[0])) { Debug.LogError("[Viz] planner path non-finite"); fails++; }
+                    int chosen = 0; foreach (var smp in plan.samples) if (smp.chosen) chosen++;
+                    if (chosen != 1) { Debug.LogError($"[Viz] planner chosen count {chosen} != 1"); fails++; }
+                    // multimodality: not all paths identical (different seeds explore different routes)
+                    bool distinct = false;
+                    for (int i = 1; i < plan.Count; i++)
+                        if (Vector3.Distance(plan.samples[0].points[plan.samples[0].Count/2], plan.samples[i].points[plan.samples[i].Count/2]) > 0.02f) { distinct = true; break; }
+                    if (!distinct) { Debug.LogError("[Viz] planner paths not multimodal (all same)"); fails++; }
+                    // the CHOSEN path should be (near) collision-free given the obstacle is dodgeable
+                    TrajectorySample best = null; foreach (var smp in plan.samples) if (smp.chosen) best = smp;
+                    if (best != null)
+                    {
+                        float maxc = mpd.Field.MaxCostAlong(best.points);
+                        Debug.Log($"[Viz] planner chosen path maxCollisionCost={maxc:F3}");
+                        if (maxc > 1.0f) { Debug.LogError($"[Viz] chosen path still deep in obstacle (cost {maxc:F2})"); fails++; }
+                    }
+                }
+
                 Debug.Log(fails == 0 ? "[VizSmokeCheck] PASSED — providers + data helpers all sane."
                                      : $"[VizSmokeCheck] FAILED — {fails} check(s) failed.");
                 return fails == 0;
