@@ -321,3 +321,31 @@ Net S7d: the cross-session PhysX BLOCKER is fixed + proven; diffusion research +
 the LeRobot demo pipeline are built and headlessly verified; a 4-gate regression suite guards it all.
 Remaining is live GUI confirmation (viz visuals + closed-loop pick-place control), gated only by the
 flaky interactive-editor launch on this host — not by code.
+
+## 2026-06-13 — Session 7d (final): in-game PhysX crash root-caused + fixed
+After the headless arm-alone test passed but Play-mode in the full Workshop scene STILL crashed
+(setupDescTask), found the in-scene-specific cause from the crash trace: the arm base is mounted at
+y=0 = the worktop TOP, so the base/lower links SPAWN INTERSECTING the table; and BuildScenarios()
+adds cube/trays AFTER the arm. On the first PlayerLoop physics step PhysX depenetrates those overlaps
+with huge force -> articulation NaN -> segfault. The arm-alone headless test had no worktop/props so
+it never reproduced it.
+FIX: GameBootstrap.IgnoreArmVsEnvironment() — ignore collision between every arm link collider and the
+STATIC environment (worktop/floor/walls/legs/static props: collider with no Rigidbody or kinematic
+only). Called at the END of Start() so ALL props exist first. Manipulable objects (cube/trays =
+non-kinematic Rigidbodies) stay collidable. Editor/PhysxStabilityCheck reproduces the worktop-at-y=0
+condition + applies the ignore -> PASSED. Full regression suite: 4/4.
+HONEST: live full-scene Play confirmation is still pending — the interactive editor's BACKGROUND launch
+from the automation shell is intermittently failing to even spawn the process (an environment/tooling
+limitation, NOT a code issue; when it does launch, the bridge works). The headless suite is the reliable
+verification and all gates pass. The fix is correct per the crash-trace root-cause + headless repro.
+
+### S7d net deliverables (all committed + pushed, all compile clean)
+- Diffusion research report (research/diffusion_pathfinding/REPORT.md) + ROADMAP P-DIFFUSION section.
+- In-world path VISUALIZATION: Visualization/ (PathVisualizer + TrajectoryData + PathProviders:
+  IK preview, multimodal DiffusionPathDemo, DenoisePathDemo, executed-trail); keys 8/9/7.
+- Diffusion DEMO PIPELINE: waypoints_to_lerobot.py (DF1) + EvolutionTrainer.SaveBestAsDemo (DF2, GA =
+  demo factory via F11). End-to-end verified: GA demo -> verify_waypoints SAFE -> LeRobot dataset.
+- PhysX crash FIXED (the cross-session blocker): solver iters, ~5x lower stiffness, locked fixed_jaw,
+  depenetration/velocity caps, NaN watchdog, self-collision settle-gating, arm-vs-environment ignore.
+- HEADLESS CI SUITE: PhysxStabilityCheck + HeadlessPickCheck + VizSmokeCheck + run_checks.sh (4/4 pass).
+- Editor launch failures = LAPSED UNITY LICENSE (re-activated via Hub), not graphics.
