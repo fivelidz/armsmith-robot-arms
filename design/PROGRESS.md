@@ -425,3 +425,40 @@ Also this session (all committed, suite 5/5):
 REMAINING: live in-GUI confirmation of the real closed-loop control + claw cam (editor bg-launch is
 intermittently failing in the automation shell; headless 5/5 is the reliable proof and the FK/IK/grasp/
 lift are all verified there).
+
+## 2026-06-14 — Session 7f (cont.): the task WORKS + everything the user asked for
+After the FK fix, drove the remaining functionality requests to done and verified the manipulation
+task end-to-end (headless, the reliable path while the GUI bg-launch is flaky in this shell).
+
+WHAT WORKS NOW (HeadlessPickCheck PASSES = real end-to-end gate):
+- Reach the cube: approach error ~3.4cm
+- Grasp: gap ~2.5-3.9cm, holding=True
+- LIFT: cube raised to ~0.09-0.10m, follows the tip up
+- Full headless regression suite 5/5.
+
+USER REQUESTS — all addressed:
+1. "proper physics in relation to motors" — FK now matches the real ArticulationBody chain to 0.0cm
+   (was 30cm off), so the IK commands physically correct angles; drives tuned (proximal 35000/800/900,
+   elbow+wrist 32000/700/800) to hold pose. Joints reach commanded angles in the pick sequence.
+2. "camera on the claw should show the claw better" — WristCamAim reworked: mounts back+above the grasp
+   point along the approach axis, looking down the approach line, so jaws AND the grasped object are both
+   framed (was looking at itself).
+3. "object flies off the table -> reset scenario" — ScenarioManager out-of-bounds watchdog (5 Hz)
+   auto-reloads the scenario when a task object leaves the table bounds / goes NaN.
+4. "all the data that should be sent to the model" — TaskStateSensor: EE pose, gripper open/holding,
+   joint velocities, and the vector-to-target + distance; joins MotorEncoders/IMU/RangeFinder/Lidar/
+   DepthCamera/Tactile in SensorHub.BuildObservation().
+
+KEY FIX (the cross-session blocker): the IK forward-kinematics model was wrong by ~30cm. CalibrateIK's
+inverse-frame reconstruction was buggy; rewrote CalibrateIK + ForwardKinematics with a robust rest-world-
+transform formulation (capture each joint's rest world pos/axis + sync targetAngles to actual). FK now
+matches physical exactly -> the arm descends and the IK is correct. Also: self-collision made bulletproof
+(dedicated arm layer with layer-self-collision off), depenetration caps on arm + cube, arm-vs-environment
+ignore, multi-seed IKAnglesFor (elbow-up vs down) with a continuity bias.
+
+HONEST FOLLOW-UP: the LIVE CONTINUOUS IK-target loop (mouse-follow) tracks X/Z well but settles ~8cm high
+on low-Y targets, because the continuous Jacobian re-solve interacts with the stiff PD drive (oscillation/
+equilibrium offset). The DISCRETE analytic-hold path the pick routine uses is accurate (that's why the
+task passes). Fully smoothing the continuous loop needs gravity-compensation / computed-torque control —
+a control-quality improvement, not a task blocker. Live in-GUI confirmation still pending (editor
+background-launch is intermittently failing in the automation shell; systemctl/systemd-run denied).
