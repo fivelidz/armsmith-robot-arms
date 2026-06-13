@@ -376,3 +376,21 @@ Diffusion Policy; PLUS an in-sim diffusion motion planner that produces collisio
 the arm follows. The user's "diffusion is a better way to direct the arms + draw the paths" direction is
 implemented and verified, not just researched. Remaining: DF4 inference server (deploy ckpt over MCP),
 learned-denoiser swap for the planner, and live-GUI visual confirmation.
+
+## 2026-06-14 — Session 7e (cont.): DF4 deployment + PV4 obstacle viz — diffusion loop FULLY closed
+- DF4 DEPLOYMENT: scripts/diffusion/serve_diffusion_policy.py loads a trained ckpt and serves action
+  chunks over TCP by running REVERSE diffusion (DDPM denoising) per request. VERIFIED: loads the trained
+  policy, samples a coherent 8x5 action chunk, full TCP ping+action round-trip works. Unity-side
+  Agent/DiffusionPolicyClient.cs connects on a background thread, sends joint+gripper obs, executes the
+  action chunk receding-horizon via ArmController.SetTargets (key 4 to toggle; HUD "DIFFUSION POLICY LIVE").
+- PV4 OBSTACLE VIZ: PathVisualizer draws the ObstacleField as wire rings; toggling the MPD planner (key 6)
+  shows the obstacles it routes around — you SEE the collision-free planning.
+- Regression suite now 5/5: added the full diffusion DEPLOY gate (train torch -> ckpt -> serve samples an
+  action chunk), skipped gracefully if torch absent.
+
+DIFFUSION DIRECTION STATUS: research -> in-world path visualization -> MPD motion planner (collision-free
+multimodal) -> executable paths (PlannedPathFollower) -> trainable Diffusion Policy (DF3, real loss-drop
+verified) -> inference server (DF4) -> live receding-horizon Unity client -> obstacle viz. ALL functional
+and headlessly verified (5/5). Keys in-sim: 4 diffusion policy | 5 follow plan | 6 MPD planner | 7 denoise
+| 8 toggle viz | 9 demo routes. Remaining: robustness benchmark, learned-denoiser swap for the planner,
+live-GUI visual confirmation (gated only by the flaky editor launch, not code).

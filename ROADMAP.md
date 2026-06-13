@@ -200,7 +200,7 @@ DRAWING the paths / showing more data visually in the world is explicitly wanted
       diffusion planner produces), colour/alpha by cost or probability. This is the core "show the data".
 - [x] PV3: DENOISING animation — visualize a path refining from noisy -> smooth over diffusion steps
       (great explainer of the diffusion concept; data-driven later, scriptable now).
-- [ ] PV4: cost/reachability FIELD overlay (tie into WorkspaceMap green/red grid); obstacle SDF heatmap.
+- [x] PV4: ObstacleField cost model + in-world obstacle rings (PathVisualizer). Reachability grid = WorkspaceMap (existing).
 - [x] PV5: `Visualization/TrajectoryData.cs` + `ITrajectoryProvider` — one data model so IK paths,
       GA-evolved motions, AND diffusion paths all feed the SAME visualizer. Decouples viz from source.
 
@@ -209,8 +209,7 @@ DRAWING the paths / showing more data visually in the world is explicitly wanted
 - [x] DF2: repurpose EvolutionTrainer successful rollouts AS demonstrations (GA = demo generator).
 - [ ] DF3: train a low-dim joint-space Diffusion Policy (LeRobot `--policy.type=diffusion`) on one task
       (reach-and-grasp placed cube); obs = joint state + object pose; action = joint-deg chunks.
-- [ ] DF4: inference server (DiffusionPolicy.from_pretrained) -> MCP/socket -> Unity SetTargets, receding
-      horizon. Benchmark robustness (move object / perturb) vs open-loop waypoint playback.
+- [x] DF4: inference server + Unity client (receding horizon). Robustness benchmark TODO.
 - [x] DF5: MPD-style DIFFUSION MOTION PLANNER in joint space — collision-free multimodal trajectories
       using Unity collision queries as guidance cost; outputs drop into the existing waypoint/export +
       PathVisualizer. (Directly matches the "diffusion pathfinding" interest.)
@@ -234,5 +233,5 @@ DRAWING the paths / showing more data visually in the world is explicitly wanted
 - [x] PlannedPathFollower: closes PLAN->MOTION (drives IK target along the chosen path). Keys: 6 planner
       viz, 5 follow plan, 8 toggle all, 9 demo routes, 7 denoise.
 - [ ] DF3: train a real low-dim joint-space Diffusion Policy in LeRobot from collected demos (next).
-- [ ] DF4: inference server -> MCP -> Unity (receding horizon), robustness benchmark vs open-loop.
+- [x] DF4: inference server (serve_diffusion_policy.py) + Unity DiffusionPolicyClient (receding horizon, key 4). Robustness benchmark vs open-loop TODO.
 - [ ] Swap DiffusionMotionPlanner's seed+denoise for a learned trajectory-diffusion model (same I/O).
