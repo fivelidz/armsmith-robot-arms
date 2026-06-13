@@ -217,6 +217,14 @@ namespace ArmSmith
             var selfCol = armGo.AddComponent<SelfCollision>();
             selfCol.Setup(arm);
 
+            // S7d CRASH FIX: the arm base sits at y=0 = the worktop TOP, so the base/lower links spawn
+            // INTERSECTING the table. On the first physics step PhysX depenetrates that overlap with huge
+            // force -> articulation NaN -> setupDescTask segfault (the in-game-only crash the headless
+            // arm-alone test didn't reproduce). The arm is MOUNTED on the table, so it must never collide
+            // with the static environment (worktop/floor/walls/legs). Ignore those pairs. Manipulable
+            // objects (cube/trays — they have non-kinematic Rigidbodies) stay collidable.
+            IgnoreArmVsEnvironment(arm);
+
             // Reachable-workspace map (Shift+\ to compute+show): green=reachable, red=unreachable cells.
             workspaceMap = armGo.AddComponent<WorkspaceMap>();
 
@@ -527,6 +535,31 @@ namespace ArmSmith
             // (GA = diffusion demo factory). Every F11 export grows the demonstration corpus.
             string demoPath = trainer.SaveBestAsDemo();
             if (demoPath != null) Debug.Log($"[Export] + GA demo for diffusion -> {demoPath}");
+        }
+
+        // Ignore collision between every arm link collider and the STATIC environment (worktop, floor,
+        // walls, legs). The arm is bolted to the table at y=0, so its base overlaps the worktop top by
+        // design — colliding them depenetrates violently on frame 1 and crashes PhysX. Static = collider
+        // with no Rigidbody and no non-kinematic ArticulationBody, excluding the arm itself. Manipulable
+        // props (cube/trays) have non-kinematic Rigidbodies and are intentionally NOT ignored.
+        void IgnoreArmVsEnvironment(ProceduralArm a)
+        {
+            if (a == null) return;
+            var armCols = new System.Collections.Generic.List<Collider>();
+            if (a.baseBody != null) armCols.AddRange(a.baseBody.GetComponentsInChildren<Collider>());
+            foreach (var ab in a.jointBodies)
+                if (ab != null) armCols.AddRange(ab.GetComponentsInChildren<Collider>());
+
+            foreach (var ec in FindObjectsOfType<Collider>())
+            {
+                if (ec == null) continue;
+                if (ec.GetComponentInParent<ProceduralArm>() != null) continue;   // skip the arm itself
+                var rb = ec.attachedRigidbody;
+                if (rb != null && !rb.isKinematic) continue;                       // skip manipulable props
+                // treat the rest (worktop/floor/walls/legs and any static collider) as environment
+                foreach (var ac in armCols)
+                    if (ac != null) Physics.IgnoreCollision(ac, ec, true);
+            }
         }
 
         static Material Mat(Color c)

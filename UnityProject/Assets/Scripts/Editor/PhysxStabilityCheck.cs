@@ -72,6 +72,20 @@ namespace ArmSmith.EditorTools
                 var selfCol = armGo.AddComponent<SelfCollision>();
                 selfCol.Setup(arm);
 
+                // REPRODUCE the in-game crash condition: a worktop whose TOP is exactly y=0, so the arm
+                // base (at y=0) intersects it — the depenetration that crashed PhysX in the full scene.
+                var worktop = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                worktop.name = "Worktop";
+                worktop.transform.position = new Vector3(0f, -0.025f, 0.25f);   // top at y=0
+                worktop.transform.localScale = new Vector3(0.8f, 0.05f, 0.8f);
+
+                // Apply the same fix GameBootstrap does: ignore arm-vs-static-environment collisions.
+                var armCols = new System.Collections.Generic.List<Collider>();
+                if (arm.baseBody != null) armCols.AddRange(arm.baseBody.GetComponentsInChildren<Collider>());
+                foreach (var ab in arm.jointBodies) if (ab != null) armCols.AddRange(ab.GetComponentsInChildren<Collider>());
+                var wcol = worktop.GetComponent<Collider>();
+                foreach (var ac in armCols) if (ac != null) Physics.IgnoreCollision(ac, wcol, true);
+
                 // Step physics; watch for divergence.
                 for (int i = 0; i < steps; i++)
                 {
