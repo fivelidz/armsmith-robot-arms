@@ -40,6 +40,7 @@ namespace ArmSmith
         ArmSmith.Visualization.DiffusionPathDemo diffDemo;
         ArmSmith.Visualization.DenoisePathDemo denoiseDemo;
         ArmSmith.Visualization.DiffusionMotionPlanner mpdPlanner;
+        ArmSmith.Visualization.PlannedPathFollower pathFollower;
         ArmSmith.Visualization.TrajectorySample executedPath;
         float execTrailTimer;
         ServoCallouts servoCallouts;
@@ -284,6 +285,10 @@ namespace ArmSmith
             mpdPlanner.vizEnabled = false;
             pathViz.Register(mpdPlanner);
 
+            // PLAN -> MOTION: follows the planner's chosen collision-free path with the arm (key 5).
+            pathFollower = armGo.AddComponent<ArmSmith.Visualization.PlannedPathFollower>();
+            pathFollower.controller = controller; pathFollower.arm = arm; pathFollower.planner = mpdPlanner;
+
             // Executed-tip trail accumulator.
             executedPath = new ArmSmith.Visualization.TrajectorySample { label = "executed" };
             pathViz.SetExecuted(executedPath);
@@ -428,6 +433,7 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.Alpha9) && diffDemo != null) diffDemo.vizEnabled = !diffDemo.vizEnabled;
             if (Input.GetKeyDown(KeyCode.Alpha7) && denoiseDemo != null) denoiseDemo.vizEnabled = !denoiseDemo.vizEnabled;
             if (Input.GetKeyDown(KeyCode.Alpha6) && mpdPlanner != null) { mpdPlanner.vizEnabled = !mpdPlanner.vizEnabled; mpdPlanner.ReplanNow(); }
+            if (Input.GetKeyDown(KeyCode.Alpha5) && pathFollower != null) { if (mpdPlanner != null) mpdPlanner.vizEnabled = true; pathFollower.Begin(); }
             // Accumulate the executed tip trail (every ~30 ms, capped length).
             if (executedPath != null && arm != null && arm.endEffector != null)
             {
@@ -459,7 +465,7 @@ namespace ArmSmith
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount : "Backspace")} | <color=#9f9>Ctrl+S save / Ctrl+L load</color>\n" +
                 $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best(+GA demo)\n" +
-                $"<color=#9cf>Path viz:</color> 8 toggle | 6 MPD planner (collision-free) | 9 demo routes | 7 denoise | (IK preview + trail always on)\n" +
+                $"<color=#9cf>Path viz:</color> 8 toggle | 6 MPD planner | 5 FOLLOW plan | 9 demo routes | 7 denoise | (IK preview + trail on)\n" +
                 $"<color=#cdf>Sequence:</color> K capture pt ({sequence.Count}), J play{(sequence.Playing ? " <color=#6f6>[PLAYING " + (sequence.PlayIndex + 1) + "]</color>" : "")}, Shift+Backspace del, F6... export\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
                 $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +

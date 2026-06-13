@@ -80,6 +80,31 @@ namespace ArmSmith.EditorTools
                     Step(arm, dt, n, ang);
                 };
 
+                // PLANNER REACHABILITY: run the diffusion motion planner from the tip to the cube and check
+                // the chosen collision-free path is mostly IK-reachable (so PlannedPathFollower could follow
+                // it). Reports the worst analytic reach error along the path. Informational (planner paths
+                // are EE-space; some edge points near the workspace limit may be marginal).
+                try
+                {
+                    var plannerGo = new GameObject("hp_planner");
+                    var planner = plannerGo.AddComponent<ArmSmith.Visualization.DiffusionMotionPlanner>();
+                    planner.autoResolveScene = false;
+                    planner.start = arm.endEffector != null ? arm.endEffector.position : new Vector3(0.10f, 0.12f, 0.28f);
+                    planner.goal = cubeGo.transform.position + Vector3.up * 0.06f;
+                    planner.Field.Clear();
+                    var plan = planner.Plan(false);
+                    ArmSmith.Visualization.TrajectorySample chosen = null;
+                    foreach (var smp in plan.samples) if (smp.chosen) chosen = smp;
+                    if (chosen != null)
+                    {
+                        float worst = 0f; int reach = 0;
+                        foreach (var p in chosen.points) { float e = ctrl.TestReach(p); worst = Mathf.Max(worst, e); if (e < 0.04f) reach++; }
+                        Debug.Log($"[HeadlessPickCheck] planner path: {chosen.Count} pts, {reach} reachable(<4cm), worstReach={worst*100f:F1}cm");
+                    }
+                    Object.DestroyImmediate(plannerGo);
+                }
+                catch (System.Exception e) { Debug.LogWarning("[HeadlessPickCheck] planner reach probe skipped: " + e.Message); }
+
                 var grip = arm.gripper;
                 if (grip == null) { Debug.LogError("[HeadlessPickCheck] no gripper."); return false; }
 
