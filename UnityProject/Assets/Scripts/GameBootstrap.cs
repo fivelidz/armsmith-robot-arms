@@ -77,6 +77,11 @@ namespace ArmSmith
             BuildSensors();   // pluggable sensor modules (needs wrist cam from BuildCameras)
             BuildTrainer();   // capture home pose AFTER Bind
             BuildHud();
+
+            // S7d: do the arm-vs-static-environment collision ignore AFTER everything is built (worktop,
+            // walls, scenario props all exist now), so no overlapping static collider is missed before the
+            // first physics step depenetrates it into a PhysX NaN crash.
+            if (arm != null) IgnoreArmVsEnvironment(arm);
         }
 
         void BuildSensors()
@@ -217,13 +222,6 @@ namespace ArmSmith
             var selfCol = armGo.AddComponent<SelfCollision>();
             selfCol.Setup(arm);
 
-            // S7d CRASH FIX: the arm base sits at y=0 = the worktop TOP, so the base/lower links spawn
-            // INTERSECTING the table. On the first physics step PhysX depenetrates that overlap with huge
-            // force -> articulation NaN -> setupDescTask segfault (the in-game-only crash the headless
-            // arm-alone test didn't reproduce). The arm is MOUNTED on the table, so it must never collide
-            // with the static environment (worktop/floor/walls/legs). Ignore those pairs. Manipulable
-            // objects (cube/trays — they have non-kinematic Rigidbodies) stay collidable.
-            IgnoreArmVsEnvironment(arm);
 
             // Reachable-workspace map (Shift+\ to compute+show): green=reachable, red=unreachable cells.
             workspaceMap = armGo.AddComponent<WorkspaceMap>();
