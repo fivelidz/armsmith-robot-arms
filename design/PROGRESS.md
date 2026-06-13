@@ -301,3 +301,23 @@ Big session. Three threads, all landed.
 Remaining: live GUI visual confirmation of the path viz + a full multi-trial pick-place (the editor's
 BACKGROUND launch from the automation shell is currently flaky; headless verification is solid). All code
 compiles clean and is committed+pushed.
+
+## 2026-06-13 — Session 7d (cont.): diffusion pipeline closed + headless CI suite
+After fixing the PhysX crash, built out the diffusion data pipeline AND a reliable headless test suite
+(since the GUI is flaky on this Wayland/AMD stack, headless verification is the dependable path).
+
+- DF2: EvolutionTrainer.SaveBestAsDemo() — F11 export now also writes the best evolved genome as an
+  armsmith.waypoints.v1 demo into Exports/Demos/. The GA is now a DEMONSTRATION FACTORY for diffusion.
+- Headless CI gates (all -executeMethod, no GUI, all PASS):
+  * Editor/PhysxStabilityCheck.cs — real arm + 600 Simulate steps, fail on NaN (PASSED 3/3).
+  * Editor/HeadlessPickCheck.cs — approach->grasp->lift stays finite under load (PASSED).
+  * Editor/VizSmokeCheck.cs — path-viz providers + TrajectoryData helpers sane (PASSED).
+- scripts/run_checks.sh — one command runs all 4 gates incl. the Python diffusion pipeline
+  (GA demo -> verify_waypoints SAFE -> waypoints_to_lerobot dataset). VERIFIED: 4 passed, 0 failed.
+- End-to-end loop proven: GA-style demo (grasp+lift keyframes) -> safety verifier SAFE -> LeRobot
+  dataset (3 eps / 96 frames / 5-dim / 20 fps + norm stats). Every link of GA->diffusion works.
+
+Net S7d: the cross-session PhysX BLOCKER is fixed + proven; diffusion research + in-world path viz +
+the LeRobot demo pipeline are built and headlessly verified; a 4-gate regression suite guards it all.
+Remaining is live GUI confirmation (viz visuals + closed-loop pick-place control), gated only by the
+flaky interactive-editor launch on this host — not by code.
