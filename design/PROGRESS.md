@@ -349,3 +349,30 @@ verification and all gates pass. The fix is correct per the crash-trace root-cau
   depenetration/velocity caps, NaN watchdog, self-collision settle-gating, arm-vs-environment ignore.
 - HEADLESS CI SUITE: PhysxStabilityCheck + HeadlessPickCheck + VizSmokeCheck + run_checks.sh (4/4 pass).
 - Editor launch failures = LAPSED UNITY LICENSE (re-activated via Hub), not graphics.
+
+## 2026-06-14 — Session 7e: diffusion planner + trainable policy (the "direct the arms" direction, working)
+Continued the diffusion pillar from research/scaffolding into FUNCTIONAL code, all headless-verified.
+
+- DF5 DIFFUSION MOTION PLANNER (C#, in-sim): Visualization/DiffusionMotionPlanner.cs + ObstacleField.cs.
+  "Planning as denoising": seed K noisy candidate trajectories (each a different mode) -> iterate
+  smoothing-prior + cost-guided push away from obstacles (classifier guidance) + endpoint anchoring
+  (inpainting) + floor clamp -> score by length+collision, mark best chosen. Fixed a gradient-sign bug
+  (was pushing INTO obstacles). VERIFIED headless: chosen path collision-free (cost 0.0) with an obstacle
+  on the straight line, multimodal, endpoints anchored, exactly-one chosen. Drawn by PathVisualizer (key 6).
+- PLAN->MOTION: Visualization/PlannedPathFollower.cs drives the IK target along the chosen path
+  (receding-horizon style). HeadlessPickCheck probe: planner path 24 pts, ALL 24 IK-reachable (<4cm,
+  worst 0.4cm) — the arm can actually follow the planned collision-free trajectory. Key 5 = follow.
+- DF3 TRAINABLE DIFFUSION POLICY (Python): scripts/diffusion/train_diffusion_policy.py — low-dim
+  joint-space Diffusion Policy (Chi et al. recipe). torch backend = self-contained conditional-DDPM
+  (obs=recent joint states, action=future joint+gripper chunk). REAL RUN VERIFIED: loss 1.00->0.66 over
+  40 epochs on 3 GA demos, 362KB checkpoint saved (torch 2.10). lerobot backend prints the exact
+  lerobot-train invocation. --dry-run works with no ML deps. scripts/diffusion/README.md documents the
+  full loop.
+- run_checks.sh extended: the diffusion-pipeline gate now also runs the DF3 train dry-run. Full suite
+  still 4/4 (gate 4 = demo -> SAFE -> dataset -> train dry-run).
+
+THE FULL DIFFUSION LOOP NOW WORKS END-TO-END: Unity GA demos -> waypoints -> LeRobot dataset -> trained
+Diffusion Policy; PLUS an in-sim diffusion motion planner that produces collision-free multimodal paths
+the arm follows. The user's "diffusion is a better way to direct the arms + draw the paths" direction is
+implemented and verified, not just researched. Remaining: DF4 inference server (deploy ckpt over MCP),
+learned-denoiser swap for the planner, and live-GUI visual confirmation.

@@ -71,10 +71,16 @@ traj={"arm_type":"so101","schema":"armsmith.waypoints.v1","units":"degrees","joi
 os.makedirs(d+"/demos",exist_ok=True)
 open(d+"/demos/ga0.waypoints.json","w").write(json.dumps(traj))
 PY
+DIFF="$(dirname "$0")/diffusion"
 if python3 "$REALBOT/verify_waypoints.py" "$TMP/demos/ga0.waypoints.json" >/dev/null 2>&1; then
   if python3 "$REALBOT/waypoints_to_lerobot.py" "$TMP/demos" -o "$TMP/ds" >/dev/null 2>&1 \
      && [ -f "$TMP/ds/manifest.json" ]; then
-    echo "  [PASS] Diffusion pipeline (demo -> SAFE -> dataset)"; PASS=$((PASS+1))
+    # also exercise the DF3 training dry-run (validates dataset -> trainer plumbing, no ML deps)
+    if python3 "$DIFF/train_diffusion_policy.py" "$TMP/ds" --dry-run >/dev/null 2>&1; then
+      echo "  [PASS] Diffusion pipeline (demo -> SAFE -> dataset -> train dry-run)"; PASS=$((PASS+1))
+    else
+      echo "  [FAIL] Diffusion pipeline — train dry-run failed"; FAIL=$((FAIL+1))
+    fi
   else
     echo "  [FAIL] Diffusion pipeline — converter failed"; FAIL=$((FAIL+1))
   fi
