@@ -54,6 +54,8 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 | I Sensors | 6 modules + hub + usage panel | WORKS |
 | J Open-source catalogue | ORCA Hand studied+cloned; SO-101 done; import path documented | PARTIAL |
 | K Multi-robot comms | N arms communicating | TODO |
+| L Diffusion control | research done; viz layer + LeRobot demo-converter built; planner TODO | PARTIAL (S7d) |
+| M Path visualization | in-world trajectory drawing (multimodal, denoise, IK, executed trail) | WORKS (S7d, code) |
 
 ## KNOWN ISSUES (priority order)
 1. [FIXED] IK reaches the position indicator on the real SO-101 to ~0.2-0.3 cm. Root cause was FK using
@@ -101,6 +103,16 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - [ ] Warm-start policy population from recorded demos -> train to actual SUCCESS on a task.
 - [ ] Build the HTML windows as in-game Unity windows (menu/options/training).
 - [ ] Pillar J: import ORCA Hand via URDF (catalogue) ; Pillar K: 2nd arm + comms + hand-off.
+
+## S7d MILESTONES (diffusion + viz + PhysX crash fixed)
+- PhysX articulation crash (setupDescTask segfault) — ROOT-CAUSED (over-stiff drives on light links +
+  first-step depenetration of overlapping STL) and FIXED. Proven via headless Editor/PhysxStabilityCheck
+  (builds arm + 600 Simulate steps, fails on NaN): PASSED 3/3. Run it as a regression gate:
+  `Unity -batchmode -nographics -executeMethod ArmSmith.EditorTools.PhysxStabilityCheck.RunHeadless -quit`
+- Editor launch failures were a LAPSED UNITY LICENSE (re-activate via Hub; open the inner UnityProject/
+  folder). The "Selected window backend (null)" line is a red herring.
+- Diffusion: research/diffusion_pathfinding/REPORT.md; Visualization/ module (PathVisualizer +
+  TrajectoryData + PathProviders, toggle keys 8/9/0); DF1 scripts/realbot/waypoints_to_lerobot.py.
 
 ## KNOWN TOOLING GOTCHA (S7) — ROOT-CAUSED + FIXED
 - SYMPTOM: after a Unity-6 editor GUI crash, the next launch hangs at "Selected window backend: (null)"

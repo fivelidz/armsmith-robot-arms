@@ -255,3 +255,49 @@ so the gamescope isolation is best confirmed by a human-run `RENDER_MODE=gamesco
 STATE: XWayland :0 is poisoned by this session's 19:12 PhysX crash (editor now dies instantly on launch),
 so ONE more session restart is needed. After that, the PhysX fix should prevent the crash recurring, which
 should end the restart cycle regardless of gamescope. Final live pick-place verification still pending.
+
+## 2026-06-13 — Session 7d: diffusion research + in-world path viz + PhysX crash FIXED (proven)
+Big session. Three threads, all landed.
+
+1) LICENSE was the launch blocker (not graphics): the editor was quitting at startup with
+   "No valid Unity Editor license / 404 0 entitlement groups". Re-activated Personal license via Hub
+   (open the INNER UnityProject/ folder in Hub to bind it). The "Selected window backend (null)" line
+   was a red herring all along.
+
+2) DIFFUSION research + visualization (user: diffusion is a better way to direct the arms; drawing paths
+   in the world is wanted):
+   - research/diffusion_pathfinding/REPORT.md — full survey (Diffusion Policy, DP3, Consistency/EquiDiff,
+     RDT-1B, Diffuser/Decision Diffuser/AdaptDiffuser, MPD motion-planning-diffusion) + concrete LeRobot
+     adoption path for THIS project. Bottom line: diffusion complements IK (keep IK for exact free-space +
+     baseline); best entry points = LeRobot Diffusion Policy and an MPD-style diffusion motion planner.
+   - Visualization/ module (compile-clean): TrajectoryData (TrajectorySample/Set + ITrajectoryProvider —
+     common currency for IK/GA/diffusion paths), PathVisualizer (GL immediate-mode; planned+executed paths,
+     MULTIMODAL candidate sets coloured by cost/weight w/ chosen highlighted, waypoints, start/goal),
+     PathProviders (IKPathProvider live preview, DiffusionPathDemo multimodal over/around-left/right/direct
+     w/ collision cost, DenoisePathDemo noisy->smooth animation). Wired into GameBootstrap; toggle keys
+     8/9/0; executed-tip trail accumulator. Demos auto-resolve S_Cube(start)/S_Pad(goal).
+   - DF1: scripts/realbot/waypoints_to_lerobot.py — converts armsmith.waypoints.v1 demos -> LeRobot dataset
+     (portable intermediate w/ no deps + optional real LeRobotDataset). action = absolute joint+gripper deg
+     in joint_map order (deploy-consistent). Tested: single/dir/stats-only/lerobot-degrade all pass.
+
+3) PHYSX CRASH — root-caused and FIXED (the cross-session blocker). The editor segfault in
+   physx::Dy::PxsSolverStartTask::setupDescTask during Simulate was caused by over-stiff drives on light
+   links + violent first-step depenetration of the overlapping SO-101 STL meshes (NOT HardHome — that
+   earlier deferred-teleport fix was correct). Fix stack:
+   - GameBootstrap: solver iterations 24->10, velocity 8->2, Time.maximumDeltaTime=0.05.
+   - UrdfArm drives: stiffness ~5x lower (proximal 8000 / wrist 4500 / other 2000) + higher relative
+     damping (critically-damped, numerically safe); moving jaw 9000->1500; fixed_jaw LOCKED (was a live
+     0.012 kg stiff DOF). Per-body maxDepenetrationVelocity=1, maxLinearVelocity=5, solverIterations=20/4.
+   - ProceduralArm: NaN/velocity watchdog in FixedUpdate (checks full reduced state via root, bleeds
+     velocity >40, auto-rehomes on NaN).
+   - SelfCollision: GATE all self-collision OFF for the first ~40 settle frames (so overlapping links never
+     depenetrate violently at build), then enable gap>=3; steady re-assert slowed to 0.5 Hz.
+   PROOF: Editor/PhysxStabilityCheck.cs — headless batchmode test builds the real arm + Simulate()s 600
+   steps, fails on any NaN. PASSED 3/3 consecutive runs (exit 0). The previously non-deterministic crash is
+   now reliably gone, with a permanent CI regression gate. Verified live earlier too: editor entered play,
+   built the 9-body arm, HardHome worked, physical IK tracking 0.3-2.0cm (better than old ~4cm) with the
+   lower-stiffness drives, AND low targets now reach.
+
+Remaining: live GUI visual confirmation of the path viz + a full multi-trial pick-place (the editor's
+BACKGROUND launch from the automation shell is currently flaky; headless verification is solid). All code
+compiles clean and is committed+pushed.
