@@ -56,13 +56,34 @@ namespace ArmSmith.Visualization
         public int pointsPerPath = 24;
         public int variants = 4;
 
+        [Tooltip("If true and no refs set, resolve start=S_Cube, goal=S_Pad/S_TrayB by name at runtime.")]
+        public bool autoResolveScene = true;
+
         public string ProviderName => "Diffusion paths (demo)";
         public bool VizEnabled => vizEnabled;
 
+        void TryResolveScene()
+        {
+            if (!autoResolveScene) return;
+            if (startRef == null)
+            {
+                var c = GameObject.Find("S_Cube");
+                if (c != null) startRef = c.transform;
+            }
+            if (goalRef == null)
+            {
+                var p = GameObject.Find("S_Pad") ?? GameObject.Find("S_TrayB") ?? GameObject.Find("S_TrayA");
+                if (p != null) goalRef = p.transform;
+            }
+        }
+
         public TrajectorySet GetTrajectories()
         {
-            Vector3 s = startRef != null ? startRef.position : start;
-            Vector3 g = goalRef != null ? goalRef.position : goal;
+            TryResolveScene();
+            Vector3 s = startRef != null ? startRef.position + Vector3.up * 0.03f : start;
+            Vector3 g = goalRef != null ? goalRef.position + Vector3.up * 0.10f : goal;
+            // Place the obstacle midway, slightly raised, so the "around" routes are visibly distinct.
+            obstacle = (s + g) * 0.5f + Vector3.up * 0.02f;
             var set = new TrajectorySet { source = "diffusion", start = s, goal = g, hasStartGoal = true };
 
             // Several "modes": a high arc over, a left detour, a right detour, and a near-direct path.
@@ -129,6 +150,7 @@ namespace ArmSmith.Visualization
     public class DenoisePathDemo : MonoBehaviour, ITrajectoryProvider
     {
         public bool vizEnabled = true;
+        public bool autoResolveScene = true;   // pull start=S_Cube, goal=S_Pad/tray at enable
         public Vector3 start = new Vector3(0.16f, 0.06f, 0.30f);
         public Vector3 goal = new Vector3(-0.14f, 0.10f, 0.26f);
         public int points = 24;
@@ -143,7 +165,16 @@ namespace ArmSmith.Visualization
         public string ProviderName => "Denoising (demo)";
         public bool VizEnabled => vizEnabled;
 
-        void OnEnable() { BuildClean(); ResetNoise(); }
+        void OnEnable() { ResolveScene(); BuildClean(); ResetNoise(); }
+
+        void ResolveScene()
+        {
+            if (!autoResolveScene) return;
+            var c = GameObject.Find("S_Cube");
+            if (c != null) start = c.transform.position + Vector3.up * 0.03f;
+            var p = GameObject.Find("S_Pad") ?? GameObject.Find("S_TrayB") ?? GameObject.Find("S_TrayA");
+            if (p != null) goal = p.transform.position + Vector3.up * 0.12f;
+        }
 
         void BuildClean()
         {
@@ -179,7 +210,7 @@ namespace ArmSmith.Visualization
             if (timer < secondsPerStep) return;
             timer = 0f;
             step++;
-            if (step > steps) { seed++; BuildClean(); ResetNoise(); return; }  // loop with new noise
+            if (step > steps) { seed++; ResolveScene(); BuildClean(); ResetNoise(); return; }  // loop w/ new noise + fresh targets
             float a = step / (float)steps;                                     // 0..1 denoise progress
             for (int i = 0; i < work.Count; i++)
                 work[i] = Vector3.Lerp(work[i], clean[i], 0.18f + 0.5f * a);   // converge faster over time
