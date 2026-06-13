@@ -96,6 +96,34 @@ namespace ArmSmith
             LastReward = ComputeReward(out bool s);
             SuccessNow = s;
             if (s && !Succeeded) { Succeeded = true; SuccessTime = elapsed; Debug.Log($"[Scenario] {current} SUCCESS at {elapsed:F1}s"); }
+
+            // OUT-OF-BOUNDS WATCHDOG: if a task object is knocked off the table (or flung away), the task
+            // becomes impossible — auto-reset the scenario so play/training can continue. Checked at ~5 Hz.
+            oobTimer += Time.deltaTime;
+            if (oobTimer >= 0.2f) { oobTimer = 0f; if (AnyObjectOutOfBounds()) { Debug.Log("[Scenario] object out of bounds -> auto-reset"); LoadScenario(current); } }
+        }
+
+        float oobTimer;
+        // table top is y=0, center z=0.30, width 0.9 (x in +-0.45), depth 0.7 (z in -0.05..0.65)
+        [Header("Out-of-bounds bounds (world)")]
+        public float oobMinX = -0.55f, oobMaxX = 0.55f, oobMinZ = -0.15f, oobMaxZ = 0.75f, oobMinY = -0.15f;
+
+        bool AnyObjectOutOfBounds()
+        {
+            return OobOne(cube) || OobOne(cubeB) || OobOneList(sortCubes);
+        }
+        bool OobOneList(System.Collections.Generic.List<Transform> ts)
+        {
+            if (ts == null) return false;
+            for (int i = 0; i < ts.Count; i++) if (OobOne(ts[i])) return true;
+            return false;
+        }
+        bool OobOne(Transform t)
+        {
+            if (t == null || !t.gameObject.activeInHierarchy) return false;
+            var p = t.position;
+            if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.z)) return true;
+            return p.x < oobMinX || p.x > oobMaxX || p.z < oobMinZ || p.z > oobMaxZ || p.y < oobMinY;
         }
 
         void Cycle(int dir)

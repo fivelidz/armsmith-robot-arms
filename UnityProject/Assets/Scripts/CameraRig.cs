@@ -36,17 +36,18 @@ namespace ArmSmith
             if (wristCam != null && gripper != null)
             {
                 var t = wristCam.transform;
-                t.SetParent(gripper, false);
-                // Realistic wrist-cam mount: like the printed UVC32 bracket on the real SO-101, the camera
-                // sits a little BEHIND and ABOVE the gripper tip and looks toward the grasp point. The EE
-                // local frame is twisted, so a WristCamAim component re-aims the camera each frame in WORLD
-                // space (toward the tip, biased downward) — guaranteeing it always sees the jaws + what's
-                // below them, regardless of how the wrist is rotated.
-                t.localPosition = new Vector3(0f, -0.06f, 0f);   // slightly back from the tip along the tool
-                wristCam.fieldOfView = 70f;                      // realistic UVC FOV; jaws + object fit
-                wristCam.nearClipPlane = 0.01f;
+                t.SetParent(null, true);                         // world-space rig (WristCamAim places it)
+                // CLAW CAMERA (S7f): a wrist UVC-style view that clearly frames BOTH the jaws AND the grasp
+                // target. The previous mount sat AT the tip looking at itself, so the claw filled the frame
+                // and you couldn't see what was being grasped. WristCamAim now places the camera BACK and
+                // slightly ABOVE the grasp point (along the gripper's own approach axis) and looks down the
+                // approach line — so the claw is in the lower-near part of the frame and the object it's
+                // reaching for is centred below it. Wider FOV so the whole grasp zone fits.
+                wristCam.fieldOfView = 62f;
+                wristCam.nearClipPlane = 0.005f;
                 var aim = wristCam.gameObject.GetComponent<WristCamAim>() ?? wristCam.gameObject.AddComponent<WristCamAim>();
                 aim.gripperTip = gripper;                        // EE tip = grasp point
+                aim.gripper = gripper;
                 wristRT = new RenderTexture(256, 256, 16) { name = "WristRT" };
                 wristCam.targetTexture = wristRT;
                 if (wristPanel) wristPanel.texture = wristRT;
@@ -119,13 +120,25 @@ namespace ArmSmith
     /// twisted end-effector local frame. Mirrors a real wrist UVC camera looking at the grasp zone.</summary>
     public class WristCamAim : MonoBehaviour
     {
-        public Transform gripperTip;
-        public float downBias = 0.06f;   // aim a bit below the tip so the workspace under the jaws is framed
+        public Transform gripperTip;     // grasp point (EE tip)
+        public Transform gripper;        // gripper body (for the approach axis)
+        public float back = 0.075f;      // how far BEHIND/up the grasp point to mount the camera
+        public float up = 0.05f;         // extra height so the claw is seen from slightly above
+        public float lookAhead = 0.03f;  // aim a touch beyond the tip so the target object centres
 
         void LateUpdate()
         {
             if (gripperTip == null) return;
-            Vector3 look = gripperTip.position - Vector3.up * downBias; // grasp point, slightly below
+            // The gripper's approach axis = the direction from the wrist toward the grasp point. We mount the
+            // camera back along that axis + above, and look toward (slightly past) the grasp point — so the
+            // jaws sit in the near-bottom of the frame and whatever is being grasped is centred below.
+            Vector3 graspPt = gripperTip.position;
+            Vector3 approach = gripper != null ? (graspPt - gripper.position) : Vector3.down;
+            if (approach.sqrMagnitude < 1e-6f) approach = Vector3.down;
+            approach.Normalize();
+            // camera position: behind the grasp point along -approach, lifted up in world Y
+            transform.position = graspPt - approach * back + Vector3.up * up;
+            Vector3 look = graspPt + approach * lookAhead;
             Vector3 dir = look - transform.position;
             if (dir.sqrMagnitude < 1e-6f) return;
             transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
