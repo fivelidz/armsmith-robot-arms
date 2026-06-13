@@ -27,10 +27,20 @@ python3 train_diffusion_policy.py dataset/ --backend lerobot --repo-id you/armsm
 - `lerobot` backend: prints the exact `lerobot-train --policy.type=diffusion ...` invocation (recommended
   for real training; LeRobot's DiffusionPolicy is maintained + SO-101-ready).
 
-## 4. Deploy (DF4 — TODO)
-Load the checkpoint in an inference server, serve action chunks over the MCP/socket bridge into
-`ArmController.SetTargets` (receding horizon). The SAME checkpoint runs on the real SO-101 via
-`../realbot/armsmith_lerobot.py` (joint_map_lerobot.json maps game joints -> Feetech motors).
+## 4. Deploy (DF4 — DONE)
+Serve the trained checkpoint and drive the arm live, receding-horizon.
+```bash
+python3 serve_diffusion_policy.py ckpt/diffusion_policy_torch.pt        # TCP 127.0.0.1:6020
+python3 serve_diffusion_policy.py ckpt/...pt --check                    # load + 1 sample, print, exit
+python3 serve_diffusion_policy.py --echo                                # ML-free smoke server
+```
+In Unity (Play mode), press **key 4** to toggle `DiffusionPolicyClient`: it connects on a background
+thread, sends the current joint+gripper observation, gets an action chunk, executes the first few
+actions then re-requests (receding horizon). HUD shows "DIFFUSION POLICY LIVE".
+Protocol (newline-delimited JSON / TCP):
+- `{"obs": [[j0..jn,grip], ...]}` -> `{"action": [[...], ...], "horizon": H, "dim": D}`
+- `{"ping": true}` -> `{"ok": true, "horizon": H, "dim": D, "features": [...]}`
+The SAME checkpoint can drive the real SO-101 via `../realbot/armsmith_lerobot.py`.
 
 ## In-sim diffusion MOTION PLANNER (DF5, already built, C#)
 Separate from policy learning: `Visualization/DiffusionMotionPlanner.cs` does planning-as-denoising

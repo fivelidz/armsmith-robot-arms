@@ -87,6 +87,22 @@ if python3 "$REALBOT/verify_waypoints.py" "$TMP/demos/ga0.waypoints.json" >/dev/
 else
   echo "  [FAIL] Diffusion pipeline — safety verify failed"; FAIL=$((FAIL+1))
 fi
+
+echo "[5] Diffusion deploy (train torch -> serve --check) [skipped if no torch]"
+if python3 -c "import torch" >/dev/null 2>&1; then
+  if python3 "$DIFF/train_diffusion_policy.py" "$TMP/ds" --backend torch --epochs 5 -o "$TMP/ckpt" >/dev/null 2>&1 \
+     && [ -f "$TMP/ckpt/diffusion_policy_torch.pt" ]; then
+    if python3 "$DIFF/serve_diffusion_policy.py" "$TMP/ckpt/diffusion_policy_torch.pt" --check 2>&1 | grep -q "sample action chunk"; then
+      echo "  [PASS] Diffusion deploy (train -> ckpt -> serve samples action chunk)"; PASS=$((PASS+1))
+    else
+      echo "  [FAIL] Diffusion deploy — server could not sample"; FAIL=$((FAIL+1))
+    fi
+  else
+    echo "  [FAIL] Diffusion deploy — torch training/ckpt failed"; FAIL=$((FAIL+1))
+  fi
+else
+  echo "  [SKIP] Diffusion deploy — torch not installed (dataset+train-dryrun already gated above)"
+fi
 rm -rf "$TMP"
 
 echo "=== RESULT: $PASS passed, $FAIL failed ==="
