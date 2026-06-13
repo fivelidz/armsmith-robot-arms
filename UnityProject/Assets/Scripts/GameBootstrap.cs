@@ -41,6 +41,7 @@ namespace ArmSmith
         ArmSmith.Visualization.DenoisePathDemo denoiseDemo;
         ArmSmith.Visualization.DiffusionMotionPlanner mpdPlanner;
         ArmSmith.Visualization.PlannedPathFollower pathFollower;
+        ArmSmith.DiffusionPolicyClient policyClient;
         ArmSmith.Visualization.TrajectorySample executedPath;
         float execTrailTimer;
         ServoCallouts servoCallouts;
@@ -289,6 +290,12 @@ namespace ArmSmith
             pathFollower = armGo.AddComponent<ArmSmith.Visualization.PlannedPathFollower>();
             pathFollower.controller = controller; pathFollower.arm = arm; pathFollower.planner = mpdPlanner;
 
+            // DEPLOY a trained Diffusion Policy (DF4): connects to the Python inference server and drives
+            // the arm receding-horizon. Toggle with key 4 (start the server first:
+            // scripts/diffusion/serve_diffusion_policy.py ckpt.pt). Off until toggled.
+            policyClient = armGo.AddComponent<ArmSmith.DiffusionPolicyClient>();
+            policyClient.controller = controller; policyClient.arm = arm;
+
             // Executed-tip trail accumulator.
             executedPath = new ArmSmith.Visualization.TrajectorySample { label = "executed" };
             pathViz.SetExecuted(executedPath);
@@ -434,6 +441,7 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.Alpha7) && denoiseDemo != null) denoiseDemo.vizEnabled = !denoiseDemo.vizEnabled;
             if (Input.GetKeyDown(KeyCode.Alpha6) && mpdPlanner != null) { mpdPlanner.vizEnabled = !mpdPlanner.vizEnabled; mpdPlanner.ReplanNow(); }
             if (Input.GetKeyDown(KeyCode.Alpha5) && pathFollower != null) { if (mpdPlanner != null) mpdPlanner.vizEnabled = true; pathFollower.Begin(); }
+            if (Input.GetKeyDown(KeyCode.Alpha4) && policyClient != null) { if (policyClient.Running) policyClient.Stop(); else policyClient.Begin(); }
             // Accumulate the executed tip trail (every ~30 ms, capped length).
             if (executedPath != null && arm != null && arm.endEffector != null)
             {
@@ -465,7 +473,7 @@ namespace ArmSmith
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount : "Backspace")} | <color=#9f9>Ctrl+S save / Ctrl+L load</color>\n" +
                 $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best(+GA demo)\n" +
-                $"<color=#9cf>Path viz:</color> 8 toggle | 6 MPD planner | 5 FOLLOW plan | 9 demo routes | 7 denoise | (IK preview + trail on)\n" +
+                $"<color=#9cf>Path viz:</color> 8 toggle | 6 MPD planner | 5 FOLLOW plan | 4 DIFFUSION POLICY{(policyClient != null && policyClient.Running ? " <color=#6f6>LIVE</color>" : "")} | 9 routes | 7 denoise\n" +
                 $"<color=#cdf>Sequence:</color> K capture pt ({sequence.Count}), J play{(sequence.Playing ? " <color=#6f6>[PLAYING " + (sequence.PlayIndex + 1) + "]</color>" : "")}, Shift+Backspace del, F6... export\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
                 $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +
