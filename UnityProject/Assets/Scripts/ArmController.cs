@@ -240,6 +240,16 @@ namespace ArmSmith
         }
         float[] heldPose;
 
+        /// <summary>Run ONE step of the live IK control loop (SolveIK + drive) — for headless tests that
+        /// drive Physics.Simulate manually (Unity FixedUpdate doesn't fire there). Mirrors the player path
+        /// in IK mode. Call after CalibrateIK + setting ikTarget.position.</summary>
+        public void TickControl()
+        {
+            if (arm == null || targetAngles == null) return;
+            if (mode == Mode.IK) SolveIK();
+            arm.SetJointTargets(targetAngles);
+        }
+
         void HandleModeToggle()
         {
             if (Input.GetKeyDown(KeyCode.Tab))
@@ -669,6 +679,28 @@ namespace ArmSmith
             }
             const float h = 0.5f; // finite-diff angle step (deg) for Jacobian
 
+            // ANALYTIC-FIRST control (S7f): the iterative DLS Jacobian below is only reliable for SMALL
+            // incremental moves (smooth mouse-follow). For anything farther it lodges in the elbow-up branch
+            // and the tip floors high. So when the goal is non-trivially far, we DRIVE TOWARD THE MULTI-SEED
+            // ANALYTIC SOLUTION (IKAnglesFor: explores elbow-up AND elbow-down, keeps the genuinely-reaching
+            // one — FK-verified to 0.3cm) and SKIP the Jacobian that frame. This is the proven path
+            // (HeadlessPickCheck reaches+grasps with it). Once close, we fall through to the Jacobian for
+            // fine, smooth tracking. targetAngles is blended (not snapped) so motion stays smooth.
+            ForwardKinematics(n);
+            if ((goal - jPos[n]).magnitude > ikStuckThreshold)
+            {
+                float[] good = IKAnglesFor(goal);
+                if (good != null)
+                {
+                    for (int c = 0; c < m; c++)
+                    {
+                        int ji = reachIdx[c]; var js = arm.jointSpecs[ji];
+                        targetAngles[ji] = Mathf.Clamp(Mathf.Lerp(targetAngles[ji], good[ji], ikReseedBlend), js.minAngle, js.maxAngle);
+                    }
+                    return;   // analytic step this frame; Jacobian fine-tunes once we're close
+                }
+            }
+
             for (int iter = 0; iter < Mathf.Max(4, ikIterations); iter++)
             {
                 ForwardKinematics(n);
@@ -719,50 +751,42 @@ namespace ArmSmith
                 }
             }
 
-            // ---- ANTI-STUCK RESTART ---------------------------------------------------
-            // The DLS Jacobian iterates from the CURRENT pose, so it can lodge in a
-            // collapsed local minimum (e.g. after a low grasp it folds toward the base and
-            // small target changes can't escape -> the pick-and-place "stuck/non-deterministic"
-            // bug). Detect a persistently large residual and nudge toward the analytic
-            // neutral-seed solution, which is computed from a zero pose and does NOT share
-            // the local minimum. We BLEND (not snap) so the visible motion stays smooth and
-            // the approved mouse-follow feel is unchanged when IK is healthy (this path is
-            // inert whenever the residual is already small).
+            // ---- ANTI-STUCK / ANTI-ELBOW-UP RESTART -----------------------------------
+            // The DLS Jacobian iterates from the CURRENT pose, so for a redundant arm it lodges in the
+            // elbow-UP branch — whose tip can't actually descend to a low target (the arm "floors high").
+            // Detect a large residual and BLEND toward the MULTI-SEED analytic solution (IKAnglesFor tries
+            // elbow-up AND elbow-down seeds and keeps the genuinely-reaching one), so the live IK target /
+            // mouse-follow path converges to the correct reaching pose. Blend (not snap) keeps motion smooth
+            // and leaves a healthy IK untouched (this path is inert when the residual is already small).
+            // ANALYTIC TRACK (S7f): the iterative DLS loop above is good for SMALL incremental moves (smooth
+            // mouse-follow) but lodges in the elbow-up branch for larger/low targets. Whenever the residual
+            // is non-trivial, blend toward the MULTI-SEED analytic solution (IKAnglesFor solves from several
+            // seeds incl. elbow-down and keeps the genuinely-reaching one). This makes the live IK target /
+            // mouse-follow converge to the correct reaching pose; when already on target it's inert.
             ForwardKinematics(n);
             float residual = (goal - jPos[n]).magnitude;
-            if (residual > ikStuckThreshold && Time.time - lastReseedTime > 0.10f)
+            if (residual > ikStuckThreshold)
             {
-                lastReseedTime = Time.time;
-                float[] neutral = SolveAnglesInPlace(goal, (float[])targetAngles.Clone());
-                if (neutral != null)
+                float[] good = IKAnglesFor(goal);
+                if (good != null)
                 {
-                    // Verify the neutral solution is actually better before adopting it.
-                    float[] saved = (float[])targetAngles.Clone();
-                    System.Array.Copy(neutral, targetAngles, neutral.Length);
-                    ForwardKinematics(n);
-                    float neutralResidual = (goal - jPos[n]).magnitude;
-                    System.Array.Copy(saved, targetAngles, saved.Length);
-                    if (neutralResidual < residual - 0.01f)
+                    for (int c = 0; c < m; c++)
                     {
-                        // Blend each reach joint a fraction toward the better solution.
-                        for (int c = 0; c < m; c++)
-                        {
-                            int ji = reachIdx[c];
-                            var js = arm.jointSpecs[ji];
-                            float blended = Mathf.Lerp(targetAngles[ji], neutral[ji], ikReseedBlend);
-                            targetAngles[ji] = Mathf.Clamp(blended, js.minAngle, js.maxAngle);
-                        }
+                        int ji = reachIdx[c];
+                        var js = arm.jointSpecs[ji];
+                        float blended = Mathf.Lerp(targetAngles[ji], good[ji], ikReseedBlend);
+                        targetAngles[ji] = Mathf.Clamp(blended, js.minAngle, js.maxAngle);
                     }
                 }
             }
         }
 
         [Header("Anti-stuck IK")]
-        [Tooltip("If the IK residual stays above this (m), re-seed from the analytic neutral solution to escape collapsed local minima.")]
-        public float ikStuckThreshold = 0.05f;
+        [Tooltip("If the IK residual exceeds this (m), blend toward the multi-seed analytic solution to escape the elbow-up local minimum.")]
+        public float ikStuckThreshold = 0.025f;   // engage early so low targets pull into the reaching branch
         [Range(0f, 1f)]
-        [Tooltip("How aggressively to blend toward the neutral-seed solution when stuck (per FixedUpdate).")]
-        public float ikReseedBlend = 0.34f;
+        [Tooltip("How aggressively to blend toward the multi-seed solution when stuck (per FixedUpdate).")]
+        public float ikReseedBlend = 0.5f;
         float lastReseedTime = -1f;
 
         // Solve a 3x3 linear system A x = b via Cramer's rule (A is small & damped, always invertible).

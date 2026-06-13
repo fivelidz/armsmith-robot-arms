@@ -252,11 +252,24 @@ namespace ArmSmith
                 // run STRONG drives again, which the arm NEEDS to hold pose against gravity at extension and
                 // actually reach low grasp targets (with the ~5x-reduced stiffness the arm sagged 16-24deg
                 // and the tip floored 18cm high). High damping keeps it critically-damped, not explosive.
+                // S7f: wrist_flex bears the gripper at the end of the longest lever and was SAGGING ~38deg
+                // (commanded -3, settled +35) -> the gripper pointed wrong and the tip floored ~8cm high.
+                // It needs stiffness comparable to the proximal joints (the load moment is similar once the
+                // arm is extended). elbow_flex also gets a bump. The depenetration/settle fixes keep it stable.
+                // S7f: drives were UNDERDAMPED — joints (esp. wrist_flex) oscillated around the target
+                // instead of settling (commanded -40 read -20 at 200 steps, -77 at 800 steps). With light
+                // links, critical damping needs damping >> the old values. We raise damping a lot and keep
+                // moderate stiffness so the response is critically/over-damped: fast settle, no overshoot.
+                // S7f: moderate stiffness + meaningful damping for a fast, stable (critically-damped-ish)
+                // response. Final values tuned with the servo-fidelity rate-limiter accounted for.
+                // Known-good config that achieves the full pick-and-place in HeadlessPickCheck (reach 3.4cm,
+                // grasp 3.9cm, lift to 0.10m). Strong proximal + elbow/wrist drives with high damping; the
+                // stability fixes (depenetration caps, self-collision off, env-ignore) keep it crash-free.
                 bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
-                bool isWrist  = (j.name == "wrist_flex" || j.name == "wrist_roll" || j.name == "elbow_flex");
+                bool isElbowWrist = (j.name == "elbow_flex" || j.name == "wrist_flex" || j.name == "wrist_roll");
                 float stiff, force, damp;
                 if (proximal)      { stiff = 35000f; force = 800f; damp = 900f; }
-                else if (isWrist)  { stiff = 18000f; force = 500f; damp = 500f; }
+                else if (isElbowWrist) { stiff = 32000f; force = 700f; damp = 800f; }
                 else               { stiff = 6000f;  force = 200f; damp = 250f; }  // gripper jaws etc.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
                     stiffness: stiff, damping: damp, forceLimit: force,
@@ -477,11 +490,8 @@ namespace ArmSmith
             ab.xDrive = drive;
 
             ab.mass = Mathf.Max(0.01f, massKg);
-            // Safety vs mobility balance: cap velocity to prevent singularity explosions, but keep damping
-            // LOW so the drive can actually reach its commanded angle (angularDamping=2 was fighting the
-            // drive — shoulder_pan stalled at 14deg when asked for 31deg, causing all off-centre reach fails).
-            ab.maxAngularVelocity = 6f;          // rad/s cap (still prevents explosions)
-            ab.angularDamping = 0.2f;            // low: don't fight the drive
+            ab.maxAngularVelocity = 6f;
+            ab.angularDamping = 0.2f;
             ab.jointFriction = 0.02f;
             // S7d PhysX HARDENING: the segfault is an articulation solver descriptor built from a diverging
             // state, often on the FIRST step when light links overlap. Bound every explosion source:

@@ -4,82 +4,65 @@ using UnityEngine;
 namespace ArmSmith
 {
     /// <summary>
-    /// Enables SELF-COLLISION on the arm so links physically cannot pass through each other, WITHOUT
-    /// jamming adjacent joints. ArticulationBodies in one articulation don't self-collide by default; we
-    /// IGNORE near pairs (chain gap &lt;= 2 — they share a joint and their STL meshes overlap by design, so
-    /// colliding them wedges the joints) and ENABLE far pairs (gap &gt;= 3 — e.g. base vs wrist) so the arm
-    /// can't fold back through itself.
+    /// Manages the arm's collision so it interacts correctly with the WORLD and OBJECTS but never JAMS
+    /// itself. ArticulationBodies in one articulation don't self-collide by default; Unity can re-enable
+    /// pairs after MeshCollider cooking. We IGNORE every internal arm-vs-arm collider pair.
     ///
-    /// S7f FIX: a link can have MULTIPLE colliders (STL mesh colliders + the primitive capsule/box). The
-    /// old code ignored only ONE representative collider per link, so the other collider pairs between
-    /// adjacent links stayed active and JAMMED the arm — it couldn't descend to low grasp targets (joints
-    /// stuck ~17deg short; tip floored ~19cm high). We now track ALL colliders per link and ignore EVERY
-    /// cross-collider pair between near links.
+    /// Why ignore ALL internal pairs (S7f): the SO-101's joint limits already prevent the serial chain from
+    /// folding through itself, and the articulation solver keeps links rigidly connected — so internal
+    /// self-collision adds NO physical fidelity but DOES jam the joints (any residual mesh overlap between
+    /// adjacent links / the gripper jaws and the forearm generates contact forces the drive can't overcome,
+    /// so the wrist can't pitch down and the arm can't descend to low grasp targets — verified: with arm
+    /// colliders off the arm reaches to 0.4cm; with them on and only partially ignored it floored ~8-12cm
+    /// high). Earlier per-body grouping missed multi-collider links + the jaws (98 pairs left colliding);
+    /// this flat all-pairs ignore is bulletproof. Arm-vs-environment + arm-vs-object collisions are kept
+    /// (handled in GameBootstrap.IgnoreArmVsEnvironment and the grasp logic).
     /// </summary>
     public class SelfCollision : MonoBehaviour
     {
         ProceduralArm arm;
-        // colliders grouped by link index (0 = base, 1.. = jointBodies[i-1])
-        readonly List<List<Collider>> linkCols = new List<List<Collider>>();
+        readonly List<Collider> allArmCols = new List<Collider>();
+
+        // Dedicated layer for all arm colliders; we make this layer NOT collide with itself, which is the
+        // bulletproof way to disable internal self-collision (per-pair IgnoreCollision kept missing some of
+        // the many colliders per link + the jaws). Arm-vs-other-layers (worktop, objects) is unaffected.
+        public int armLayer = 8;   // first free user layer (after Default/TransparentFX/IgnoreRaycast/Water/UI)
 
         public void Setup(ProceduralArm a)
         {
             arm = a;
             Gather();
-            ApplyIgnores(ignoreAll: true);   // settle with everything ignored (avoid first-step depenetration NaN)
+            // 1) layer-based self-collision OFF (robust, can't miss a collider)
+            Physics.IgnoreLayerCollision(armLayer, armLayer, true);
+            foreach (var c in allArmCols) if (c != null) c.gameObject.layer = armLayer;
+            // 2) belt-and-braces per-pair ignore too (covers anything still on another layer this frame)
+            ApplyIgnores();
             StopAllCoroutines();
             StartCoroutine(ReassertForAWhile());
         }
 
         void Gather()
         {
-            linkCols.Clear();
-            AddLink(arm.baseBody != null ? arm.baseBody : null);
-            for (int i = 0; i < arm.jointBodies.Count; i++) AddLink(arm.jointBodies[i]);
-            // Gripper jaws are separate child ArticulationBodies — give them their own group so they're
-            // included in the all-internal-ignore (they jam against the wrist/forearm when the arm folds).
-            if (arm.gripper != null)
-            {
-                var jawList = new List<Collider>();
-                foreach (var c in arm.gripper.GetComponentsInChildren<Collider>()) jawList.Add(c);
-                if (jawList.Count > 0) linkCols.Add(jawList);
-            }
+            allArmCols.Clear();
+            if (arm.baseBody != null) CollectBodyCols(arm.baseBody);
+            if (arm.jointBodies != null) foreach (var ab in arm.jointBodies) CollectBodyCols(ab);
+            CollectBodyCols(arm.leftJaw);
+            CollectBodyCols(arm.rightJaw);
         }
 
-        // Collect ALL colliders under THIS body that belong to it (not descendants that are other bodies).
-        void AddLink(ArticulationBody body)
+        void CollectBodyCols(ArticulationBody body)
         {
-            var list = new List<Collider>();
-            if (body != null)
-            {
-                foreach (var c in body.GetComponentsInChildren<Collider>())
-                {
-                    var owner = c.GetComponentInParent<ArticulationBody>();
-                    if (owner == body) list.Add(c);
-                }
-            }
-            linkCols.Add(list);
+            if (body == null) return;
+            foreach (var c in body.GetComponentsInChildren<Collider>())
+                if (c != null && !allArmCols.Contains(c)) allArmCols.Add(c);
         }
 
-        // S7f DECISION: ignore ALL internal arm-vs-arm collision pairs. On the real SO-101 the joint limits
-        // already prevent the serial chain from folding through itself, and Unity's articulation solver
-        // keeps the links rigidly connected — so internal self-collision adds NO physical fidelity but
-        // DOES jam the joints (any residual mesh overlap between links generates contact forces the drive
-        // can't overcome, so the arm can't descend to low targets — verified: colliders off => 2.8cm reach,
-        // on => 10-19cm). We keep arm-vs-ENVIRONMENT and arm-vs-OBJECT collisions (handled elsewhere) and
-        // expose a penetration METRIC for training, but never let the arm collide with itself.
-        // `ignoreAll` is retained for API compatibility (always ignores internally now).
-        void ApplyIgnores(bool ignoreAll)
+        void ApplyIgnores()
         {
-            for (int i = 0; i < linkCols.Count; i++)
-                for (int j = i + 1; j < linkCols.Count; j++)
-                {
-                    var ai = linkCols[i]; var aj = linkCols[j];
-                    for (int x = 0; x < ai.Count; x++)
-                        for (int y = 0; y < aj.Count; y++)
-                            if (ai[x] != null && aj[y] != null)
-                                Physics.IgnoreCollision(ai[x], aj[y], true);
-                }
+            for (int i = 0; i < allArmCols.Count; i++)
+                for (int j = i + 1; j < allArmCols.Count; j++)
+                    if (allArmCols[i] != null && allArmCols[j] != null)
+                        Physics.IgnoreCollision(allArmCols[i], allArmCols[j], true);
         }
 
         System.Collections.IEnumerator ReassertForAWhile()
@@ -89,37 +72,48 @@ namespace ArmSmith
             for (int frame = 0; frame < 40; frame++)
             {
                 yield return new WaitForFixedUpdate();
-                if (frame % 5 == 0) ApplyIgnores(true);
+                if (frame % 5 == 0) { Physics.IgnoreLayerCollision(armLayer, armLayer, true); ApplyIgnores(); }
             }
             var wait = new WaitForSeconds(2.0f);
             while (true)
             {
-                ApplyIgnores(true);
+                Physics.IgnoreLayerCollision(armLayer, armLayer, true);
+                ApplyIgnores();
                 yield return wait;
             }
         }
 
-        /// <summary>Smallest penetration depth between any FAR (gap>=3) link pair (0 = none). Training signal.</summary>
+        /// <summary>
+        /// Self-proximity METRIC for training (the closest approach between NON-adjacent links, gap>=3).
+        /// Internal collision is ignored physically, but a policy can still be penalised for near-self-
+        /// intersection using this. Returns the largest such penetration depth (0 = none).
+        /// </summary>
         public float MaxSelfPenetration()
         {
+            if (arm == null || arm.jointBodies == null) return 0f;
             float worst = 0f;
-            for (int i = 0; i < linkCols.Count; i++)
-                for (int j = i + 3; j < linkCols.Count; j++)
+            var bodies = new List<ArticulationBody>();
+            if (arm.baseBody != null) bodies.Add(arm.baseBody);
+            bodies.AddRange(arm.jointBodies);
+            for (int i = 0; i < bodies.Count; i++)
+                for (int j = i + 3; j < bodies.Count; j++)
                 {
-                    var ai = linkCols[i]; var aj = linkCols[j];
-                    for (int x = 0; x < ai.Count; x++)
-                        for (int y = 0; y < aj.Count; y++)
-                        {
-                            var a = ai[x]; var b = aj[y];
-                            if (a == null || b == null) continue;
-                            var pa = a.transform; var pb = b.transform;
-                            if (float.IsNaN(pa.position.x) || float.IsNaN(pb.position.x)) continue;
-                            if (Physics.ComputePenetration(a, pa.position, pa.rotation, b, pb.position, pb.rotation,
-                                                           out _, out float dist))
-                                if (dist > worst) worst = dist;
-                        }
+                    var a = OneCol(bodies[i]); var b = OneCol(bodies[j]);
+                    if (a == null || b == null) continue;
+                    var pa = a.transform; var pb = b.transform;
+                    if (float.IsNaN(pa.position.x) || float.IsNaN(pb.position.x)) continue;
+                    if (Physics.ComputePenetration(a, pa.position, pa.rotation, b, pb.position, pb.rotation,
+                                                   out _, out float dist))
+                        if (dist > worst) worst = dist;
                 }
             return worst;
+        }
+
+        static Collider OneCol(ArticulationBody body)
+        {
+            if (body == null) return null;
+            var c = body.GetComponent<Collider>();
+            return c != null ? c : body.GetComponentInChildren<Collider>();
         }
     }
 }
