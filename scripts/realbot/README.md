@@ -43,3 +43,20 @@ These are intentionally lazy-imported so dry-run works on any machine.
 4. First `--live` run at low speed; watch the ramp to start pose.
 5. Ctrl-C = e-stop (disables torque).
 ```
+
+
+## Diffusion demo-factory: waypoints -> LeRobot dataset (DF1)
+Convert recorded ARMSMITH demos into a training dataset for a Diffusion Policy
+(see research/diffusion_pathfinding/REPORT.md).
+```bash
+# portable intermediate (no deps; works anywhere) — manifest.json + episodes/
+python3 waypoints_to_lerobot.py demos/ -o dataset/
+# just inspect stats
+python3 waypoints_to_lerobot.py traj.waypoints.json --stats-only
+# also build a real LeRobotDataset (needs `pip install lerobot`)
+python3 waypoints_to_lerobot.py demos/ --lerobot --repo-id you/armsmith_pickplace
+```
+- action      = absolute joint+gripper DEGREES in joint_map_lerobot.json order (= what
+  armsmith_lerobot.py streams, so a trained policy deploys through the existing bridge).
+- observation.state = same joint vector (low-dim proprio; add object pose / images later).
+- Each waypoint file = one episode; dt/fps taken from the file (0.05 s = 20 Hz).
