@@ -325,6 +325,25 @@ namespace ArmSmith
             g.generation = generation;
         }
 
+        // ── DF2: GA-as-demo-factory ────────────────────────────────────────────────────────────────
+        // Save the best evolved genome as an armsmith.waypoints.v1 demonstration file in the Demos folder,
+        // so scripts/realbot/waypoints_to_lerobot.py can turn accumulated evolved behaviours into a LeRobot
+        // dataset for training a Diffusion Policy (REPORT.md §7: "repurpose the GA as a demonstration
+        // factory"). Reuses BestToTrajectory() so the demo matches the exact rollout interpolation.
+        // Returns the written path (null if no best yet).
+        public string SaveBestAsDemo(string label = "ga_demo")
+        {
+            var traj = BestToTrajectory();
+            if (traj == null) return null;
+            string dir = System.IO.Path.Combine(Application.persistentDataPath, "Exports", "Demos");
+            System.IO.Directory.CreateDirectory(dir);
+            string path = System.IO.Path.Combine(dir,
+                $"{label}_gen{(best != null ? best.generation : 0)}_{System.DateTime.Now:yyyyMMdd_HHmmss}.waypoints.json");
+            System.IO.File.WriteAllText(path, JsonUtility.ToJson(traj, true));
+            Debug.Log($"[EvolutionTrainer] saved GA demo -> {path} ({traj.waypoints.Count} waypoints)");
+            return path;
+        }
+
         void Breed()
         {
             var next = new List<MotionGenome>();

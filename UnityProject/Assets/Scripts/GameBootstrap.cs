@@ -411,7 +411,7 @@ namespace ArmSmith
             // 8 = toggle all path viz, 9 = toggle diffusion multimodal demo, 0 = toggle denoise demo.
             if (Input.GetKeyDown(KeyCode.Alpha8) && pathViz != null) pathViz.show = !pathViz.show;
             if (Input.GetKeyDown(KeyCode.Alpha9) && diffDemo != null) diffDemo.vizEnabled = !diffDemo.vizEnabled;
-            if (Input.GetKeyDown(KeyCode.Alpha0) && denoiseDemo != null) denoiseDemo.vizEnabled = !denoiseDemo.vizEnabled;
+            if (Input.GetKeyDown(KeyCode.Alpha7) && denoiseDemo != null) denoiseDemo.vizEnabled = !denoiseDemo.vizEnabled;
             // Accumulate the executed tip trail (every ~30 ms, capped length).
             if (executedPath != null && arm != null && arm.endEffector != null)
             {
@@ -442,7 +442,8 @@ namespace ArmSmith
                 $"<color=#fc6>Servos</color> (direct keys): {ServoControlLine()}\n" +
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount : "Backspace")} | <color=#9f9>Ctrl+S save / Ctrl+L load</color>\n" +
-                $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best\n" +
+                $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best(+GA demo)\n" +
+                $"<color=#9cf>Path viz:</color> 8 toggle paths | 9 diffusion routes | 7 denoise anim | (IK preview + executed trail shown)\n" +
                 $"<color=#cdf>Sequence:</color> K capture pt ({sequence.Count}), J play{(sequence.Playing ? " <color=#6f6>[PLAYING " + (sequence.PlayIndex + 1) + "]</color>" : "")}, Shift+Backspace del, F6... export\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
                 $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +
@@ -522,6 +523,10 @@ namespace ArmSmith
             recorder.SetTrajectory(traj);
             string path = recorder.StopRecording(); // writes the injected trajectory to JSON
             Debug.Log($"[Export] best evolved trajectory -> {path}");
+            // DF2: also save it into the Demos folder so waypoints_to_lerobot.py can build a training set
+            // (GA = diffusion demo factory). Every F11 export grows the demonstration corpus.
+            string demoPath = trainer.SaveBestAsDemo();
+            if (demoPath != null) Debug.Log($"[Export] + GA demo for diffusion -> {demoPath}");
         }
 
         static Material Mat(Color c)
