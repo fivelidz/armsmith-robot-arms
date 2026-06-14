@@ -60,6 +60,27 @@ namespace ArmSmith
         public readonly List<float> successHistory = new List<float>();
         public float lastBestFitness, lastMeanFitness;
 
+        // MULTI-GENERATION viz (TR8): ring buffer of the last few generations' best EE-space trajectories,
+        // so the player can SEE the spread of evolving behaviour (newest bright, older faded).
+        public readonly List<Visualization.TrajectorySample> genTrajectories = new List<Visualization.TrajectorySample>();
+        public int maxGenTrajectories = 6;
+
+        void CaptureBestTrajectory()
+        {
+            if (controller == null || best == null || best.keys == null) return;
+            var samp = new Visualization.TrajectorySample { label = "gen" + generation, cost = -lastBestFitness };
+            // FK each keyframe's angles to the EE position (the path the best genome traces)
+            foreach (var k in best.keys)
+            {
+                if (k.angles == null) continue;
+                float e = controller.TestReachWith(k.angles, Vector3.zero, out Vector3 tip);
+                samp.points.Add(tip);
+            }
+            if (samp.points.Count < 2) return;
+            genTrajectories.Add(samp);
+            while (genTrajectories.Count > maxGenTrajectories) genTrajectories.RemoveAt(0);
+        }
+
         /// <summary>Shaped fitness for ONE settled rollout state, using the config reward weights + the
         /// curriculum. Pulls the scenario's task reward and adds dense shaping (reach/grasp/place/energy/
         /// self-penetration/out-of-bounds) so the policy gets a smooth gradient toward the goal.</summary>
@@ -86,6 +107,7 @@ namespace ArmSmith
             bestHistory.Add(lastBestFitness);
             meanHistory.Add(lastMeanFitness);
             successHistory.Add(lastSuccessRate);
+            if (!policyMode) CaptureBestTrajectory();   // multi-generation viz (motion-GA has explicit keys)
             // auto-curriculum: bump difficulty when consistently succeeding
             if (config.autoCurriculum && lastSuccessRate >= config.advanceSuccessRate && config.difficulty < 1f)
                 config.difficulty = Mathf.Min(1f, config.difficulty + 0.1f);
@@ -115,6 +137,7 @@ namespace ArmSmith
             rolloutSpeedup = Mathf.Max(1f, config.rolloutSpeedup);
             policyMode     = config.backend == TrainingConfig.Backend.SensorPolicy;
             if (sensorHub != null) config.ApplySensorMask(sensorHub);
+            if (scenarios != null) scenarios.randomness = config.randomization;   // scrambled-world strength
         }
 
         public void SetSensorHub(SensorHub h) => sensorHub = h;

@@ -37,6 +37,7 @@ namespace ArmSmith
         ModuleMount moduleMount;
         // Path visualization (S7d)
         ArmSmith.Visualization.PathVisualizer pathViz;
+        ArmSmith.Visualization.MultiGenViz multiGenViz;
         ArmSmith.Visualization.DiffusionPathDemo diffDemo;
         ArmSmith.Visualization.DenoisePathDemo denoiseDemo;
         ArmSmith.Visualization.DiffusionMotionPlanner mpdPlanner;
@@ -419,6 +420,14 @@ namespace ArmSmith
             var conditionsPanel = canvasGo.AddComponent<ConditionsPanel>();
             conditionsPanel.Bind(trainer, scenarios);
 
+            // MULTI-GENERATION viz (key 3): overlay the last few generations' best paths (newest bright).
+            if (pathViz != null && arm != null)
+            {
+                multiGenViz = arm.gameObject.AddComponent<ArmSmith.Visualization.MultiGenViz>();
+                multiGenViz.trainer = trainer;
+                pathViz.Register(multiGenViz);
+            }
+
             // Clickable CONTROL BAR (bottom-center): view + control toggle buttons (mouse-operable).
             controlBar = canvasGo.AddComponent<ControlBar>();
             controlBar.Build(canvasGo.transform, controller, arm, sensorViz, gizmos, rig, servoCallouts, trainer, scenarios);
@@ -454,6 +463,7 @@ namespace ArmSmith
             }
             if (Input.GetKeyDown(KeyCode.Alpha5) && pathFollower != null) { if (mpdPlanner != null) mpdPlanner.vizEnabled = true; pathFollower.Begin(); }
             if (Input.GetKeyDown(KeyCode.Alpha4) && policyClient != null) { if (policyClient.Running) policyClient.Stop(); else policyClient.Begin(); }
+            if (Input.GetKeyDown(KeyCode.Alpha3) && multiGenViz != null) multiGenViz.vizEnabled = !multiGenViz.vizEnabled;
             // Accumulate the executed tip trail (every ~30 ms, capped length).
             if (executedPath != null && arm != null && arm.endEffector != null)
             {
@@ -485,7 +495,7 @@ namespace ArmSmith
                 $"Camera: RMB orbit, MMB pan, Ctrl+scroll zoom | V HUD, B bounds, X axes | \\ servo callouts (click a joint)\n" +
                 $"Record waypoints G | Playback P | Reset Esc | STL F9 / waypoints F10 | DEMO {(demoRec.IsRecording ? "REC " + demoRec.StepCount : "Backspace")} | <color=#9f9>Ctrl+S save / Ctrl+L load</color>\n" +
                 $"Scenario: <b>{scenarios.current}</b>  (Tab... no — keys 1-7 pick) | Evolve: T train, N +1 gen, F11 export best(+GA demo)\n" +
-                $"<color=#9cf>Path viz:</color> 8 toggle | 6 MPD planner | 5 FOLLOW plan | 4 DIFFUSION POLICY{(policyClient != null && policyClient.Running ? " <color=#6f6>LIVE</color>" : "")} | 9 routes | 7 denoise\n" +
+                $"<color=#9cf>Path viz:</color> 8 toggle | 6 MPD planner | 5 FOLLOW plan | 4 diffusion-policy | 3 generations{(policyClient != null && policyClient.Running ? " <color=#6f6>LIVE</color>" : "")} | 9 routes | 7 denoise\n" +
                 $"<color=#cdf>Sequence:</color> K capture pt ({sequence.Count}), J play{(sequence.Playing ? " <color=#6f6>[PLAYING " + (sequence.PlayIndex + 1) + "]</color>" : "")}, Shift+Backspace del, F6... export\n" +
                 $"<color=#fd8>OBJECTIVE:</color> {scenarios.Objective()}\n" +
                 $"<color=#8c8>{scenarios.RewardSpec()}</color>\n" +

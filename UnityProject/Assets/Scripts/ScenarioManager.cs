@@ -275,7 +275,29 @@ namespace ArmSmith
             return new Vector3(x, baseP.y, z);
         }
 
-        public void Reroll() { LoadScenario(current); }   // re-randomise (called on reset/each episode)
+        public void Reroll() { LoadScenario(current); ScrambleObjects(); }   // re-randomise + scramble
+
+        // "Scrambled world" domain randomization (TR7): at higher `randomness`, vary the cube's SIZE, MASS,
+        // COLOR and yaw so a trained policy must generalise rather than memorise one object. Scaled by
+        // strength so 0 = identical every episode, 1 = heavily varied. Tied to the Conditions UI slider.
+        public void ScrambleObjects()
+        {
+            if (randomness <= 0.01f || cube == null) return;
+            var rng = new System.Random(randomSeed == 0 ? Environment.TickCount : randomSeed++);
+            float s = randomness;
+            // size: +-40% * strength
+            float scale = 0.045f * (1f + (float)(rng.NextDouble() * 2 - 1) * 0.4f * s);
+            cube.localScale = Vector3.one * scale;
+            // mass: 0.03..0.09 * strength spread
+            var rb = cube.GetComponent<Rigidbody>();
+            if (rb != null) rb.mass = Mathf.Lerp(0.05f, 0.03f + (float)rng.NextDouble() * 0.06f, s);
+            // yaw
+            cube.rotation = Quaternion.Euler(0f, (float)(rng.NextDouble() * 360f) * s, 0f);
+            // colour
+            var mr = cube.GetComponent<MeshRenderer>();
+            if (mr != null) mr.material.color = Color.Lerp(new Color(0.9f, 0.75f, 0.15f),
+                new Color((float)rng.NextDouble(), (float)rng.NextDouble(), (float)rng.NextDouble()), s);
+        }
 
         void Place(Transform t, Vector3 p)
         {
