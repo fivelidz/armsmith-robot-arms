@@ -412,6 +412,13 @@ namespace ArmSmith
             builderPanel = canvasGo.AddComponent<BuilderPanel>();
             builderPanel.Build(canvasGo.transform, arm, sensorHub, trainer);
 
+            // TRAINING panel (F3): backend selector + live curves + start/stop/step.
+            // CONDITIONS panel (F4): difficulty/randomization/reward weights/sensor toggles/GA params.
+            var trainingPanel = canvasGo.AddComponent<TrainingPanel>();
+            trainingPanel.Bind(trainer);
+            var conditionsPanel = canvasGo.AddComponent<ConditionsPanel>();
+            conditionsPanel.Bind(trainer, scenarios);
+
             // Clickable CONTROL BAR (bottom-center): view + control toggle buttons (mouse-operable).
             controlBar = canvasGo.AddComponent<ControlBar>();
             controlBar.Build(canvasGo.transform, controller, arm, sensorViz, gizmos, rig, servoCallouts, trainer, scenarios);

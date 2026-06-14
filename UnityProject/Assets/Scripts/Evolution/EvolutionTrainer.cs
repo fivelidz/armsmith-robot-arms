@@ -209,6 +209,27 @@ namespace ArmSmith
         public void StartTraining() { if (!Running) StartCoroutine(TrainLoop()); }
         public void StopTraining() { Running = false; }
 
+        /// <summary>Run exactly ONE generation of the current backend (for the UI "+1 Gen" button).</summary>
+        public void StepOneGeneration()
+        {
+            if (Running) return;
+            StartCoroutine(policyMode ? RunPolicyGeneration() : RunGeneration());
+        }
+
+        /// <summary>Clear populations + history and reseed (UI "Reset" button).</summary>
+        public void ResetTraining()
+        {
+            StopTraining();
+            generation = 0;
+            population.Clear(); policyPop.Clear();
+            best = null; bestPolicy = null; selected.Clear();
+            bestHistory.Clear(); meanHistory.Clear(); successHistory.Clear();
+            lastBestFitness = lastMeanFitness = lastSuccessRate = 0f;
+            ApplyConfig();
+            if (policyMode) SeedPolicyPopulation(); else SeedPopulation();
+            status = "reset";
+        }
+
         IEnumerator TrainLoop()
         {
             Running = true;
