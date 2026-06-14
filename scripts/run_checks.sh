@@ -57,6 +57,10 @@ if [ "$MODE" != "quick" ]; then
   echo "[3b] Motor physics (drive tracking, servo rate/ticks, gravity hold)"
   run_unity_method "Motor physics" \
     "ArmSmith.EditorTools.MotorPhysicsCheck.RunHeadless" "MotorPhysicsCheck] PASSED"
+
+  echo "[3c] Training regimen (Motion-GA + Sensor-Policy converge)"
+  run_unity_method "Training learns" \
+    "ArmSmith.EditorTools.TrainingSmokeCheck.RunHeadless" "TrainingSmokeCheck] PASSED"
 fi
 
 echo "[4] Diffusion pipeline (GA demo -> safety -> LeRobot dataset)"

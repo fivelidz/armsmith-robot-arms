@@ -52,13 +52,69 @@ namespace ArmSmith
         public int evalResets = 2;            // randomised resets per genome eval (generalisation)
         public float lastSuccessRate = 0f;    // success-rate over the last eval's resets (UI metric)
 
+        // ---- Training regimen (design/specs/TRAINING_REGIMEN.md) ----
+        public TrainingConfig config = new TrainingConfig();
+        // per-generation history for the Training UI curves
+        public readonly List<float> bestHistory = new List<float>();
+        public readonly List<float> meanHistory = new List<float>();
+        public readonly List<float> successHistory = new List<float>();
+        public float lastBestFitness, lastMeanFitness;
+
+        /// <summary>Shaped fitness for ONE settled rollout state, using the config reward weights + the
+        /// curriculum. Pulls the scenario's task reward and adds dense shaping (reach/grasp/place/energy/
+        /// self-penetration/out-of-bounds) so the policy gets a smooth gradient toward the goal.</summary>
+        public float ShapedFitness(float taskReward, bool success, float energy, float selfPen)
+        {
+            var c = config;
+            float f = taskReward * c.wReach            // scenario term already ~ -dist; scale by reach weight
+                    - energy * c.wEnergy
+                    - selfPen * c.wSelfPen * 50f
+                    + (success ? c.wSuccess : 0f);
+            // grasp + out-of-bounds shaping from live scene state
+            var grip = arm != null ? arm.gripper : null;
+            if (grip != null && grip.IsHolding) f += c.wGrasp;
+            return f;
+        }
+
+        void RecordGeneration()
+        {
+            float bf = float.NegativeInfinity, sum = 0f; int cnt = 0;
+            if (policyMode) { foreach (var g in policyPop) { bf = Mathf.Max(bf, g.fitness); sum += g.fitness; cnt++; } }
+            else            { foreach (var g in population) { bf = Mathf.Max(bf, g.fitness); sum += g.fitness; cnt++; } }
+            lastBestFitness = bf;
+            lastMeanFitness = cnt > 0 ? sum / cnt : 0f;
+            bestHistory.Add(lastBestFitness);
+            meanHistory.Add(lastMeanFitness);
+            successHistory.Add(lastSuccessRate);
+            // auto-curriculum: bump difficulty when consistently succeeding
+            if (config.autoCurriculum && lastSuccessRate >= config.advanceSuccessRate && config.difficulty < 1f)
+                config.difficulty = Mathf.Min(1f, config.difficulty + 0.1f);
+        }
+
         public void Init(ProceduralArm a, ArmController c, ScenarioManager s)
         {
             arm = a; controller = c; scenarios = s;
             specs = arm.jointSpecs.ToArray();
             homePose = (float[])controller.TargetAngles.Clone();
             selfCollision = arm.GetComponent<SelfCollision>();   // for the self-collision penalty
+            ApplyConfig();
             SeedPopulation();
+        }
+
+        /// <summary>Push the shared TrainingConfig into the trainer's runtime params + backend + sensors.
+        /// Call after the UI edits the config.</summary>
+        public void ApplyConfig()
+        {
+            populationSize = Mathf.Max(2, config.populationSize);
+            elite          = Mathf.Clamp(config.elite, 1, populationSize - 1);
+            mutationRate   = config.mutationRate;
+            mutationSigma  = config.mutationSigma;
+            keysPerGenome  = Mathf.Max(2, config.keysPerGenome);
+            policyHidden   = Mathf.Max(4, config.policyHidden);
+            evalResets     = Mathf.Max(1, config.evalResets);
+            rolloutSpeedup = Mathf.Max(1f, config.rolloutSpeedup);
+            policyMode     = config.backend == TrainingConfig.Backend.SensorPolicy;
+            if (sensorHub != null) config.ApplySensorMask(sensorHub);
         }
 
         public void SetSensorHub(SensorHub h) => sensorHub = h;
@@ -176,6 +232,7 @@ namespace ArmSmith
             policyPop.Sort((x, y) => y.fitness.CompareTo(x.fitness));
             bestPolicy = policyPop[0];
             status = $"[policy] gen {generation} done best={bestPolicy.fitness:F2} obs={(sensorHub != null ? sensorHub.ObservationSize() : 0)}";
+            RecordGeneration();
             BreedPolicies();
             generation++;
             Time.timeScale = prevScale;
@@ -230,7 +287,7 @@ namespace ArmSmith
                 if (s2) success = true;
                 // Penalise SELF-COLLISION (folding through itself = could damage a real arm).
                 float selfPen = selfCollision != null ? selfCollision.MaxSelfPenetration() : 0f;
-                fitnessSum += reward - energy * 0.001f - selfPen * 50f + (success ? 5f : 0f);
+                fitnessSum += ShapedFitness(reward, success, energy, selfPen);   // config-weighted reward shaping
                 if (success) successes++;
             }
             g.fitness = fitnessSum / resets;
@@ -277,6 +334,7 @@ namespace ArmSmith
             best = population[0];
             status = $"gen {generation} done  best={best.fitness:F2}";
 
+            RecordGeneration();
             Breed();
             generation++;
             Time.timeScale = prevScale;
@@ -321,8 +379,10 @@ namespace ArmSmith
             for (int s = 0; s < 20; s++) yield return new WaitForFixedUpdate();
 
             float reward = scenarios.ComputeReward(out bool success);
-            g.fitness = reward - energy * 0.002f + (success ? 5f : 0f);
+            float selfPen = selfCollision != null ? selfCollision.MaxSelfPenetration() : 0f;
+            g.fitness = ShapedFitness(reward, success, energy, selfPen);   // config-weighted reward shaping
             g.generation = generation;
+            lastSuccessRate = success ? 1f : 0f;
         }
 
         // ── DF2: GA-as-demo-factory ────────────────────────────────────────────────────────────────
