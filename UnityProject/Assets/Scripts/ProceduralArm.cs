@@ -226,6 +226,44 @@ namespace ArmSmith
                 drive.target = cmd;
                 ab.xDrive = drive;
             }
+            ApplyGravityCompensation();
+        }
+
+        [Header("Gravity compensation")]
+        public bool gravityCompensation = true;
+        [Range(0f, 1.2f)] public float gravityCompGain = 0.85f;
+
+        /// <summary>
+        /// Feed-forward GRAVITY COMPENSATION: add to each revolute joint the torque needed to counter the
+        /// gravity load of everything DOWNSTREAM of it, so the PD drive only has to correct small deviations.
+        /// This is the standard robotics fix for the "joint sags / wrist won't hold its commanded angle"
+        /// problem WITHOUT needing extreme stiffness (which oscillated). Torque about a joint = sum over
+        /// downstream links of (m * g) x (r_perp to the joint axis). Applied via ArticulationBody.jointForce.
+        /// </summary>
+        public void ApplyGravityCompensation()
+        {
+            if (!gravityCompensation || jointBodies == null || jointBodies.Count == 0) return;
+            Vector3 g = Physics.gravity;   // (0,-9.81,0)
+            for (int i = 0; i < jointBodies.Count; i++)
+            {
+                var ab = jointBodies[i];
+                if (ab == null || ab.jointType != ArticulationJointType.RevoluteJoint || ab.dofCount <= 0) continue;
+                Vector3 axis = (ab.transform.rotation * (ab.anchorRotation * Vector3.right)).normalized;
+                Vector3 pivot = ab.transform.position;
+                // sum gravity torque about this joint's axis from this body + all downstream bodies
+                Vector3 torque = Vector3.zero;
+                for (int k = i; k < jointBodies.Count; k++)
+                {
+                    var b = jointBodies[k];
+                    if (b == null) continue;
+                    Vector3 com = b.worldCenterOfMass;
+                    Vector3 force = b.mass * g;
+                    torque += Vector3.Cross(com - pivot, force);
+                }
+                float tauAboutAxis = Vector3.Dot(torque, axis) * gravityCompGain;
+                // jointForce is in the reduced (joint) coordinate; counter the gravity torque (negate).
+                ab.jointForce = new ArticulationReducedSpace(-tauAboutAxis);
+            }
         }
 
         /// <summary>

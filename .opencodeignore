@@ -11,3 +11,7 @@ UnityProject/mono_crash.*
 *.csproj
 *.sln
 research/external/orcahand/
+# Vendored NVIDIA Labs research repos — tracked in git, but kept out of
+# opencode/qalcode snapshots so sessions stay small.
+research/external/4D-RGPT/
+research/external/SpatialClaw/

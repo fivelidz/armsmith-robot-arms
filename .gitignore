@@ -12,3 +12,19 @@ UnityProject/mono_crash.*
 .opencode/
 research/external/orcahand/**/.git/
 research/external/orcahand/
+
+# Vendored NVIDIA Labs research repos (4D-RGPT, SpatialClaw) + their third-party
+# perception models (Depth-Anything-3, SAM3, Pi3, L4P). Code + docs are tracked;
+# the heavy demo media (videos/gifs/sample data) below is excluded to keep the
+# git repo lean — re-fetch with `git submodule update --init --recursive` inside
+# each vendored repo if you ever need the original demos.
+research/external/**/*.mp4
+research/external/**/*.gif
+research/external/**/*.npz
+research/external/**/*.pth
+research/external/**/*.safetensors
+research/external/**/*.ckpt
+research/external/SpatialClaw/tools/third_party/Pi3/examples/
+research/external/SpatialClaw/tools/third_party/sam3/assets/
+research/external/4D-RGPT/third_party/L4P/media/
+research/external/4D-RGPT/teaser_4D-RGPT.png

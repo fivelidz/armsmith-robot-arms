@@ -12,6 +12,14 @@ Created 2026-05-30. All research consolidated here before building the game.
 | `cameras/REPORT.md` | Wrist UVC cam + Logitech C922 env cam | Multi-RenderTexture HUD panels: main orbit cam + wrist cam (~80° FOV) + env cam (~78° FOV). URP. |
 | `unity_integration/REPORT.md` | MCP for Unity bridge | Pkg `com.coplaydev.unity-mcp` (CoplayDev). 43 tools. Editor 6000.4.2f1. Template project: GoblinFortDefense. |
 
+## External repos (vendored, computer-vision / spatial)
+| File | Topic | Key takeaway |
+|---|---|---|
+| `external/NVLABS_4DRGPT_SPATIALCLAW_STUDY.md` | NVlabs **4D-RGPT** + **SpatialClaw** study | SpatialClaw = training-free spatial-reasoning agent over DA3 depth + SAM3 seg + numpy geometry → adoptable grasp-perception pipeline. 4D-RGPT = region-level 4D-video QA VLM; borrow its Perceptual-4D-Distillation idea, skip the 8B model. Both NVIDIA-NC (research only). |
+| `external/NVLABS_UTILIZATION_AND_SCENARIOS.md` | How to USE the above in ARMSMITH | 6 scenarios S1–S6. Highest-leverage: S1 DA3 depth endpoint over MCP → S3 auto-label domain-randomized worlds → S4 train RGB-only grasp policy via P4D distillation (Unity GT as teacher) → deploy via LeRobot. |
+| `external/ORCAHAND_STUDY.md` | ORCA dexterous hand | (prior study) |
+| `external/4D-RGPT/`, `external/SpatialClaw/` | Vendored source (code+docs tracked; demo media gitignored) | Working clones live in `~/projects/github_repos/`. Perception submodules fetched: Depth-Anything-3, SAM3, Pi3, L4P. |
+
 ## The chosen tech stack
 - **Engine:** Unity 6000.4.2f1, URP, built-in PhysX (ArticulationBody for the arm — accurate jointed physics).
 - **Control:** FABRIK IK + per-joint drive; mouse drags an end-effector target, keyboard nudges joints.

@@ -235,3 +235,33 @@ DRAWING the paths / showing more data visually in the world is explicitly wanted
 - [ ] DF3: train a real low-dim joint-space Diffusion Policy in LeRobot from collected demos (next).
 - [x] DF4: inference server (serve_diffusion_policy.py) + Unity DiffusionPolicyClient (receding horizon, key 4). Robustness benchmark vs open-loop TODO.
 - [ ] Swap DiffusionMotionPlanner's seed+denoise for a learned trajectory-diffusion model (same I/O).
+
+## Vision AI + advanced training directions (added S7g, from NVlabs study + user ideas)
+Research: research/external/NVLABS_4DRGPT_SPATIALCLAW_STUDY.md and NVLABS_ROBOLAB_GROOT_WBC_STUDY.md.
+
+### Computer-vision / spatial AI (user: "look at computer vision AI also")
+- [ ] CV1: SpatialClaw-style perception — Depth-Anything-3 reconstruct (point map + camera pose) + SAM3
+      segmentation, run as a GPU tool server, fed the Unity WristCam frame over the MCP/socket bridge.
+      Output -> grasp pose math (their pure-numpy geometry toolbox is copy-pasteable). ADAPT-IDEAS strong.
+- [ ] CV2: 4D-RGPT "Perceptual 4D Distillation" — train an RGB-only student with depth/flow/segmentation
+      as AUX LOSSES, supervised by Unity's GROUND-TRUTH depth/flow/seg (free in-sim teacher). Best fit.
+- [ ] CV3: synthetic-vision dataset from domain-randomized Unity scenes -> train/finetune a small
+      vision/spatial grasp model -> deploy via LeRobot. (Unifies CV1 auto-labeling + CV2 distillation.)
+- NOTE licensing: SpatialClaw + 4D-RGPT are NVIDIA NON-COMMERCIAL (research ok; plan permissive swaps
+  if ARMSMITH ever ships).
+
+### RoboLab-inspired eval + serving (user: "RoboLab looks critical")
+- [ ] EV1: composable-predicate success detection (object_in_container / upright / left_of ...) as C#
+      checks -> unified eval + GA fitness + curriculum difficulty labels.
+- [ ] EV2: InferenceClient server-client contract for policy serving (mirror in our diffusion/sensor-policy
+      MCP bridge): extract_observation -> pack_request -> query_server -> unpack action chunk.
+- [ ] EV3: LeRobot v3.0 export schema authority (align waypoints_to_lerobot.py with convert_to_lerobot.py).
+- [ ] EV4: design/specs/EVAL_AND_LEROBOT_SPEC.md capturing EV1-EV3.
+
+### Multi-generation / scrambled-world training viz (user ideas)
+- [ ] MG1: show MULTIPLE GA generations simultaneously (ghost/overlay arms or a grid of mini-views) so the
+      player sees the spread of behaviours evolving, not just the current best.
+- [ ] MG2: "scrambled world" training mode — heavier domain randomization (object pose/size/color/mass,
+      lighting, camera jitter, table height, sensor noise) for robustness; a slider for randomization
+      strength. Ties into the Conditions UI.
+- [ ] MG3: side-by-side replays of different generations/backends for comparison (RoboLab dashboard idea).

@@ -262,14 +262,15 @@ namespace ArmSmith
                 // moderate stiffness so the response is critically/over-damped: fast settle, no overshoot.
                 // S7f: moderate stiffness + meaningful damping for a fast, stable (critically-damped-ish)
                 // response. Final values tuned with the servo-fidelity rate-limiter accounted for.
-                // Known-good config that achieves the full pick-and-place in HeadlessPickCheck (reach 3.4cm,
-                // grasp 3.9cm, lift to 0.10m). Strong proximal + elbow/wrist drives with high damping; the
-                // stability fixes (depenetration caps, self-collision off, env-ignore) keep it crash-free.
+                // S7g: with FEED-FORWARD GRAVITY COMPENSATION (ProceduralArm.ApplyGravityCompensation) the
+                // drive no longer has to fight gravity, so we can use MODERATE stiffness + good damping for a
+                // stable, non-oscillating, accurate response. (Pure-PD high stiffness oscillated; low
+                // stiffness sagged — gravity comp removes that trade-off, the standard robotics solution.)
                 bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
                 bool isElbowWrist = (j.name == "elbow_flex" || j.name == "wrist_flex" || j.name == "wrist_roll");
                 float stiff, force, damp;
-                if (proximal)      { stiff = 35000f; force = 800f; damp = 900f; }
-                else if (isElbowWrist) { stiff = 32000f; force = 700f; damp = 800f; }
+                if (proximal)      { stiff = 15000f; force = 1200f; damp = 1000f; }
+                else if (isElbowWrist) { stiff = 10000f; force = 900f; damp = 700f; }
                 else               { stiff = 6000f;  force = 200f; damp = 250f; }  // gripper jaws etc.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
                     stiffness: stiff, damping: damp, forceLimit: force,
@@ -490,9 +491,18 @@ namespace ArmSmith
             ab.xDrive = drive;
 
             ab.mass = Mathf.Max(0.01f, massKg);
-            ab.maxAngularVelocity = 6f;
-            ab.angularDamping = 0.2f;
-            ab.jointFriction = 0.02f;
+            // S7g: pin a LARGER explicit inertia tensor so the PD drive is well-conditioned. The STL links'
+            // tiny auto inertia gives a huge natural frequency that's underdamped/oscillatory at 120 Hz
+            // (the wrist rang). A bigger effective inertia lowers ωn into the stable range and lets modest
+            // damping critically-damp it. Combined with gravity compensation, the joint tracks accurately
+            // without sag OR oscillation. (Slightly higher than physical, but it's the rotor+gearbox
+            // reflected inertia of a real geared servo, which IS large — so this is realistic.)
+            ab.automaticInertiaTensor = false;
+            ab.inertiaTensor = Vector3.one * 0.004f;
+            ab.inertiaTensorRotation = Quaternion.identity;
+            ab.maxAngularVelocity = 10f;
+            ab.angularDamping = 0.3f;
+            ab.jointFriction = 0.05f;
             // S7d PhysX HARDENING: the segfault is an articulation solver descriptor built from a diverging
             // state, often on the FIRST step when light links overlap. Bound every explosion source:
             ab.maxLinearVelocity = 5f;           // m/s cap on the link
