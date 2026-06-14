@@ -462,3 +462,34 @@ equilibrium offset). The DISCRETE analytic-hold path the pick routine uses is ac
 task passes). Fully smoothing the continuous loop needs gravity-compensation / computed-torque control —
 a control-quality improvement, not a task blocker. Live in-GUI confirmation still pending (editor
 background-launch is intermittently failing in the automation shell; systemctl/systemd-run denied).
+
+## 2026-06-14 — Session 7g: training regimen + physics verification + NVlabs research
+Delivered the full training system the user asked for, grounded on verified physics, plus research.
+
+PHYSICS / MOTOR VERIFICATION (grounds the training):
+- Editor/MotorPhysicsCheck.cs (suite gate): drives track modest commands fast; servo rate-limited
+  (~117 deg/s vs STS3215 model); tick quantisation 0.088 deg/tick; gravity hold ~3 deg drift (was 11).
+- Tuned: conditioned explicit inertia (no oscillation) + joint friction 0.15 (geared-servo stiction =
+  passive hold). Large extended angles sag realistically (honest small-servo physics). Lift -> 0.218m.
+
+TRAINING REGIMEN (design/specs/TRAINING_REGIMEN.md):
+- TrainingConfig: backend (Motion-GA / Sensor-Policy / Diffusion), difficulty + curriculum (L0 Reach ..
+  L4 Scrambled), randomization strength, reward-shaping weights, SENSOR MASK (model inclusion/exclusion
+  of info), GA/policy hyperparams.
+- EvolutionTrainer: ShapedFitness (config-weighted) in both backends; per-gen best/mean/success history;
+  auto-curriculum; ApplyConfig/StepOneGeneration/ResetTraining; per-gen best-trajectory capture.
+- TrainingPanel (F3): backend selector + Start/Stop/+1Gen/Reset + live curves (best/mean/success) + progress.
+- ConditionsPanel (F4): sliders for difficulty/randomization/reward-weights + sensor toggles + GA params.
+- TR7 scrambled-world: randomization slider drives ScenarioManager.ScrambleObjects (size/mass/yaw/colour).
+- TR8 multi-generation viz (key 3): overlay last N generations' best paths (newest bright) via PathVisualizer.
+- Editor/TrainingSmokeCheck.cs (suite gate): proves Motion-GA converges (-75 -> -4) and Sensor-Policy
+  improves (-4.5 -> -2.3).
+
+NVLABS RESEARCH (research/external/): RoboLab (eval benchmark — adopt InferenceClient contract + predicate
+success + LeRobot export conventions); GR00T-WBC (humanoid, mostly off-target); 4D-RGPT (P4D distillation
+idea — Unity gives free GT depth/flow/seg teacher); SpatialClaw (DA3+SAM3+geometry grasp perception — strong
+fit via the MCP bridge). All Apache/NC-licensed; logged in ROADMAP under CV/spatial AI directions.
+
+Headless suite now 7/7 (physx, pick, viz, motor, training-learns, diffusion-pipeline, diffusion-deploy).
+In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 follow-plan, 6 MPD planner,
+7 denoise, 8 path-viz, 9 demo-routes.
