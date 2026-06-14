@@ -53,6 +53,10 @@ if [ "$MODE" != "quick" ]; then
   echo "[3] Viz smoke (providers + data helpers)"
   run_unity_method "Viz smoke" \
     "ArmSmith.EditorTools.VizSmokeCheck.RunHeadless" "VizSmokeCheck] PASSED"
+
+  echo "[3b] Motor physics (drive tracking, servo rate/ticks, gravity hold)"
+  run_unity_method "Motor physics" \
+    "ArmSmith.EditorTools.MotorPhysicsCheck.RunHeadless" "MotorPhysicsCheck] PASSED"
 fi
 
 echo "[4] Diffusion pipeline (GA demo -> safety -> LeRobot dataset)"

@@ -31,3 +31,4 @@ Created 2026-05-30. All research consolidated here before building the game.
 
 ## License notes
 - reBot/SO-ARM hardware = CERN-OHL-W-2.0 → if we ship their exact meshes, keep copyright + license + mark modifications. Safer: use our OWN procedurally-generated parametric arm meshes (link cylinders + joint spheres) for the game, and treat reBot dimensions as *reference specs only*. This sidesteps redistribution obligations and makes morphology evolution trivial. **Decision: game uses procedural meshes parameterised by reBot-like dimensions.**
+- **4D-RGPT / SpatialClaw + DA3/SAM3/Pi3/L4P = NVIDIA Source-Code-License-NC (and gated SAM3 weights)** → **non-commercial research use only.** Fine for this research project. If ARMSMITH ever goes commercial, treat their code + model weights as prototype-only and swap in permissively-licensed depth/seg models for any shipped product.

@@ -230,8 +230,12 @@ namespace ArmSmith
         }
 
         [Header("Gravity compensation")]
-        public bool gravityCompensation = true;
-        [Range(0f, 1.2f)] public float gravityCompGain = 0.85f;
+        // Gravity compensation via jointForce proved a near-no-op in Unity articulations (the drive
+        // overwrites it); joint FRICTION + a conditioned inertia tensor give the passive holding instead
+        // (a real geared servo holds via gear friction/stiction, which is what we model). Kept off by
+        // default but available for experimentation.
+        public bool gravityCompensation = false;
+        [Range(0f, 1.5f)] public float gravityCompGain = 1.0f;
 
         /// <summary>
         /// Feed-forward GRAVITY COMPENSATION: add to each revolute joint the torque needed to counter the

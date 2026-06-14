@@ -269,8 +269,8 @@ namespace ArmSmith
                 bool proximal = (j.name == "shoulder_pan" || j.name == "shoulder_lift");
                 bool isElbowWrist = (j.name == "elbow_flex" || j.name == "wrist_flex" || j.name == "wrist_roll");
                 float stiff, force, damp;
-                if (proximal)      { stiff = 15000f; force = 1200f; damp = 1000f; }
-                else if (isElbowWrist) { stiff = 10000f; force = 900f; damp = 700f; }
+                if (proximal)      { stiff = 20000f; force = 1200f; damp = 1000f; }
+                else if (isElbowWrist) { stiff = 14000f; force = 900f; damp = 700f; }
                 else               { stiff = 6000f;  force = 200f; damp = 250f; }  // gripper jaws etc.
                 ConfigureUrdfRevolute(ab, limLo, limHi,
                     stiffness: stiff, damping: damp, forceLimit: force,
@@ -491,18 +491,15 @@ namespace ArmSmith
             ab.xDrive = drive;
 
             ab.mass = Mathf.Max(0.01f, massKg);
-            // S7g: pin a LARGER explicit inertia tensor so the PD drive is well-conditioned. The STL links'
-            // tiny auto inertia gives a huge natural frequency that's underdamped/oscillatory at 120 Hz
-            // (the wrist rang). A bigger effective inertia lowers ωn into the stable range and lets modest
-            // damping critically-damp it. Combined with gravity compensation, the joint tracks accurately
-            // without sag OR oscillation. (Slightly higher than physical, but it's the rotor+gearbox
-            // reflected inertia of a real geared servo, which IS large — so this is realistic.)
+            // S7g: a modest explicit inertia keeps the PD drive well-conditioned (no oscillation), while a
+            // small amount of joint friction adds passive holding torque (a real geared servo has stiction/
+            // backdrive resistance) that reduces gravity sag — physically honest and stabilising.
             ab.automaticInertiaTensor = false;
-            ab.inertiaTensor = Vector3.one * 0.004f;
+            ab.inertiaTensor = Vector3.one * 0.003f;
             ab.inertiaTensorRotation = Quaternion.identity;
-            ab.maxAngularVelocity = 10f;
-            ab.angularDamping = 0.3f;
-            ab.jointFriction = 0.05f;
+            ab.maxAngularVelocity = 8f;
+            ab.angularDamping = 0.25f;
+            ab.jointFriction = 0.15f;   // STS3215 has gear friction/stiction -> passive hold
             // S7d PhysX HARDENING: the segfault is an articulation solver descriptor built from a diverging
             // state, often on the FIRST step when light links overlap. Bound every explosion source:
             ab.maxLinearVelocity = 5f;           // m/s cap on the link
