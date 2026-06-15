@@ -303,10 +303,7 @@ namespace ArmSmith
         {
             t.position = p; t.rotation = Quaternion.identity;
             var rb = t.GetComponent<Rigidbody>();
-            // Only a NON-kinematic body can have its velocities written. A held cube is made kinematic by
-            // Gripper.HeldFollow; calling .linearVelocity on it spams "Setting velocity of a kinematic body
-            // is not supported" every reset. Guard it.
-            if (rb != null && !rb.isKinematic) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+            if (rb != null) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
         }
 
         void SetActive(Transform t, bool a) { if (t != null) t.gameObject.SetActive(a); }
