@@ -12,9 +12,7 @@ namespace ArmSmith
     {
         public EvolutionTrainer trainer;
         public ScenarioManager scenarios;
-        // Default HIDDEN: this OnGUI panel used to default visible and drew over the top-right camera/module
-        // stack. It's an opt-in editor now — press F4 to open it.
-        public bool show = false;
+        public bool show = true;
 
         Texture2D px;
         GUIStyle hdr, lbl, small;
@@ -27,11 +25,9 @@ namespace ArmSmith
             if (px == null) { px = new Texture2D(1, 1); px.SetPixel(0, 0, Color.white); px.Apply(); }
             if (hdr == null)
             {
-                // Fonts bumped (was 13/11/10). OnGUI bypasses the CanvasScaler, so UiScale.Begin/End scales
-                // the panel into 1920-ref logical space to match the Canvas UI.
-                hdr = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 17, normal = { textColor = new Color(1f, 0.8f, 0.5f) } };
-                lbl = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 15, normal = { textColor = new Color(0.75f, 0.9f, 1f) } };
-                small = new GUIStyle(GUI.skin.label) { fontSize = 13, normal = { textColor = new Color(0.85f, 0.85f, 0.85f) } };
+                hdr = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 13, normal = { textColor = new Color(1f, 0.8f, 0.5f) } };
+                lbl = new GUIStyle(GUI.skin.label) { fontSize = 11, normal = { textColor = Color.white } };
+                small = new GUIStyle(GUI.skin.label) { fontSize = 10, normal = { textColor = new Color(0.8f, 0.8f, 0.8f) } };
             }
         }
 
@@ -41,12 +37,10 @@ namespace ArmSmith
         {
             if (!show || trainer == null) return;
             EnsureStyles();
-            var uiPrev = UiScale.Begin();   // scale into 1920x1080 logical space to match the Canvas
             var cfg = trainer.config;
-            const float W = 360f;
-            // Place against the right edge of LOGICAL space (so it tracks the right edge at any resolution).
-            float X = UiScale.LogicalWidth - W - 12f, Y = 60f, H = UiScale.LogicalHeight - 120f;
-            GUI.color = new Color(0.07f, 0.06f, 0.05f, 0.94f);
+            const float W = 320f;
+            float X = Screen.width - W - 12f, Y = 60f, H = Screen.height - 120f;
+            GUI.color = new Color(0.07f, 0.06f, 0.05f, 0.92f);
             GUI.DrawTexture(new Rect(X, Y, W, H), px); GUI.color = Color.white;
 
             GUILayout.BeginArea(new Rect(X + 10, Y + 8, W - 20, H - 16));
@@ -98,7 +92,6 @@ namespace ArmSmith
 
             GUILayout.EndScrollView();
             GUILayout.EndArea();
-            UiScale.End(uiPrev);
         }
 
         float Slider(string label, float v, float lo, float hi)

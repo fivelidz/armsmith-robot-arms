@@ -41,7 +41,7 @@ namespace ArmSmith.Verification
             var tgo = new GameObject("t"); tgo.transform.SetParent(root.transform, false);
             text = tgo.AddComponent<Text>();
             text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = 15; text.color = Color.white; text.supportRichText = true;
+            text.fontSize = 12; text.color = Color.white; text.supportRichText = true;
             var trt = text.rectTransform; trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
             trt.offsetMin = new Vector2(8, 6); trt.offsetMax = new Vector2(-8, -6);
         }
@@ -61,7 +61,7 @@ namespace ArmSmith.Verification
         void Update()
         {
             if (root == null) return;
-            if (Input.GetKeyDown(KeyCode.F6)) show = !show;   // was F3 (clashed with Training panel + sensor toggle)
+            if (Input.GetKeyDown(KeyCode.F3)) show = !show;
             root.SetActive(show);
             if (!show) return;
 

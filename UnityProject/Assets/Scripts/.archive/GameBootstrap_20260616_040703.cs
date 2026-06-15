@@ -350,17 +350,7 @@ namespace ArmSmith
             var canvasGo = new GameObject("HUD");
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            // UI SCALING: previously the CanvasScaler was added but never configured -> it defaulted to
-            // ConstantPixelSize (scaleFactor 1). On a 2560x1440 display that left every panel/font at the
-            // raw pixel size tuned for ~1280-1920, so text looked tiny and absolute offsets didn't track the
-            // larger screen. Scale With Screen Size at a 1920x1080 reference makes panels + fonts scale up
-            // proportionally on high-res displays (and down on small ones). Match-width-or-height 0.5 keeps a
-            // balanced scale for both axes.
-            var scaler = canvasGo.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            canvasGo.AddComponent<CanvasScaler>();
             canvasGo.AddComponent<GraphicRaycaster>();
 
             // wrist + env panels (top-right corner)
@@ -526,17 +516,13 @@ namespace ArmSmith
                 Time.timeScale = Mathf.Max(0f, Time.timeScale - 0.5f);
             if (Input.GetKeyDown(KeyCode.Alpha0)) Time.timeScale = (Time.timeScale == 0f) ? 1f : 0f;
 
-            // Sensor module toggles (ablation) moved to SHIFT+F2..F7 so the bare F-keys are free for the UI
-            // panels. The plain F3/F4 used to fire BOTH a sensor toggle and a panel (Training/Conditions) at
-            // once — a real keybinding clash. Ablation is an advanced action, so it lives behind Shift now.
-            //   Shift+F2 IMU · Shift+F3 RangeFinder · Shift+F4 Lidar2D · Shift+F5 DepthCamera · Shift+F6 eFlesh · Shift+F7 MotorEncoders
-            bool shiftHeld = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-            if (shiftHeld && Input.GetKeyDown(KeyCode.F2)) Toggle("IMU");
-            if (shiftHeld && Input.GetKeyDown(KeyCode.F3)) Toggle("RangeFinder");
-            if (shiftHeld && Input.GetKeyDown(KeyCode.F4)) Toggle("Lidar2D");
-            if (shiftHeld && Input.GetKeyDown(KeyCode.F5)) Toggle("DepthCamera");
-            if (shiftHeld && Input.GetKeyDown(KeyCode.F6)) Toggle("EFleshTactile");
-            if (shiftHeld && Input.GetKeyDown(KeyCode.F7)) Toggle("MotorEncoders");
+            // Sensor module toggles (ablation): F2 IMU, F3 RangeFinder, F4 Lidar2D, F5 DepthCamera, F6 eFlesh, F7 MotorEncoders
+            if (Input.GetKeyDown(KeyCode.F2)) Toggle("IMU");
+            if (Input.GetKeyDown(KeyCode.F3)) Toggle("RangeFinder");
+            if (Input.GetKeyDown(KeyCode.F4)) Toggle("Lidar2D");
+            if (Input.GetKeyDown(KeyCode.F5)) Toggle("DepthCamera");
+            if (Input.GetKeyDown(KeyCode.F6)) Toggle("EFleshTactile");
+            if (Input.GetKeyDown(KeyCode.F7)) Toggle("MotorEncoders");
             if (Input.GetKeyDown(KeyCode.F8)) { trainer.policyMode = !trainer.policyMode; if (trainer.policyMode) trainer.SeedPolicyPopulation(); }
             // Backspace: start/stop recording a DEMONSTRATION (obs+action pairs for imitation seeding).
             if (Input.GetKeyDown(KeyCode.Backspace)) { if (demoRec.IsRecording) demoRec.StopRecording(); else demoRec.StartRecording(); }

@@ -11,9 +11,7 @@ namespace ArmSmith
     public class TrainingPanel : MonoBehaviour
     {
         public EvolutionTrainer trainer;
-        // Default HIDDEN: this OnGUI panel used to default visible and overlapped the always-on top-left
-        // Info box. It's an opt-in tool now — press F3 to bring it up. It opens BELOW the info box (see Y).
-        public bool show = false;
+        public bool show = true;
 
         Texture2D px;
         GUIStyle hdr, lbl, small;
@@ -25,11 +23,9 @@ namespace ArmSmith
             if (px == null) { px = new Texture2D(1, 1); px.SetPixel(0, 0, Color.white); px.Apply(); }
             if (hdr == null)
             {
-                // Fonts bumped (was 13/11/10 -> tiny at high-res). OnGUI bypasses the CanvasScaler, so we
-                // also apply UiScale.Begin/End below to scale the whole panel to a 1920-ref logical space.
-                hdr = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 17, normal = { textColor = new Color(0.6f, 0.85f, 1f) } };
-                lbl = new GUIStyle(GUI.skin.label) { fontSize = 15, normal = { textColor = Color.white } };
-                small = new GUIStyle(GUI.skin.label) { fontSize = 13, normal = { textColor = new Color(0.82f, 0.82f, 0.82f) } };
+                hdr = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, fontSize = 13, normal = { textColor = new Color(0.6f, 0.85f, 1f) } };
+                lbl = new GUIStyle(GUI.skin.label) { fontSize = 11, normal = { textColor = Color.white } };
+                small = new GUIStyle(GUI.skin.label) { fontSize = 10, normal = { textColor = new Color(0.8f, 0.8f, 0.8f) } };
             }
         }
 
@@ -42,10 +38,8 @@ namespace ArmSmith
         {
             if (!show || trainer == null) return;
             EnsureStyles();
-            var uiPrev = UiScale.Begin();   // scale OnGUI into 1920x1080 logical space to match the Canvas
-            // Open BELOW the top-left Info box (which occupies ~y8..258) so they no longer overlap.
-            const float W = 340f, X = 12f, Y = 272f;
-            float h = 330f;
+            const float W = 320f, X = 12f, Y = 60f;
+            float h = 318f;
             GUI.color = new Color(0.05f, 0.07f, 0.10f, 0.92f);
             GUI.DrawTexture(new Rect(X, Y, W, h), px);
             GUI.color = Color.white;
@@ -86,7 +80,6 @@ namespace ArmSmith
 
             // curves
             DrawCurves(new Rect(r.x, r.y, W - 20, 120));
-            UiScale.End(uiPrev);
         }
 
         void DrawCurves(Rect area)
