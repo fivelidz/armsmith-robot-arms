@@ -2,6 +2,9 @@
 
 > **Read this first.** Single source of truth for where development is up to. Update at the end of
 > every work session. Newest status at the top of each section.
+>
+> **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 7/7.)
 
 Repo: https://github.com/fivelidz/armsmith-robot-arms (private)
 Engine: Unity 6000.4.2f1, URP, ArticulationBody physics. Units = metres. Arm = real SO-101 STL.

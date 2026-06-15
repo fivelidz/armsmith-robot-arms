@@ -336,3 +336,13 @@ WHAT I DID:
 - RESULT: catastrophic jams eliminated; grasp reliable; multi-trial pick repeatable (lifted to 0.139/
   0.179/0.376m). Final post-fix lift-from-grasp verification pending a graphics-session restart (a live
   bridge experiment segfaulted the editor; the safe version is now in Gripper code).
+
+## 2026-06-14 — Session 7g
+USER INTENT: develop a training regimen; consider model inclusion/exclusion; design a good Training UI +
+a Conditions UI for modifying conditions; verify the arm physics + motor model. Then: add computer-vision
+AI direction; multi-generation viz; scrambled/randomized training world; investigate NVlabs repos
+(RoboLab [flagged critical], GR00T-WholeBodyControl, 4D-RGPT, SpatialClaw). Finally: write a full handover.
+DELIVERED: MotorPhysicsCheck (physics verified); TrainingConfig + reward shaping + curriculum + backend
+selection; TrainingPanel (F3) + ConditionsPanel (F4); scrambled-world randomization; multi-generation viz;
+TrainingSmokeCheck (proves learning); 7/7 headless suite; NVlabs research reports + ROADMAP CV/spatial
+directions; HANDOVER.md.
