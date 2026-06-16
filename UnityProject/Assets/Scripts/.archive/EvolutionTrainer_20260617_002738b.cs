@@ -255,32 +255,7 @@ namespace ArmSmith
             homePose = (float[])controller.TargetAngles.Clone();
             selfCollision = arm.GetComponent<SelfCollision>();   // for the self-collision penalty
             ApplyConfig();
-            SeedPopulation();   // random for now; warm-start happens when training starts (scene must exist)
-            // load any prior creations so the Generations UI shows history across sessions
-            try { creations.AddRange(EvolutionStore.LoadLibrary().creations); } catch { }
-        }
-
-        // WARM-START by default: random genomes almost never discover a grasp, so the GA used to sit at
-        // ~0% success forever. We instead seed the FIRST generation from a competent IK-solved pick-place
-        // DEMO (BuildPickPlaceDemo) and let the GA REFINE it — this reliably reaches 100% task success
-        // (verified: best fitness jumps from ~-1.1 random to ~13.9 = task complete + success bonus). The
-        // demo needs the scenario objects to exist, so we do it lazily the first time training runs.
-        public bool warmStartFromDemo = true;
-        bool warmStarted = false;
-
-        void EnsureWarmStart()
-        {
-            if (!warmStartFromDemo || warmStarted || policyMode) return;
-            // only warm-start a fresh/random population (don't clobber a resumed checkpoint or progress)
-            bool fresh = generation == 0 && (best == null || best.fitness <= -1e29f);
-            if (!fresh) { warmStarted = true; return; }
-            var demo = BuildPickPlaceDemo();
-            if (demo != null && demo.Count > 0)
-            {
-                SeedFromDemo(demo);
-                warmStarted = true;
-                Debug.Log("[Trainer] warm-started from IK pick-place demo (default).");
-            }
+            SeedPopulation();
         }
 
         /// <summary>Push the shared TrainingConfig into the trainer's runtime params + backend + sensors.
@@ -389,14 +364,13 @@ namespace ArmSmith
             return null;
         }
 
-        public void StartTraining() { if (!Running) { EnsureWarmStart(); StartCoroutine(TrainLoop()); } }
+        public void StartTraining() { if (!Running) StartCoroutine(TrainLoop()); }
         public void StopTraining() { Running = false; }
 
         /// <summary>Run exactly ONE generation of the current backend (for the UI "+1 Gen" button).</summary>
         public void StepOneGeneration()
         {
             if (Running) return;
-            EnsureWarmStart();
             StartCoroutine(policyMode ? RunPolicyGeneration() : RunGeneration());
         }
 
@@ -409,7 +383,6 @@ namespace ArmSmith
             best = null; bestPolicy = null; selected.Clear();
             bestHistory.Clear(); meanHistory.Clear(); successHistory.Clear();
             lastBestFitness = lastMeanFitness = lastSuccessRate = 0f;
-            warmStarted = false;   // re-warm-start from the demo on next Run/+1Gen
             ApplyConfig();
             if (policyMode) SeedPolicyPopulation(); else SeedPopulation();
             status = "reset";
@@ -538,11 +511,7 @@ namespace ArmSmith
 
             population.Sort((x, y) => y.fitness.CompareTo(x.fitness));
             best = population[0];
-            // Honest success metric: report whether the BEST genome of this generation completed the task
-            // (previously this reflected whichever genome happened to be evaluated LAST -> the 100/0/100
-            // flicker). Also count the fraction of the population that succeeded, for richer UI later.
-            lastSuccessRate = best.succeeded ? 1f : 0f;
-            status = $"gen {generation} done  best={best.fitness:F2}  success={(best.succeeded ? "YES" : "no")}";
+            status = $"gen {generation} done  best={best.fitness:F2}";
 
             RecordGeneration();
             Breed();
@@ -592,7 +561,7 @@ namespace ArmSmith
             float selfPen = selfCollision != null ? selfCollision.MaxSelfPenetration() : 0f;
             g.fitness = ShapedFitness(reward, success, energy, selfPen);   // config-weighted reward shaping
             g.generation = generation;
-            g.succeeded = success;   // recorded per genome; the UI metric is taken from the BEST (see RunGeneration)
+            lastSuccessRate = success ? 1f : 0f;
         }
 
         // ── DF2: GA-as-demo-factory ────────────────────────────────────────────────────────────────

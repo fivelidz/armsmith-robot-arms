@@ -23,6 +23,7 @@ namespace ArmSmith
         public MotionKey[] keys;
         public float fitness = float.NegativeInfinity;
         public int generation = 0;
+        public bool succeeded = false;   // did this genome complete the task in its eval rollout?
 
         public static MotionGenome Random(int jointCount, int keyCount, JointSpec[] specs, System.Random rng)
         {
@@ -42,7 +43,7 @@ namespace ArmSmith
 
         public MotionGenome Clone()
         {
-            var g = new MotionGenome { keys = new MotionKey[keys.Length], generation = generation };
+            var g = new MotionGenome { keys = new MotionKey[keys.Length], generation = generation, succeeded = succeeded };
             for (int k = 0; k < keys.Length; k++)
                 g.keys[k] = new MotionKey { angles = (float[])keys[k].angles.Clone(), gripper = keys[k].gripper, hold = keys[k].hold };
             return g;
