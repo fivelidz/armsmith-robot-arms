@@ -12,10 +12,14 @@ Engine: Unity 6000.4.2f1, URP, ArticulationBody physics. Units = metres. Arm = r
 ## HOW TO RUN (every session)
 ```bash
 cd /home/fivelidz/projects/unity_projects/robot_arms
-./scripts/unity_start.sh        # staged render strategy (vulkan -> gamescope -> xwayland) + waits for bridge :6990
-# Force a single render mode if needed: RENDER_MODE=gamescope ./scripts/unity_start.sh  (or vulkan|xwayland|auto)
-# gamescope mode ISOLATES Unity's GPU surface so a Unity crash no longer poisons the desktop XWayland
-# (that XWayland poisoning was what forced full graphics-session restarts). See "KNOWN TOOLING GOTCHA".
+./scripts/unity_start.sh        # staged render strategy (WAYLAND -> vulkan -> gamescope -> xwayland) + waits for bridge :6990
+# Force a single render mode if needed: RENDER_MODE=wayland ./scripts/unity_start.sh  (or vulkan|gamescope|xwayland|auto)
+# 2026-06-16 REAL FIX: native WAYLAND mode (SDL_VIDEODRIVER=wayland) is now tried FIRST and is the working
+# default. Unity gets a Wayland-native surface + OpenGL, so there is NO shared XWayland surface to corrupt
+# -> a crash/kill can no longer poison later launches (the thing that forced graphics-session restarts).
+# The previous vulkan/gamescope modes never actually engaged here (gamescope died on execv(unityhub.desktop)),
+# so every launch fell through to fragile xwayland — THAT is why "the fix" kept failing. See KNOWN TOOLING GOTCHA.
+# NOTE: "Selected window backend: (null)" in the log is a RED HERRING — Unity continues past it on wayland.
 python3 scripts/mcp.py tool manage_editor '{"action":"play"}'      # play
 python3 scripts/mcp.py tool manage_editor '{"action":"stop"}'      # stop
 python3 scripts/mcp.py tool refresh_unity '{}'                     # recompile after code edits
@@ -117,7 +121,19 @@ Full troubleshooting: `docs/UNITY_STARTUP.md`.
 - Diffusion: research/diffusion_pathfinding/REPORT.md; Visualization/ module (PathVisualizer +
   TrajectoryData + PathProviders, toggle keys 8/9/0); DF1 scripts/realbot/waypoints_to_lerobot.py.
 
-## KNOWN TOOLING GOTCHA (S7) — ROOT-CAUSED + FIXED
+## KNOWN TOOLING GOTCHA — *ACTUALLY* FIXED 2026-06-16 (native Wayland)
+- THE REAL FIX: launch Unity on **native Wayland** (`SDL_VIDEODRIVER=wayland`), now the first/default mode
+  in `unity_start.sh`. Unity uses a Wayland-native surface + OpenGL; there is no shared XWayland surface to
+  corrupt, so crashing/killing the editor can NOT poison later launches. Verified: bridge up, scene renders,
+  survives repeated restarts. `RENDER_MODE=wayland ./scripts/unity_start.sh` to force it.
+- WHY THE OLD "FIX" KEPT FAILING: the staged vulkan->gamescope->xwayland strategy never engaged its safe
+  modes on this box — vulkan dies, and gamescope dies because Unity (failing to grab a window inside it)
+  tries to relaunch via Hub and hits `execv(unityhub.desktop): Permission denied`. So every launch fell
+  through to plain `xwayland` (SDL_VIDEODRIVER=x11), the fragile shared-XWayland path a hard pkill poisons.
+- "Selected window backend: (null)" is a RED HERRING on wayland mode — Unity logs it then continues,
+  creates the GL device, loads MCP, starts the bridge.
+
+## (historical) KNOWN TOOLING GOTCHA (S7) — partially mitigated, see above for the real fix
 - SYMPTOM: after a Unity-6 editor GUI crash, the next launch hangs at "Selected window backend: (null)"
   and only a full graphics-session restart cleared it.
 - ROOT CAUSE: KDE Plasma 6.5 *Wayland* + AMD Radeon 8060S/RADV/Mesa 25.3. Unity renders OpenGL via

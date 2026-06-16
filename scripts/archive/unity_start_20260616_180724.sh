@@ -30,27 +30,13 @@ SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 export DISPLAY="${DISPLAY:-:0}"
 
 # Which render strategies to try, in order. AUTO picks a sensible sequence.
-# RENDER MODES (2026-06-16 update — the REAL fix for the recurring XWayland-poison hang):
-#   The previous auto order (vulkan -> gamescope -> xwayland) NEVER engaged its safe modes on this box:
-#   vulkan dies (-force-vulkan path), and gamescope dies because Unity, failing to grab a window inside
-#   gamescope, tries to relaunch itself via Unity Hub and hits `execv(unityhub.desktop): Permission
-#   denied`. So every launch fell through to plain `xwayland` (SDL_VIDEODRIVER=x11) — the FRAGILE path
-#   that shares the desktop's XWayland surface, which a hard `pkill` then poisons, forcing a graphics
-#   restart. That's why "the fix" kept failing: the protective modes were never actually used.
-#
-#   The genuine fix: launch on NATIVE WAYLAND (SDL_VIDEODRIVER=wayland). Unity then uses a Wayland-native
-#   surface and an OpenGL context — there is NO shared XWayland surface to corrupt, so a crash/kill can no
-#   longer poison later launches. Verified working: bridge comes up, scene renders. The
-#   "Selected window backend: (null)" line still appears but is a RED HERRING — Unity continues, creates
-#   the GL device, loads the MCP package, and starts the bridge. So `wayland` is now tried FIRST.
 RENDER_MODE="${RENDER_MODE:-auto}"
 case "$RENDER_MODE" in
-  auto)      MODES=(wayland vulkan gamescope xwayland) ;;
-  wayland)   MODES=(wayland) ;;
+  auto)      MODES=(vulkan gamescope xwayland) ;;
   vulkan)    MODES=(vulkan) ;;
   gamescope) MODES=(gamescope) ;;
   xwayland)  MODES=(xwayland) ;;
-  *) echo "[unity_start] unknown RENDER_MODE='$RENDER_MODE' (use auto|wayland|vulkan|gamescope|xwayland)"; exit 64 ;;
+  *) echo "[unity_start] unknown RENDER_MODE='$RENDER_MODE' (use auto|vulkan|gamescope|xwayland)"; exit 64 ;;
 esac
 
 cleanup() {
@@ -78,13 +64,6 @@ launch_mode() {
   : > /tmp/unity_start.stderr
 
   case "$mode" in
-    wayland)
-      # NATIVE WAYLAND (the fix): SDL talks Wayland directly, Unity gets a Wayland-native surface + OpenGL.
-      # No shared XWayland surface exists, so a crash/kill can't poison later launches. This is the safe,
-      # working default on this KDE-Plasma-6-Wayland / AMD RADV box.
-      SDL_VIDEODRIVER=wayland nohup "$UNITY" -projectPath "$PROJ" -logFile "$LOG" \
-        >/tmp/unity_start.stderr 2>&1 &
-      ;;
     vulkan)
       # XWayland surface, but Unity renders with Vulkan (-force-vulkan) -> skips the brittle GLX path.
       SDL_VIDEODRIVER=x11 nohup "$UNITY" -force-vulkan -projectPath "$PROJ" -logFile "$LOG" \
