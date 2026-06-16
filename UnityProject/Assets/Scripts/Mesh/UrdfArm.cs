@@ -366,12 +366,11 @@ namespace ArmSmith
             {
                 var go = new GameObject("moving_jaw");
                 go.transform.SetParent(gripperLinkTf, false);
-                // CLAW FRAME FIX: the jaws must be SEPARATED along the SAME axis they SLIDE on (the open/close
-                // axis), otherwise the claw looks/acts rotated 90deg — the previous build separated the jaws
-                // on local Z but slid the moving jaw on local X (perpendicular). We now separate AND slide on
-                // local X, with the finger stubs pointing along local +Y (the grasp/approach direction). This
-                // makes a coherent gripper: open/close = X, fingers reach along +Y.
-                go.transform.localPosition = new Vector3(jawWidth * 0.5f, 0f, 0f);
+                // Place jaw in front of the gripper link, offset slightly. (NOTE: a previous attempt to move
+                // the jaw separation onto the X slide-axis destabilised the LOCKED reference jaw's anchor and
+                // the articulation diverged — keep the proven Z offset; the claw "rotation" is handled as a
+                // camera/frame concern, not by moving the physics anchors.)
+                go.transform.localPosition = new Vector3(0f, 0f, jawWidth * 0.5f);
                 go.transform.localRotation = Quaternion.identity;
 
                 leftJaw = go.AddComponent<ArticulationBody>();
@@ -411,25 +410,17 @@ namespace ArmSmith
             {
                 var go = new GameObject("fixed_jaw");
                 go.transform.SetParent(gripperLinkTf, false);
-                // opposite the moving jaw along the open/close axis (local X), fingers along +Y
-                go.transform.localPosition = new Vector3(-jawWidth * 0.5f, 0f, 0f);
+                go.transform.localPosition = new Vector3(0f, 0f, -jawWidth * 0.5f);
                 go.transform.localRotation = Quaternion.identity;
 
-                rightJaw = go.AddComponent<ArticulationBody>();
-                rightJaw.jointType     = ArticulationJointType.PrismaticJoint;
-                rightJaw.anchorRotation = Quaternion.identity;
-                // S7d: this is a "physics reference only" jaw — make it a truly STATIC (locked) DOF instead
-                // of a live, very-stiff, near-zero-mass prismatic joint. A driven 0.012 kg DOF at stiffness
-                // 9000 was a prime contributor to the articulation NaN blowup that segfaulted PhysX. Locking
-                // all axes removes the DOF from the solver descriptor while keeping the collider for grasping.
-                rightJaw.linearLockX   = ArticulationDofLock.LockedMotion;
-                rightJaw.linearLockY   = ArticulationDofLock.LockedMotion;
-                rightJaw.linearLockZ   = ArticulationDofLock.LockedMotion;
-                rightJaw.mass   = 0.012f;
-
-                // NO mesh on the fixed jaw: the real SO-101 follower has only ONE moving jaw closing
-                // against the wrist body (there is no separate static-jaw mesh). Adding the moving_jaw
-                // mesh here caused the "doubled-up" look at the claw. This body is a physics reference only.
+                // FIXED-JAW STABILITY FIX: the fixed jaw used to be a LOCKED, near-zero-mass ArticulationBody
+                // leaf. That locked AB was UNSTABLE — the PhysX articulation solver let it drift to absurd
+                // positions over a long session (observed: fixed jaw flying to y=-100m+, gripper "exploding";
+                // this was the real "holding physics seems wrong"). A locked DOF on a tiny leaf body adds no
+                // useful physics but is numerically fragile. The fixed jaw is only a CONTACT REFERENCE, so it
+                // does NOT need to be an ArticulationBody at all — a plain rigid collider parented to the
+                // gripper link is rock-solid (it moves with the link, never has its own DOF to diverge).
+                rightJaw = null;   // no driven/locked AB; Gripper.SetClose only drives the moving jaw now
 
                 var col = go.AddComponent<BoxCollider>();
                 col.size   = new Vector3(0.012f, jawLen, 0.012f);
@@ -440,6 +431,7 @@ namespace ArmSmith
                     frictionCombine = PhysicsMaterialCombine.Maximum
                 };
                 col.material = mat;
+                fixedJawTf = go.transform;   // for the wrist camera's jaw-pair framing
             }
 
             // ── End-effector (TCP = the GRASP POINT) ──────────────────────────
@@ -450,7 +442,8 @@ namespace ArmSmith
             // along the finger (+local? ) so it's at the finger-tip grasp zone.
             var eeGo = new GameObject("EndEffector");
             eeGo.transform.SetParent(gripperLinkTf, false);
-            Vector3 jawMidLocal = (leftJaw.transform.localPosition + rightJaw.transform.localPosition) * 0.5f;
+            Vector3 fixedJawLocal = fixedJawTf != null ? fixedJawTf.localPosition : new Vector3(0f, 0f, -jawWidth * 0.5f);
+            Vector3 jawMidLocal = (leftJaw.transform.localPosition + fixedJawLocal) * 0.5f;
             eeGo.transform.localPosition = jawMidLocal + new Vector3(0f, 0.02f, 0f); // grasp zone between fingers
             eeGo.transform.localRotation = Quaternion.identity;
             endEffector = eeGo.transform;

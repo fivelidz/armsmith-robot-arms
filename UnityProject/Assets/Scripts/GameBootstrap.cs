@@ -371,7 +371,8 @@ namespace ArmSmith
             // past them (the grasp basis is derived from the jaw geometry, not the twisted EE local frame).
             Transform gripperBody = arm.endEffector != null ? arm.endEffector.parent : null;
             Transform jawA = arm.leftJaw != null ? arm.leftJaw.transform : null;
-            Transform jawB = arm.rightJaw != null ? arm.rightJaw.transform : null;
+            Transform jawB = arm.rightJaw != null ? arm.rightJaw.transform
+                            : (arm.fixedJawTf != null ? arm.fixedJawTf : null);   // fixed jaw is a plain collider now
             rig.Setup(arm.endEffector, jawA, jawB, gripperBody, EnvCamPos, EnvCamLook);
 
             // info text (top-left) — legible: larger font, dark backing panel, outline.

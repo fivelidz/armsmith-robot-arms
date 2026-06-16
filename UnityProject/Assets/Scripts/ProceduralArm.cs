@@ -53,6 +53,7 @@ namespace ArmSmith
         public static Color ServoColor(int i) => ServoPalette[i % ServoPalette.Length];
         public Transform endEffector;        // tip point between the jaws
         public ArticulationBody leftJaw, rightJaw;
+        public Transform fixedJawTf;   // the fixed jaw is a plain collider (not an AB); transform for cam/EE
 
         public Gripper gripper;
 
