@@ -54,6 +54,10 @@ if [ "$MODE" != "quick" ]; then
   run_unity_method "Realistic grasp" \
     "ArmSmith.EditorTools.RealisticGraspCheck.RunHeadless" "RealisticGraspCheck] PASSED"
 
+  echo "[2c] Task success (pick-place MOVES the cube to the target)"
+  run_unity_method "Task success" \
+    "ArmSmith.EditorTools.TrainingTaskSuccessCheck.RunHeadless" "TrainingTaskSuccessCheck] PASSED"
+
   echo "[3] Viz smoke (providers + data helpers)"
   run_unity_method "Viz smoke" \
     "ArmSmith.EditorTools.VizSmokeCheck.RunHeadless" "VizSmokeCheck] PASSED"
