@@ -50,6 +50,10 @@ if [ "$MODE" != "quick" ]; then
   run_unity_method "Headless pick" \
     "ArmSmith.EditorTools.HeadlessPickCheck.RunHeadless" "HeadlessPickCheck] PASSED"
 
+  echo "[2b] Realistic grasp (friction-limited: strong holds, weak drops)"
+  run_unity_method "Realistic grasp" \
+    "ArmSmith.EditorTools.RealisticGraspCheck.RunHeadless" "RealisticGraspCheck] PASSED"
+
   echo "[3] Viz smoke (providers + data helpers)"
   run_unity_method "Viz smoke" \
     "ArmSmith.EditorTools.VizSmokeCheck.RunHeadless" "VizSmokeCheck] PASSED"
@@ -61,6 +65,13 @@ if [ "$MODE" != "quick" ]; then
   echo "[3c] Training regimen (Motion-GA + Sensor-Policy converge)"
   run_unity_method "Training learns" \
     "ArmSmith.EditorTools.TrainingSmokeCheck.RunHeadless" "TrainingSmokeCheck] PASSED"
+fi
+
+echo "[3d] Vision grasp-geometry (numpy CV toolbox unit tests)"
+if python3 "$(dirname "$0")/vision/test_grasp_geometry.py" >/dev/null 2>&1; then
+  echo "  [PASS] Vision grasp-geometry (24 unit tests)"; PASS=$((PASS+1))
+else
+  echo "  [FAIL] Vision grasp-geometry — unit tests failed"; FAIL=$((FAIL+1))
 fi
 
 echo "[4] Diffusion pipeline (GA demo -> safety -> LeRobot dataset)"

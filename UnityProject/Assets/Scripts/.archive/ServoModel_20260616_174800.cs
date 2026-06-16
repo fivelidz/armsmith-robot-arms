@@ -17,12 +17,8 @@ namespace ArmSmith
         public int servoId = 1;
         public int ticksPerRev = 4096;
         public float centerDeg = 180f;     // tick 2048 = 180 deg (servo zero is mid-range)
-        // No-load speed: Feetech datasheet for the 12V STS3215 is 0.222 s/60deg => ~270 deg/s (the older
-        // 0.16 s/60deg figure that circulates is unreliable — see research/arm_hardware/STS3215_SERVO_MODEL.md).
-        // The 7.4V SO-101 follower is slower still; 270 is the faithful no-load ceiling, rate-limited below.
-        public float maxSpeedDegPerSec = 270f;
-        // Stall/peak torque: 7.4V SO-101 follower = 16.5 kg.cm ~= 1.62 N.m (12V variant is 30 kg.cm = 2.94 N.m).
-        public float maxTorqueNm = 1.6f;
+        public float maxSpeedDegPerSec = 360f;   // realistic STS3215 no-load ~ 0.16s/60deg => ~375 deg/s
+        public float maxTorqueNm = 1.6f;   // ~16.5 kg.cm at the horn radius -> N.m
         public float minDeg = -180f, maxDeg = 180f;
         public bool invert = false;
         public float offsetDeg = 0f;
