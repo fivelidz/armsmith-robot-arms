@@ -147,8 +147,8 @@ launch_mode() {
     fi
   done
 
-  echo "[unity_start]   waiting for MCP bridge on :$PORT (up to ~220s; first import is slow)..."
-  for i in $(seq 1 22); do
+  echo "[unity_start]   waiting for MCP bridge on :$PORT (up to ~400s; a COLD first import is slow)..."
+  for i in $(seq 1 40); do
     sleep 10
     # If the editor process vanished, the mode failed (crash) — stop waiting.
     if ! pgrep -f "6000.4.2f1/Editor/Unity -projectPath" >/dev/null; then
@@ -163,7 +163,7 @@ launch_mode() {
         return
       fi
     fi
-    echo "[unity_start]   [$i/22] still initialising ($mode)... (port=$(ss -tlnp 2>/dev/null | grep -q ":$PORT " && echo up || echo down))"
+    echo "[unity_start]   [$i/40] still initialising ($mode)... (port=$(ss -tlnp 2>/dev/null | grep -q ":$PORT " && echo up || echo down))"
   done
   echo "[unity_start]   bridge not confirmed for mode '$mode'."
 }

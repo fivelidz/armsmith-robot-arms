@@ -367,7 +367,12 @@ namespace ArmSmith
             rig.wristPanel = MakePanel(canvasGo.transform, "WristPanel", new Vector2(-10, -10), new Vector2(200, 200), new Vector2(1, 1));
             rig.envPanel   = MakePanel(canvasGo.transform, "EnvPanel",   new Vector2(-10, -220), new Vector2(200, 150), new Vector2(1, 1));
             // Now that panels exist, set up the cameras + RenderTextures and bind them to the panels.
-            rig.Setup(arm.endEffector, EnvCamPos, EnvCamLook);
+            // Pass the JAW transforms + the gripper body so the wrist cam frames BOTH jaws and looks OUT
+            // past them (the grasp basis is derived from the jaw geometry, not the twisted EE local frame).
+            Transform gripperBody = arm.endEffector != null ? arm.endEffector.parent : null;
+            Transform jawA = arm.leftJaw != null ? arm.leftJaw.transform : null;
+            Transform jawB = arm.rightJaw != null ? arm.rightJaw.transform : null;
+            rig.Setup(arm.endEffector, jawA, jawB, gripperBody, EnvCamPos, EnvCamLook);
 
             // info text (top-left) — legible: larger font, dark backing panel, outline.
             var infoBgGo = new GameObject("InfoBg");

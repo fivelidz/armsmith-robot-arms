@@ -30,31 +30,24 @@ namespace ArmSmith
 
         public void Setup(Transform gripper, Vector3 envPos, Vector3 envLookAt)
         {
-            Setup(gripper, null, null, null, envPos, envLookAt);
-        }
-
-        /// <summary>Wrist-camera setup that derives its framing from the actual JAW geometry so it reliably
-        /// shows BOTH jaws and looks OUT past them toward the work — independent of the twisted EE local
-        /// frame. Pass the two jaw transforms + the EE; falls back to the EE if jaws are null.</summary>
-        public void Setup(Transform endEffector, Transform jawA, Transform jawB, Transform gripperBody, Vector3 envPos, Vector3 envLookAt)
-        {
-            if (wristCam != null && endEffector != null)
+            // Wrist cam parented to the gripper (robot's-eye view). It must look DOWN the gripper toward
+            // where the jaws grasp (forward), not backward. We parent it, place it slightly behind/above
+            // the tip, then aim it at a point beyond the end-effector tip so it always faces the work.
+            if (wristCam != null && gripper != null)
             {
                 var t = wristCam.transform;
                 t.SetParent(null, true);                         // world-space rig (WristCamAim places it)
-                // CLAW CAMERA: a wrist UVC-style view that frames BOTH jaws and the object ahead. The view
-                // basis is built from the jaw geometry (mid-point + the line between the jaws), so the camera
-                // sits behind/above the grasp point along the gripper's OUT direction and looks outward — the
-                // jaws sit in the near frame, the target object is centred beyond them. (Previously the rig
-                // got the SAME transform for tip+body, so its approach was zero and it fell back to a fixed
-                // top-down world view that ignored the gripper and didn't frame the jaws.)
-                wristCam.fieldOfView = 70f;
-                wristCam.nearClipPlane = 0.004f;
+                // CLAW CAMERA (S7f): a wrist UVC-style view that clearly frames BOTH the jaws AND the grasp
+                // target. The previous mount sat AT the tip looking at itself, so the claw filled the frame
+                // and you couldn't see what was being grasped. WristCamAim now places the camera BACK and
+                // slightly ABOVE the grasp point (along the gripper's own approach axis) and looks down the
+                // approach line — so the claw is in the lower-near part of the frame and the object it's
+                // reaching for is centred below it. Wider FOV so the whole grasp zone fits.
+                wristCam.fieldOfView = 62f;
+                wristCam.nearClipPlane = 0.005f;
                 var aim = wristCam.gameObject.GetComponent<WristCamAim>() ?? wristCam.gameObject.AddComponent<WristCamAim>();
-                aim.gripperTip = endEffector;                    // EE tip = grasp point
-                aim.gripper = gripperBody != null ? gripperBody : endEffector;
-                aim.jawA = jawA;
-                aim.jawB = jawB;
+                aim.gripperTip = gripper;                        // EE tip = grasp point
+                aim.gripper = gripper;
                 wristRT = new RenderTexture(256, 256, 16) { name = "WristRT" };
                 wristCam.targetTexture = wristRT;
                 if (wristPanel) wristPanel.texture = wristRT;
@@ -128,54 +121,27 @@ namespace ArmSmith
     public class WristCamAim : MonoBehaviour
     {
         public Transform gripperTip;     // grasp point (EE tip)
-        public Transform gripper;        // gripper/wrist body (root of the approach axis)
-        public Transform jawA;           // the two jaw transforms — define the grasp basis (separation axis)
-        public Transform jawB;
-        public float back = 0.085f;      // how far BACK along the approach axis to mount the camera
-        public float up = 0.02f;         // small lift along the camera-up so both jaws are seen from slightly above
-        public float lookAhead = 0.05f;  // aim a touch beyond the grasp point so the target object centres
+        public Transform gripper;        // gripper body (for the approach axis)
+        public float back = 0.075f;      // how far BEHIND/up the grasp point to mount the camera
+        public float up = 0.05f;         // extra height so the claw is seen from slightly above
+        public float lookAhead = 0.03f;  // aim a touch beyond the tip so the target object centres
 
         void LateUpdate()
         {
             if (gripperTip == null) return;
-
-            // GRASP BASIS from jaw geometry (robust to the twisted EE local frame):
-            //   graspPt   = midpoint between the jaws (or EE tip if jaws unknown)
-            //   sepAxis   = line between the two jaws (the open/close direction)
-            //   outAxis   = direction from the wrist body OUT through the grasp point (where the claw faces)
-            //   camUp     = perpendicular to BOTH sep and out -> keeps both jaws side-by-side, level in frame
-            Vector3 graspPt, sepAxis;
-            if (jawA != null && jawB != null)
-            {
-                graspPt = 0.5f * (jawA.position + jawB.position);
-                sepAxis = (jawA.position - jawB.position);
-            }
-            else
-            {
-                graspPt = gripperTip.position;
-                sepAxis = gripperTip.right;   // best guess
-            }
-            if (sepAxis.sqrMagnitude < 1e-8f) sepAxis = gripperTip.right;
-            sepAxis.Normalize();
-
-            // OUT axis: from the wrist body toward the grasp point, extended outward. If the body and grasp
-            // point coincide, fall back to the EE's "down the tool" direction.
-            Vector3 outAxis = gripper != null ? (graspPt - gripper.position) : (gripperTip.position - gripperTip.parent.position);
-            if (outAxis.sqrMagnitude < 1e-8f) outAxis = -gripperTip.up;
-            outAxis.Normalize();
-
-            // camera up = perpendicular to the plane spanned by out & sep, so the two jaws are framed
-            // left/right and the object sits centred ahead.
-            Vector3 camUp = Vector3.Cross(outAxis, sepAxis);
-            if (camUp.sqrMagnitude < 1e-8f) camUp = Vector3.up;
-            camUp.Normalize();
-
-            // mount the camera BACK along -out (behind the jaws) plus a small lift, look OUT past the jaws.
-            transform.position = graspPt - outAxis * back + camUp * up;
-            Vector3 look = graspPt + outAxis * lookAhead;
+            // The gripper's approach axis = the direction from the wrist toward the grasp point. We mount the
+            // camera back along that axis + above, and look toward (slightly past) the grasp point — so the
+            // jaws sit in the near-bottom of the frame and whatever is being grasped is centred below.
+            Vector3 graspPt = gripperTip.position;
+            Vector3 approach = gripper != null ? (graspPt - gripper.position) : Vector3.down;
+            if (approach.sqrMagnitude < 1e-6f) approach = Vector3.down;
+            approach.Normalize();
+            // camera position: behind the grasp point along -approach, lifted up in world Y
+            transform.position = graspPt - approach * back + Vector3.up * up;
+            Vector3 look = graspPt + approach * lookAhead;
             Vector3 dir = look - transform.position;
-            if (dir.sqrMagnitude < 1e-8f) return;
-            transform.rotation = Quaternion.LookRotation(dir.normalized, camUp);
+            if (dir.sqrMagnitude < 1e-6f) return;
+            transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
         }
     }
 }

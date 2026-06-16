@@ -366,12 +366,8 @@ namespace ArmSmith
             {
                 var go = new GameObject("moving_jaw");
                 go.transform.SetParent(gripperLinkTf, false);
-                // CLAW FRAME FIX: the jaws must be SEPARATED along the SAME axis they SLIDE on (the open/close
-                // axis), otherwise the claw looks/acts rotated 90deg — the previous build separated the jaws
-                // on local Z but slid the moving jaw on local X (perpendicular). We now separate AND slide on
-                // local X, with the finger stubs pointing along local +Y (the grasp/approach direction). This
-                // makes a coherent gripper: open/close = X, fingers reach along +Y.
-                go.transform.localPosition = new Vector3(jawWidth * 0.5f, 0f, 0f);
+                // Place jaw in front of the gripper link, offset slightly
+                go.transform.localPosition = new Vector3(0f, 0f, jawWidth * 0.5f);
                 go.transform.localRotation = Quaternion.identity;
 
                 leftJaw = go.AddComponent<ArticulationBody>();
@@ -411,8 +407,7 @@ namespace ArmSmith
             {
                 var go = new GameObject("fixed_jaw");
                 go.transform.SetParent(gripperLinkTf, false);
-                // opposite the moving jaw along the open/close axis (local X), fingers along +Y
-                go.transform.localPosition = new Vector3(-jawWidth * 0.5f, 0f, 0f);
+                go.transform.localPosition = new Vector3(0f, 0f, -jawWidth * 0.5f);
                 go.transform.localRotation = Quaternion.identity;
 
                 rightJaw = go.AddComponent<ArticulationBody>();
