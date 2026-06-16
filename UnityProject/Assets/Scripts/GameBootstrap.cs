@@ -435,6 +435,11 @@ namespace ArmSmith
             var conditionsPanel = canvasGo.AddComponent<ConditionsPanel>();
             conditionsPanel.Bind(trainer, scenarios);
 
+            // GENERATIONS & CREATIONS panel (F7): browse evolving generations + best creations, replay a
+            // saved creation in-scene, save/load training checkpoints, lock survivors (interactive evolution).
+            var generationsPanel = canvasGo.AddComponent<GenerationsPanel>();
+            generationsPanel.Bind(trainer);
+
             // MULTI-GENERATION viz (key 3): overlay the last few generations' best paths (newest bright).
             if (pathViz != null && arm != null)
             {

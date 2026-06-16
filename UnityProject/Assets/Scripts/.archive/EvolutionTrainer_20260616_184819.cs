@@ -94,9 +94,6 @@ namespace ArmSmith
             // grasp + out-of-bounds shaping from live scene state
             var grip = arm != null ? arm.gripper : null;
             if (grip != null && grip.IsHolding) f += c.wGrasp;
-            // OUT-OF-BOUNDS penalty (wOob): the GA is penalised for knocking the task object off the table.
-            // (Previously wOob was an editable slider that ShapedFitness never read — now it bites.)
-            if (scenarios != null && scenarios.IsPrimaryObjectOutOfBounds()) f -= c.wOob;
             return f;
         }
 
@@ -111,141 +108,9 @@ namespace ArmSmith
             meanHistory.Add(lastMeanFitness);
             successHistory.Add(lastSuccessRate);
             if (!policyMode) CaptureBestTrajectory();   // multi-generation viz (motion-GA has explicit keys)
-            // PERSIST the best of this generation as a browsable/replayable "creation" (Generations UI).
-            if (autoSaveCreations) CaptureCreation();
             // auto-curriculum: bump difficulty when consistently succeeding
             if (config.autoCurriculum && lastSuccessRate >= config.advanceSuccessRate && config.difficulty < 1f)
                 config.difficulty = Mathf.Min(1f, config.difficulty + 0.1f);
-        }
-
-        // ── Creations / checkpoints (persistence for the Generations UI) ─────────────────────────────
-        public bool autoSaveCreations = true;        // append best-of-gen to the creation library each gen
-        public readonly List<Creation> creations = new List<Creation>();   // in-memory mirror for the UI
-        public Creation lastCreation;
-
-        /// <summary>Snapshot the current best genome as a persisted Creation (best-of-generation).</summary>
-        public Creation CaptureCreation(string label = null)
-        {
-            var c = new Creation
-            {
-                generation = generation,
-                successRate = lastSuccessRate,
-                backend = policyMode ? "policy" : "motion",
-                scenario = scenarios != null ? scenarios.current.ToString() : "?",
-                timestamp = EvolutionStore.Stamp(),
-            };
-            if (policyMode)
-            {
-                if (bestPolicy == null) return null;
-                c.policy = bestPolicy; c.fitness = bestPolicy.fitness;
-            }
-            else
-            {
-                if (best == null) return null;
-                c.motion = best; c.fitness = best.fitness;
-            }
-            c.label = string.IsNullOrEmpty(label) ? $"gen{generation} ({c.backend})" : label;
-            creations.Add(c);
-            lastCreation = EvolutionStore.AddCreation(c);   // persist to disk
-            return c;
-        }
-
-        /// <summary>Save a resumable checkpoint (population + history + config) to disk.</summary>
-        public void SaveCheckpoint()
-        {
-            var cp = new EvoCheckpoint
-            {
-                generation = generation,
-                backend = policyMode ? "policy" : "motion",
-                scenario = scenarios != null ? scenarios.current.ToString() : "?",
-                timestamp = EvolutionStore.Stamp(),
-                config = config,
-            };
-            cp.population.AddRange(population);
-            cp.policyPop.AddRange(policyPop);
-            cp.bestHistory.AddRange(bestHistory);
-            cp.meanHistory.AddRange(meanHistory);
-            cp.successHistory.AddRange(successHistory);
-            EvolutionStore.SaveCheckpoint(cp);
-            status = $"checkpoint saved (gen {generation})";
-        }
-
-        /// <summary>Resume from the saved checkpoint (repopulates population + history + generation).</summary>
-        public bool LoadCheckpoint()
-        {
-            var cp = EvolutionStore.LoadCheckpoint();
-            if (cp == null) { status = "no checkpoint"; return false; }
-            generation = cp.generation;
-            policyMode = cp.backend == "policy";
-            if (cp.config != null) config = cp.config;
-            population = cp.population != null && cp.population.Count > 0 ? cp.population : population;
-            policyPop = cp.policyPop != null && cp.policyPop.Count > 0 ? cp.policyPop : policyPop;
-            bestHistory.Clear(); bestHistory.AddRange(cp.bestHistory);
-            meanHistory.Clear(); meanHistory.AddRange(cp.meanHistory);
-            successHistory.Clear(); successHistory.AddRange(cp.successHistory);
-            if (!policyMode && population.Count > 0) { population.Sort((a, b) => b.fitness.CompareTo(a.fitness)); best = population[0]; }
-            if (policyMode && policyPop.Count > 0) { policyPop.Sort((a, b) => b.fitness.CompareTo(a.fitness)); bestPolicy = policyPop[0]; }
-            ApplyConfig();
-            status = $"resumed from checkpoint (gen {generation})";
-            return true;
-        }
-
-        /// <summary>Replay a stored Creation in the live scene (drives the arm, no scoring). For the UI's
-        /// "watch this creation" button. Motion creations replay their keyframes; policy creations roll the
-        /// net closed-loop. Runs at real time so the user can watch.</summary>
-        public void ReplayCreation(Creation c)
-        {
-            if (c == null) return;
-            StopTraining();
-            StartCoroutine(ReplayRoutine(c));
-        }
-
-        IEnumerator ReplayRoutine(Creation c)
-        {
-            status = $"replaying {c.label}";
-            scenarios.LoadScenario(scenarios.current);
-            controller.mode = ArmController.Mode.Manual;
-            controller.HardHome(homePose);
-            yield return new WaitForFixedUpdate();
-            float prevScale = Time.timeScale; Time.timeScale = 1f;   // real-time so it's watchable
-
-            if (c.backend == "motion" && c.motion != null && c.motion.keys != null)
-            {
-                float[] cur = (float[])homePose.Clone();
-                foreach (var key in c.motion.keys)
-                {
-                    float t = 0f, dur = Mathf.Max(0.1f, key.hold);
-                    float[] start = (float[])cur.Clone();
-                    while (t < dur)
-                    {
-                        float a = Mathf.Clamp01(t / dur);
-                        for (int j = 0; j < cur.Length; j++)
-                            cur[j] = Mathf.Lerp(start[j], j < key.angles.Length ? key.angles[j] : start[j], a);
-                        controller.SetTargets(cur);
-                        arm.SetJointTargets(cur);
-                        if (arm.gripper != null) arm.gripper.SetClose(key.gripper);
-                        t += Time.fixedDeltaTime;
-                        yield return new WaitForFixedUpdate();
-                    }
-                }
-            }
-            else if (c.backend == "policy" && c.policy != null && sensorHub != null)
-            {
-                float dt = 1f / Mathf.Max(1f, policyControlHz);
-                for (int step = 0; step < 200; step++)
-                {
-                    var obs = sensorHub.BuildObservation();
-                    var act = c.policy.Forward(obs);
-                    float[] cur = (float[])controller.TargetAngles.Clone();
-                    for (int j = 0; j < cur.Length && j < act.Length; j++)
-                        cur[j] = Mathf.Clamp(cur[j] + act[j], specs[j].minAngle, specs[j].maxAngle);
-                    controller.SetTargets(cur);
-                    arm.SetJointTargets(cur);
-                    yield return new WaitForSeconds(dt);
-                }
-            }
-            Time.timeScale = prevScale;
-            status = $"replay done: {c.label}";
         }
 
         public void Init(ProceduralArm a, ArmController c, ScenarioManager s)

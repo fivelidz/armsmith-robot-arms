@@ -126,6 +126,10 @@ namespace ArmSmith
             return p.x < oobMinX || p.x > oobMaxX || p.z < oobMinZ || p.z > oobMaxZ || p.y < oobMinY;
         }
 
+        /// <summary>True if the primary task object (the cube) has left the table bounds — used as a
+        /// FITNESS PENALTY by the trainer (wOob), so the GA learns not to knock the object off.</summary>
+        public bool IsPrimaryObjectOutOfBounds() => OobOne(cube);
+
         void Cycle(int dir)
         {
             int n = Enum.GetValues(typeof(ScenarioType)).Length;
