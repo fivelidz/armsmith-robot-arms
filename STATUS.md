@@ -4,7 +4,17 @@
 > every work session. Newest status at the top of each section.
 >
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
-> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 7/7.)
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 9/9.)
+
+## SESSION 2026-06-16 (latest) — major progress
+- **Launch FINALLY fixed**: native Wayland (`SDL_VIDEODRIVER=wayland`) — no more XWayland poison / graphics restarts. See HOW TO RUN + tooling gotcha below.
+- **UI overhaul**: CanvasScaler configured (fonts legible at 2560×1440), panels de-overlapped (Training F3 / Conditions F4 default hidden), F-key clashes fixed (sensor toggles -> Shift+F2..F7, Verification -> F6), BuilderPanel internal overlap fixed.
+- **Gripper 'exploding' / holding-physics bug FIXED**: the fixed jaw was a near-zero-mass LOCKED ArticulationBody that diverged in the PhysX solver (flew to y=-100m, gripper came apart). Now a plain rigid collider — stable 20s+. This was the real "holding physics seems wrong".
+- **Wrist camera fixed**: was stuck top-down (got the same transform for tip+body); now derives a grasp basis from the JAW transforms and looks OUT, framing both jaws.
+- **Realistic friction grasp** (opt-in `Gripper.realisticGrasp`): force-limited dynamic follower, slips/drops on weak grip. STS3215 servo speed corrected to 270°/s.
+- **GENERATIONS & CREATIONS UI (F7)** + persistence: `EvolutionStore` saves best-of-gen creations + resumable checkpoints to `persistentDataPath/Evolution/`; trainer auto-captures creations, `ReplayCreation()` replays a saved best in-scene; panel shows fitness curves, creations list (with Replay), population grid (click to lock survivors). `wOob` reward weight now actually penalises knocking the object off. Verified live: ran 3 gens, 3 creations saved to disk, replay works.
+- **CV grasp-geometry toolbox** (`scripts/vision/`, 24 tests) — CPU side of the DA3+SAM3 pipeline; GPU confirmed usable via ROCm.
+- Commits: ee42d94 (UI) · 24a70c0 (grasp+servo) · d3a1404 (CV) · ff79e63 (wayland) · f8ba007 (builder) · 250795d (cam/claw/launch) · 0ec5d77 (generations UI) · e4e70a8 (gripper explosion fix).
 
 Repo: https://github.com/fivelidz/armsmith-robot-arms (private)
 Engine: Unity 6000.4.2f1, URP, ArticulationBody physics. Units = metres. Arm = real SO-101 STL.
