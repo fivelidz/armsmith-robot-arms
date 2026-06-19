@@ -361,6 +361,34 @@ namespace ArmSmith
             // demo always aimed S_Cube->S_Pad/S_TrayB and scored 0% on Reach/Bin/Stack etc.
             var sc = scenarios != null ? scenarios.current : ScenarioType.TrayToTray;
 
+            // MULTI-OBJECT sort: chain a grab->carry->release per scattered cube into the tray.
+            if (sc == ScenarioType.SortIntoTray)
+            {
+                Transform tray = FindByName("S_TrayB");
+                if (tray == null) return null;
+                Vector3 tp = tray.position;
+                var sortKeys = new List<MotionKey>();
+                for (int ci = 0; ci < 3; ci++)
+                {
+                    Transform cub = FindByName($"S_SortCube{ci}");
+                    if (cub == null) continue;
+                    Vector3 c = cub.position;
+                    // drop each cube at a slightly different spot inside the tray so they don't collide
+                    float ox = (ci - 1) * 0.03f;
+                    var seg = new (UnityEngine.Vector3 pos, float grip, float hold)[] {
+                        (new Vector3(c.x, 0.14f, c.z), 0f, 0.5f),
+                        (new Vector3(c.x, 0.05f, c.z), 0f, 0.5f),
+                        (new Vector3(c.x, 0.05f, c.z), 1f, 0.8f),
+                        (new Vector3(c.x, 0.16f, c.z), 1f, 0.6f),
+                        (new Vector3(tp.x + ox, 0.14f, tp.z), 1f, 0.6f),
+                        (new Vector3(tp.x + ox, 0.07f, tp.z), 0f, 0.6f),
+                    };
+                    foreach (var w in seg)
+                        sortKeys.Add(new MotionKey { angles = controller.IKAnglesFor(w.pos), gripper = w.grip, hold = w.hold });
+                }
+                return sortKeys.Count > 0 ? sortKeys : null;
+            }
+
             // REACH-ONLY tasks: just touch the target with the tip (no grasp).
             if (sc == ScenarioType.ReachTouch)
             {
