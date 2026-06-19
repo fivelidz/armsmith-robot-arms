@@ -4,9 +4,28 @@
 > every work session. Newest status at the top of each section.
 >
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
-> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 9/9.)
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 10/10.)
 
-## SESSION 2026-06-16 (latest) — major progress
+## SESSION 2026-06-19 (latest) — the system PERFORMS THE TASK across all scenarios
+- **GA solves the task by default**: warm-start from an IK pick-place demo + GA refine. Best fitness
+  ~14-18 (task complete + success bonus). Verified live via the F7 Generations panel.
+- **Scenario-aware warm-start — ALL 7 scenarios now solve at 100%**: ReachTouch, PickPlaceCube,
+  PushToZone, TrayToTray, DropInBin, StackTwo, SortIntoTray (multi-object, 18-key demo). Was only
+  TrayToTray before; each non-tray task scored 0% because the demo was hardcoded to S_Cube->tray.
+- **Honest success metric**: lastSuccessRate now reflects the BEST genome of the generation (added
+  MotionGenome.succeeded), fixing the 100/0/100 flicker.
+- **Persistence**: best-of-gen "creations" saved to persistentDataPath/Evolution/creations.json each
+  gen; resumable checkpoint (population+history) saved on demand AND auto-saved every 5 gens; both
+  load on Init. ReplayCreation() replays a saved best in-scene.
+- **Wrist kinematics verified vs real SO-101** (so101_new_calib.urdf): wrist_flex ±95deg pitches the
+  tip up/down; wrist_roll [-157.2,162.8] rolls the gripper about the forearm axis — both track exactly.
+- **Wrist cam FOV 80deg + nearClip 0.01m** to match the real UVC module (CAMERA_VISION_SPEC).
+- **New CI gate**: TrainingTaskSuccessCheck (pick-place moves the cube to target). Suite now 10/10.
+- Known limitation: SortIntoTray demo uses fixed cube positions; under per-rollout RandomSpot it solves
+  the eval but won't generalise to arbitrary scatter without re-solving IK per reset (future work).
+- Commits: 8efeb88 (task gate) · 88a8659 (scenario-aware) · f927514 (multi-obj sort) · 324f5a7 (auto-ckpt).
+
+## SESSION 2026-06-16 — major progress
 - **Launch FINALLY fixed**: native Wayland (`SDL_VIDEODRIVER=wayland`) — no more XWayland poison / graphics restarts. See HOW TO RUN + tooling gotcha below.
 - **UI overhaul**: CanvasScaler configured (fonts legible at 2560×1440), panels de-overlapped (Training F3 / Conditions F4 default hidden), F-key clashes fixed (sensor toggles -> Shift+F2..F7, Verification -> F6), BuilderPanel internal overlap fixed.
 - **Gripper 'exploding' / holding-physics bug FIXED**: the fixed jaw was a near-zero-mass LOCKED ArticulationBody that diverged in the PhysX solver (flew to y=-100m, gripper came apart). Now a plain rigid collider — stable 20s+. This was the real "holding physics seems wrong".
