@@ -481,11 +481,19 @@ namespace ArmSmith
             status = "reset";
         }
 
+        public int autoCheckpointEvery = 5;   // auto-save a resumable checkpoint every N generations (0=off)
+
         IEnumerator TrainLoop()
         {
             Running = true;
             while (Running)
+            {
                 yield return policyMode ? RunPolicyGeneration() : RunGeneration();
+                // Auto-checkpoint so long training runs survive a crash/close without manual Save (the
+                // creations library is already saved per-gen; this also persists the resumable population).
+                if (autoCheckpointEvery > 0 && generation > 0 && generation % autoCheckpointEvery == 0)
+                    SaveCheckpoint();
+            }
         }
 
         // ---- Closed-loop sensor-driven policy evolution ----
