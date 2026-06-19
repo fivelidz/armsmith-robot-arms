@@ -48,8 +48,13 @@ namespace ArmSmith
                 // jaws sit in the near frame, the target object is centred beyond them. (Previously the rig
                 // got the SAME transform for tip+body, so its approach was zero and it fell back to a fixed
                 // top-down world view that ignored the gripper and didn't frame the jaws.)
-                wristCam.fieldOfView = 70f;
-                wristCam.nearClipPlane = 0.004f;
+                // FOV 80deg + nearClip 0.01m MATCH THE REAL RIG: the SO-101 wrist UVC module (reBot UVC32
+                // mount, ~60-90deg FOV) per design/specs/CAMERA_VISION_SPEC.md, so a vision policy trained on
+                // this stream transfers to the physical camera. The real mount sits just behind the gripper
+                // frame (TCP at gripper_link [-0.0079,-0.0002,-0.0981], rpy[0,180,0]) looking down the tool —
+                // which is exactly the OUT direction the jaw-derived basis produces.
+                wristCam.fieldOfView = 80f;
+                wristCam.nearClipPlane = 0.01f;
                 var aim = wristCam.gameObject.GetComponent<WristCamAim>() ?? wristCam.gameObject.AddComponent<WristCamAim>();
                 aim.gripperTip = endEffector;                    // EE tip = grasp point
                 aim.gripper = gripperBody != null ? gripperBody : endEffector;

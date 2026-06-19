@@ -355,67 +355,29 @@ namespace ArmSmith
         /// TestReach-style IK to get joint angles for each waypoint. Returns null if no object/target.</summary>
         public List<MotionKey> BuildPickPlaceDemo()
         {
-            if (controller == null) return null;
-            // SCENARIO-AWARE warm-start: pick the right OBJECT, TARGET and STRATEGY for the active scenario,
-            // so the GA seeds from a competent demo for EVERY task (not just TrayToTray). Without this the
-            // demo always aimed S_Cube->S_Pad/S_TrayB and scored 0% on Reach/Bin/Stack etc.
-            var sc = scenarios != null ? scenarios.current : ScenarioType.TrayToTray;
-
-            // REACH-ONLY tasks: just touch the target with the tip (no grasp).
-            if (sc == ScenarioType.ReachTouch)
-            {
-                Transform rt = FindByName("S_ReachTarget");
-                if (rt == null) return null;
-                Vector3 r = rt.position;
-                var rwps = new (Vector3 pos, float grip, float hold)[] {
-                    (new Vector3(r.x, r.y + 0.06f, r.z), 0f, 0.7f),  // approach above
-                    (r,                                  0f, 0.9f),  // touch
-                    (r,                                  0f, 0.5f),  // dwell on target
-                };
-                return SolveWaypoints(rwps);
-            }
-
-            // PICK-and-PLACE family: grab S_Cube, carry it to the scenario's target, release.
             Transform obj = FindByName("S_Cube");
-            if (obj == null) return null;
-            Transform tgt;
-            float placeY;   // height to release at (tray/pad surface vs stack-on-cube vs bin)
-            switch (sc)
-            {
-                case ScenarioType.DropInBin:    tgt = FindByName("S_Bin");    placeY = 0.10f; break;  // drop from above
-                case ScenarioType.StackTwo:     tgt = FindByName("S_CubeB");  placeY = 0.075f; break; // place ON cube B
-                case ScenarioType.SortIntoTray: tgt = FindByName("S_TrayB");  placeY = 0.07f; break;
-                case ScenarioType.PushToZone:
-                case ScenarioType.PickPlaceCube: tgt = FindByName("S_Pad") ?? FindByName("S_TrayB"); placeY = 0.07f; break;
-                default:                         tgt = FindByName("S_TrayB") ?? FindByName("S_Pad"); placeY = 0.07f; break; // TrayToTray
-            }
-            if (tgt == null) return null;
+            Transform tgt = FindByName("S_Pad") ?? FindByName("S_TrayB");
+            if (obj == null || tgt == null || controller == null) return null;
             Vector3 o = obj.position, t = tgt.position;
             // Grasp height tuned to the verified-good value: the physical tip floors ~2-3cm above a
             // commanded low target (drive vs gravity at extension), so commanding y=0.05 lands the tip
             // right at the 4.5cm cube's top -> a solid ~4cm grasp gap (S7 measured). The grab waypoint
             // holds a touch longer so the proximity-gated latch fires before the lift starts.
             var wps = new (Vector3 pos, float grip, float hold)[] {
-                (new Vector3(o.x, 0.14f, o.z), 0f, 0.7f),       // above object, open
-                (new Vector3(o.x, 0.05f, o.z), 0f, 0.7f),       // descend to grasp height, open
-                (new Vector3(o.x, 0.05f, o.z), 1f, 1.0f),       // close (grab) — hold for the latch
-                (new Vector3(o.x, 0.16f, o.z), 1f, 0.8f),       // lift
-                (new Vector3(0f,  0.20f, 0.28f), 1f, 0.7f),     // via-point centre
-                (new Vector3(t.x, 0.16f, t.z), 1f, 0.7f),       // over target
-                (new Vector3(t.x, placeY, t.z), 1f, 0.7f),      // descend to place height
-                (new Vector3(t.x, placeY, t.z), 0f, 0.8f),      // release
-                (new Vector3(t.x, 0.18f, t.z), 0f, 0.6f),       // retreat
+                (new Vector3(o.x, 0.14f, o.z), 0f, 0.7f),   // above object, open
+                (new Vector3(o.x, 0.05f, o.z), 0f, 0.7f),   // descend to grasp height, open
+                (new Vector3(o.x, 0.05f, o.z), 1f, 1.0f),   // close (grab) — hold for the latch
+                (new Vector3(o.x, 0.16f, o.z), 1f, 0.8f),   // lift
+                (new Vector3(0f,  0.20f, 0.28f), 1f, 0.7f), // via-point centre
+                (new Vector3(t.x, 0.16f, t.z), 1f, 0.7f),   // over target
+                (new Vector3(t.x, 0.07f, t.z), 1f, 0.7f),   // descend into target
+                (new Vector3(t.x, 0.07f, t.z), 0f, 0.8f),   // release
+                (new Vector3(t.x, 0.18f, t.z), 0f, 0.6f),   // retreat
             };
-            return SolveWaypoints(wps);
-        }
-
-        /// <summary>IK-solve a list of (pos, grip, hold) waypoints into MotionKeys.</summary>
-        List<MotionKey> SolveWaypoints((UnityEngine.Vector3 pos, float grip, float hold)[] wps)
-        {
             var keys = new List<MotionKey>();
             foreach (var w in wps)
             {
-                float[] angles = controller.IKAnglesFor(w.pos);
+                float[] angles = controller.IKAnglesFor(w.pos);   // solve joint angles for this waypoint
                 keys.Add(new MotionKey { angles = angles, gripper = w.grip, hold = w.hold });
             }
             return keys;
