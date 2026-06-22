@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using ArmSmith.Evaluation;
 
 namespace ArmSmith
 {
@@ -94,6 +95,7 @@ namespace ArmSmith
             if (Input.GetKeyDown(KeyCode.Escape)) LoadScenario(current);
             elapsed += Time.deltaTime;
             LastReward = ComputeReward(out bool s);
+            if (usePredicateSuccess) s = PredicateSuccess();
             SuccessNow = s;
             if (s && !Succeeded) { Succeeded = true; SuccessTime = elapsed; Debug.Log($"[Scenario] {current} SUCCESS at {elapsed:F1}s"); }
 
@@ -381,5 +383,68 @@ namespace ArmSmith
         }
 
         bool Rest() => cubeRb == null || cubeRb.linearVelocity.magnitude < 0.04f;
+
+        // ---- EV1: composable predicate evaluation -------------------------------------------------------
+        // The success condition for each scenario is ALSO expressed as a declarative predicate tree
+        // (Evaluation/TaskEvaluator). The reward switch above keeps its hand-tuned SHAPING terms (the
+        // approved gradients the GA learns from), but the boolean SUCCESS gate can be sourced from the
+        // predicate tree so success logic lives in one auditable place. Off by default to preserve exact
+        // legacy behaviour; flip `usePredicateSuccess` to route success through the predicates.
+        public bool usePredicateSuccess = false;
+
+        IPredicate _pred; ScenarioType _predBuiltFor = (ScenarioType)(-1); int _predCubeCount = -1;
+
+        IPredicate ActivePredicate()
+        {
+            int activeSort = 0; foreach (var sc in sortCubes) if (sc != null && sc.gameObject.activeInHierarchy) activeSort++;
+            if (_pred == null || _predBuiltFor != current || _predCubeCount != activeSort)
+            {
+                var names = new List<string>();
+                for (int i = 0; i < sortCubes.Count; i++) if (sortCubes[i] != null && sortCubes[i].gameObject.activeInHierarchy) names.Add($"sortCube{i}");
+                _pred = TaskEvaluator.Build(current, names);
+                _predBuiltFor = current; _predCubeCount = activeSort;
+            }
+            return _pred;
+        }
+
+        /// <summary>Snapshot the live scene into a TaskContext the predicate tree can query by name.</summary>
+        public TaskContext BuildContext()
+        {
+            Vector3 ee = arm != null ? (arm.gripper != null ? arm.gripper.TipPosition : (arm.endEffector != null ? arm.endEffector.position : Vector3.zero)) : Vector3.zero;
+            float close = arm != null && arm.gripper != null ? arm.gripper.closeAmount : 0f;
+            return new TaskContext(ee, close, ResolvePos, ResolveVel, ResolveExists);
+        }
+
+        Transform Named(string n)
+        {
+            switch (n)
+            {
+                case "cube": return cube;
+                case "cubeB": return cubeB;
+                case "pad": return pad;
+                case "trayB": return trayB;
+                case "trayA": return trayA;
+                case "bin": return bin;
+                case "reachTarget": return reachTarget;
+            }
+            if (n.StartsWith("sortCube") && int.TryParse(n.Substring("sortCube".Length), out int idx)
+                && idx >= 0 && idx < sortCubes.Count) return sortCubes[idx];
+            return null;
+        }
+        Vector3 ResolvePos(string n) { var t = Named(n); return t != null ? t.position : Vector3.zero; }
+        Vector3 ResolveVel(string n)
+        {
+            var t = Named(n); if (t == null) return Vector3.zero;
+            var rb = t.GetComponent<Rigidbody>();
+            return rb != null && !rb.isKinematic ? rb.linearVelocity : Vector3.zero;
+        }
+        bool ResolveExists(string n) { var t = Named(n); return t != null && t.gameObject.activeInHierarchy; }
+
+        /// <summary>Predicate-tree success (declarative). Equivalent to the inline switch by construction;
+        /// used when usePredicateSuccess is on, and by the headless EV1 cross-check.</summary>
+        public bool PredicateSuccess() => arm != null && ActivePredicate().Evaluate(BuildContext());
+
+        /// <summary>Human-readable predicate breakdown of the current success condition (for UI / logs).</summary>
+        public string PredicateDescription() => ActivePredicate().Describe();
     }
 }

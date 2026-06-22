@@ -69,6 +69,18 @@ if [ "$MODE" != "quick" ]; then
   echo "[3c] Training regimen (Motion-GA + Sensor-Policy converge)"
   run_unity_method "Training learns" \
     "ArmSmith.EditorTools.TrainingSmokeCheck.RunHeadless" "TrainingSmokeCheck] PASSED"
+
+  echo "[3e] Predicate eval (EV1 composable success predicates correct)"
+  run_unity_method "Predicate eval" \
+    "ArmSmith.EditorTools.PredicateEvalCheck.RunHeadless" "PredicateEvalCheck] PASSED"
+
+  echo "[3f] Reactive expert (SortIntoTray generalises to random scatter)"
+  run_unity_method "Reactive expert" \
+    "ArmSmith.EditorTools.ReactiveExpertCheck.RunHeadless" "ReactiveExpertCheck] PASSED"
+
+  echo "[3g] Multi-robot (shared bus + events + claims + 2-arm spawn)"
+  run_unity_method "Multi-robot" \
+    "ArmSmith.EditorTools.MultiRobotCheck.RunHeadless" "MultiRobotCheck] PASSED"
 fi
 
 echo "[3d] Vision grasp-geometry (numpy CV toolbox unit tests)"

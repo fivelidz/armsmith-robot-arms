@@ -4,9 +4,29 @@
 > every work session. Newest status at the top of each section.
 >
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
-> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 10/10.)
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 13/13.)
 
-## SESSION 2026-06-19 (latest) — the system PERFORMS THE TASK across all scenarios
+## SESSION 2026-06-22 (latest) — EV1 predicates · reactive expert · multi-robot bus (suite 13/13)
+- **EV1 composable success predicates** (RoboLab-style): `Evaluation/Predicates.cs` (NearXZ, Near,
+  EeReaches, BelowHeight, AboveAligned, AtRest, Grasping + And/Or/Not/ForAll combinators, each with a
+  signed `Margin()` for shaped reward) + `Evaluation/TaskEvaluator.cs` mapping all 7 scenarios to a
+  declarative predicate tree. `ScenarioManager.usePredicateSuccess` routes success through it (off by
+  default to preserve approved reward shaping); `PredicateDescription()` gives the English breakdown.
+  New gate `PredicateEvalCheck` (18 assertions). Tolerances copied verbatim — behaviour preserved.
+- **EV4**: wrote `design/specs/EVAL_AND_LEROBOT_SPEC.md` (EV1 predicates + EV2 InferenceClient serving
+  contract + EV3 LeRobot v3.0 export authority).
+- **SortIntoTray generalisation FIXED**: `Evolution/ScriptedExpert.cs` — one reactive Cartesian plan
+  source that reads CURRENT object positions, so warm-start + auto-solve track ANY scatter. Trainer's
+  `BuildPickPlaceDemo` now delegates to it (removed duplicated per-scenario plan code). New gate
+  `ReactiveExpertCheck` delivers 2/3 RANDOMLY-scattered cubes into the tray (was the known limitation).
+- **Pillar K multi-robot** (K1/K2/K3): extended `WorldBlackboard` with a transient EVENT bus
+  (RobotEvent pub/sub) + NearestOther/WouldCollide/MustYield coordination helpers + K3 hand-off
+  protocol on `RobotAgent` (OfferHandoff/AcceptHandoff/ShouldYield). `MultiRobot/MultiRobotManager.cs`
+  spawns N real SO-101 arms at offset bases facing a shared workspace, all on one blackboard. New gate
+  `MultiRobotCheck` (16 assertions: state/events/claims/2-arm spawn).
+- **Headless suite now 13/13** (added 3e Predicate, 3f Reactive expert, 3g Multi-robot to run_checks.sh).
+
+## SESSION 2026-06-19 — the system PERFORMS THE TASK across all scenarios
 - **GA solves the task by default**: warm-start from an IK pick-place demo + GA refine. Best fitness
   ~14-18 (task complete + success bonus). Verified live via the F7 Generations panel.
 - **Scenario-aware warm-start — ALL 7 scenarios now solve at 100%**: ReachTouch, PickPlaceCube,

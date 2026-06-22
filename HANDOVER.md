@@ -11,7 +11,7 @@ ARMSMITH is a Unity game/sim where you design, control, evolve, train, and (even
 **Seeed SO-101 / SO-ARM100** 6-DOF robot arm to solve manipulation tasks. Engine: **Unity 6000.4.2f1**, URP,
 **ArticulationBody** physics, units = metres. Driven via the **MCP-for-Unity bridge** (TCP port 6990).
 
-**The pick-and-place task WORKS** (reach → grasp → lift, verified). A **7/7 headless regression suite**
+**The pick-and-place task WORKS** (reach → grasp → lift, verified). A **13/13 headless regression suite**
 guards physics, the task, visualization, training, and the diffusion pipeline. A full **training regimen +
 UI** is built (backends, curriculum, reward shaping, conditions, multi-generation viz). Diffusion (planner +
 trainable policy + inference server) and in-world path visualization are functional.
@@ -154,7 +154,7 @@ scenarios → cameras → sensors → trainer → HUD → IgnoreArmVsEnvironment
 
 ## 5. What WORKS (verified) vs PENDING
 
-**WORKS (headless-verified, 7/7 suite):**
+**WORKS (headless-verified, 13/13 suite):**
 - Realistic SO-101 build; physics stable (no PhysX crash); motor model realistic (servo rate/ticks/hold).
 - **Pick-and-place: reach (3.4cm) + grasp (~3cm) + LIFT** (cube to ~0.1-0.2m) via analytic IKAnglesFor path.
 - Manual/IK control not regressed; FK matches physical exactly.

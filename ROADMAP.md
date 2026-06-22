@@ -113,9 +113,12 @@ Goal: support many open-source robots, not just SO-101. Each = URDF/MJCF + meshe
 
 ### Pillar K: Multi-robot + communication
 Goal: multiple arms, each with multiple modules, that communicate and coordinate.
-- [ ] K1: Spawn N arms in one scene; per-arm controllers/sensors/servo panels.
-- [ ] K2: Shared world state / message bus (arms publish pose+intent, subscribe to others).
-- [ ] K3: Coordinated tasks: object hand-off between two arms; collaborative pick-place; do-not-collide.
+- [x] K1: Spawn N arms in one scene — MultiRobot/MultiRobotManager.cs (offset bases facing a shared
+      workspace; each gets ProceduralArm + ArmController + RobotAgent). Verified: 2-arm spawn (MultiRobotCheck).
+- [x] K2: Shared world state / message bus — WorldBlackboard (state last-value-wins + claims + KV) extended
+      with a transient EVENT bus (RobotEvent pub/sub) + NearestOther/WouldCollide/MustYield helpers.
+- [~] K3: hand-off PROTOCOL built (RobotAgent.OfferHandoff/AcceptHandoff/ShouldYield on the event bus +
+      claims); live two-arm choreography in-scene TODO.
 - [ ] K4: Multi-agent training (each arm a policy; cooperative/competitive fitness).
 
 ### Module-usage transparency (P13 / I43)
@@ -251,12 +254,13 @@ Research: research/external/NVLABS_4DRGPT_SPATIALCLAW_STUDY.md and NVLABS_ROBOLA
   if ARMSMITH ever ships).
 
 ### RoboLab-inspired eval + serving (user: "RoboLab looks critical")
-- [ ] EV1: composable-predicate success detection (object_in_container / upright / left_of ...) as C#
-      checks -> unified eval + GA fitness + curriculum difficulty labels.
-- [ ] EV2: InferenceClient server-client contract for policy serving (mirror in our diffusion/sensor-policy
-      MCP bridge): extract_observation -> pack_request -> query_server -> unpack action chunk.
-- [ ] EV3: LeRobot v3.0 export schema authority (align waypoints_to_lerobot.py with convert_to_lerobot.py).
-- [ ] EV4: design/specs/EVAL_AND_LEROBOT_SPEC.md capturing EV1-EV3.
+- [x] EV1: composable-predicate success detection (NearXZ/Near/EeReaches/BelowHeight/AboveAligned/AtRest/
+      Grasping + And/Or/Not/ForAll, signed Margin for shaped reward) -> Evaluation/Predicates.cs +
+      TaskEvaluator.cs; ScenarioManager.usePredicateSuccess; PredicateEvalCheck (18 assertions, suite 3e).
+- [~] EV2: InferenceClient contract — DESIGNED in EVAL_AND_LEROBOT_SPEC §EV2; partially built (DF4 diffusion
+      server + DiffusionPolicyClient). TODO: shared JSON schema file + sensor-policy server.
+- [~] EV3: LeRobot v3.0 export schema authority — DESIGNED in spec §EV3; converter exists. TODO: --lerobot-v3 flag.
+- [x] EV4: design/specs/EVAL_AND_LEROBOT_SPEC.md capturing EV1-EV3.
 
 ### Multi-generation / scrambled-world training viz (user ideas)
 - [ ] MG1: show MULTIPLE GA generations simultaneously (ghost/overlay arms or a grid of mini-views) so the

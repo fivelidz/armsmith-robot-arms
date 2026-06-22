@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -11,6 +12,19 @@ namespace ArmSmith
         public bool holding;            // is it currently holding an object?
         public string intent;           // free-form: "idle" | "reaching" | "carrying" | "handoff_ready" | ...
         public float updated;           // Time.time of last publish
+    }
+
+    /// <summary>A transient coordination MESSAGE on the bus (e.g. a hand-off offer/accept). Unlike
+    /// RobotState (last-value-wins), events are delivered to subscribers in publish order — the K2
+    /// request/response channel that hand-offs and turn-taking are built on.</summary>
+    public struct RobotEvent
+    {
+        public string fromId;
+        public string toId;            // null/"" = broadcast
+        public string kind;            // "handoff_offer" | "handoff_accept" | custom
+        public string resource;        // object the message concerns (optional)
+        public Vector3 point;          // rendezvous / claim point
+        public float stamp;
     }
 
     /// <summary>
@@ -53,7 +67,53 @@ namespace ArmSmith
         public void Set(string key, float v) => kv[key] = v;
         public float Get(string key, float def = 0f) => kv.TryGetValue(key, out var v) ? v : def;
 
-        public void Clear() { robots.Clear(); claims.Clear(); kv.Clear(); }
+        // ── transient EVENT bus (K2 request/response: hand-off offers, accepts, custom messages) ──
+        readonly List<RobotEvent> events = new List<RobotEvent>();
+        readonly List<Action<RobotEvent>> subs = new List<Action<RobotEvent>>();
+
+        public void Subscribe(Action<RobotEvent> h) { if (h != null && !subs.Contains(h)) subs.Add(h); }
+        public void Unsubscribe(Action<RobotEvent> h) { subs.Remove(h); }
+
+        public void PublishEvent(RobotEvent e)
+        {
+            e.stamp = Time.time; events.Add(e);
+            for (int i = 0; i < subs.Count; i++) subs[i]?.Invoke(e);
+        }
+        public IReadOnlyList<RobotEvent> Events => events;
+
+        // ── coordination helpers (built on the primitives above) ──
+
+        /// <summary>Nearest OTHER robot's tip to a point — "who should receive this object?".</summary>
+        public bool NearestOther(string selfId, Vector3 point, out RobotState nearest, out float dist)
+        {
+            nearest = default; dist = float.PositiveInfinity; bool found = false;
+            foreach (var r in Others(selfId))
+            {
+                float d = Vector3.Distance(r.tipPosition, point);
+                if (d < dist) { dist = d; nearest = r; found = true; }
+            }
+            return found;
+        }
+
+        /// <summary>Would a planned tip target come within `clearance` of any OTHER arm's current tip?</summary>
+        public bool WouldCollide(string selfId, Vector3 plannedTip, float clearance)
+        {
+            foreach (var r in Others(selfId))
+                if (Vector3.Distance(r.tipPosition, plannedTip) < clearance) return true;
+            return false;
+        }
+
+        /// <summary>Deterministic right-of-way by id string compare: the "lower" id has priority, so the
+        /// caller yields if a higher-priority arm contests the same space. Prevents two arms deadlocking.</summary>
+        public bool MustYield(string selfId, Vector3 plannedTip, float clearance)
+        {
+            foreach (var r in Others(selfId))
+                if (string.CompareOrdinal(r.id, selfId) < 0 && Vector3.Distance(r.tipPosition, plannedTip) < clearance)
+                    return true;
+            return false;
+        }
+
+        public void Clear() { robots.Clear(); claims.Clear(); kv.Clear(); events.Clear(); subs.Clear(); }
     }
 
     /// <summary>Attach to an arm: publishes its state to the WorldBlackboard each frame so other arms can
@@ -90,5 +150,30 @@ namespace ArmSmith
             }
             return best;
         }
+
+        // ── K3 hand-off protocol (built on the event bus + claims) ────────────────────────────────────
+        // Giver: claims the object, broadcasts a "handoff_offer" at a rendezvous point. Receiver: listens,
+        // replies "handoff_accept", moves to take it. Both use WorldBlackboard so no direct references.
+
+        /// <summary>This arm offers the object it's holding to another arm at a rendezvous point.</summary>
+        public void OfferHandoff(string resource, Vector3 rendezvous, string toId = null)
+        {
+            intent = "handoff_ready";
+            WorldBlackboard.Instance.Claim(resource, robotId);
+            WorldBlackboard.Instance.PublishEvent(new RobotEvent
+            { fromId = robotId, toId = toId, kind = "handoff_offer", resource = resource, point = rendezvous });
+        }
+
+        /// <summary>This arm accepts a pending offer (call from an event handler).</summary>
+        public void AcceptHandoff(RobotEvent offer)
+        {
+            intent = "receiving";
+            WorldBlackboard.Instance.PublishEvent(new RobotEvent
+            { fromId = robotId, toId = offer.fromId, kind = "handoff_accept", resource = offer.resource, point = offer.point });
+        }
+
+        /// <summary>True if the planned move should be deferred this frame to avoid another arm.</summary>
+        public bool ShouldYield(Vector3 plannedTip, float clearance = 0.08f)
+            => WorldBlackboard.Instance.MustYield(robotId, plannedTip, clearance);
     }
 }

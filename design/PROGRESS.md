@@ -493,3 +493,18 @@ fit via the MCP bridge). All Apache/NC-licensed; logged in ROADMAP under CV/spat
 Headless suite now 7/7 (physx, pick, viz, motor, training-learns, diffusion-pipeline, diffusion-deploy).
 In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 follow-plan, 6 MPD planner,
 7 denoise, 8 path-viz, 9 demo-routes.
+
+## Session 2026-06-22 — EV1 predicates · reactive expert · multi-robot bus (suite 13/13)
+- EV1 composable success predicates: Evaluation/Predicates.cs (7 leaf predicates + And/Or/Not/ForAll,
+  each with a signed Margin() for shaped reward) + Evaluation/TaskEvaluator.cs (all 7 scenarios as
+  declarative predicate trees). ScenarioManager.usePredicateSuccess routes the success gate through it
+  (off by default; reward shaping untouched). PredicateEvalCheck — 18 assertions.
+- EV4: design/specs/EVAL_AND_LEROBOT_SPEC.md (EV1 predicates + EV2 serving contract + EV3 LeRobot v3.0).
+- SortIntoTray generalisation fix: Evolution/ScriptedExpert.cs — one reactive Cartesian plan source that
+  reads CURRENT object positions, so the GA warm-start (BuildPickPlaceDemo now delegates to it) and a
+  runtime auto-solve track any scatter. ReactiveExpertCheck delivers 2/3 randomly-scattered cubes.
+- Pillar K multi-robot: WorldBlackboard gains a transient RobotEvent bus + NearestOther/WouldCollide/
+  MustYield; RobotAgent gains the K3 hand-off protocol (OfferHandoff/AcceptHandoff/ShouldYield);
+  MultiRobot/MultiRobotManager.cs spawns N real SO-101 arms on one shared blackboard. MultiRobotCheck —
+  16 assertions (state/events/claims/2-arm spawn).
+- Headless suite 7/7 -> 13/13 (added 3e Predicate, 3f Reactive expert, 3g Multi-robot).
