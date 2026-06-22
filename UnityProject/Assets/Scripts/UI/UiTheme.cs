@@ -95,11 +95,11 @@ namespace ArmSmith.UI
             SetRadius(p, 8);
             p.style.marginBottom = 8;
             p.style.paddingTop = 0;
-            // top accent line
+            p.style.overflow = Overflow.Hidden;   // keep the accent edge corners clean
+            // top accent line (a touch thicker for a stronger console feel)
             var edge = new VisualElement();
-            edge.style.height = 2;
+            edge.style.height = 3;
             edge.style.backgroundColor = accent ?? Teal;
-            SetRadiusTop(edge, 8);
             p.Add(edge);
             return p;
         }
@@ -110,8 +110,8 @@ namespace ArmSmith.UI
             l.style.color = accent ?? Teal;
             l.style.unityFontStyleAndWeight = FontStyle.Bold;
             l.style.fontSize = 12;
-            l.style.letterSpacing = 1.5f;
-            l.style.paddingLeft = 10; l.style.paddingTop = 8; l.style.paddingBottom = 8;
+            l.style.letterSpacing = 1.8f;
+            l.style.paddingLeft = 12; l.style.paddingTop = 9; l.style.paddingBottom = 9;
             return l;
         }
 
@@ -120,8 +120,14 @@ namespace ArmSmith.UI
             var h = Row();
             h.style.backgroundColor = Card2;
             h.style.justifyContent = Justify.SpaceBetween;
+            h.style.alignItems = Align.Center;
             h.style.borderBottomColor = Border; h.style.borderBottomWidth = 1;
-            h.Add(PanelTitle(title, accent));
+            // a small accent tick before the title (console signature)
+            var left = Row();
+            var tick = new VisualElement(); tick.style.width = 4; tick.style.height = 14;
+            tick.style.backgroundColor = accent ?? Teal; tick.style.marginLeft = 8; SetRadius(tick, 2);
+            left.Add(tick); left.Add(PanelTitle(title, accent));
+            h.Add(left);
             if (badge != null) h.Add(Badge(badge, badgeColor ?? accent ?? Teal));
             return h;
         }
@@ -130,13 +136,35 @@ namespace ArmSmith.UI
         {
             var b = new Label(text.ToUpperInvariant());
             b.style.fontSize = 9;
-            b.style.color = color;
+            b.style.color = TextHi;
             b.style.letterSpacing = 1f;
-            b.style.paddingLeft = 6; b.style.paddingRight = 6; b.style.paddingTop = 2; b.style.paddingBottom = 2;
-            b.style.marginRight = 8;
-            SetBorder(b, color, 1); SetRadius(b, 3);
+            b.style.unityFontStyleAndWeight = FontStyle.Bold;
+            b.style.paddingLeft = 7; b.style.paddingRight = 7; b.style.paddingTop = 3; b.style.paddingBottom = 3;
+            b.style.marginRight = 10;
+            b.style.backgroundColor = new Color(color.r, color.g, color.b, 0.18f);
+            SetBorder(b, new Color(color.r, color.g, color.b, 0.7f), 1); SetRadius(b, 10);
             return b;
         }
+
+        /// <summary>A hoverable content CARD (for scenario/module/creation grids). Accent left-edge bar,
+        /// inset padding, subtle hover highlight. Returns the card; add content into it.</summary>
+        public static VisualElement CardEl(Color? accent = null, float width = 0f)
+        {
+            var c = accent ?? Teal;
+            var card = new VisualElement();
+            card.style.backgroundColor = Card;
+            SetBorder(card, Border, 1); SetRadius(card, 6);
+            card.style.marginRight = 8; card.style.marginBottom = 8;
+            card.style.paddingTop = 10; card.style.paddingBottom = 10; card.style.paddingLeft = 12; card.style.paddingRight = 12;
+            card.style.borderLeftColor = c; card.style.borderLeftWidth = 3;
+            if (width > 0) { card.style.width = width; card.style.flexShrink = 0; }
+            var baseBg = Card; var hoverBg = Surface;
+            card.RegisterCallback<PointerEnterEvent>(_ => { card.style.backgroundColor = hoverBg; SetBorder2(card, new Color(c.r, c.g, c.b, 0.5f)); card.style.borderLeftColor = c; card.style.borderLeftWidth = 3; });
+            card.RegisterCallback<PointerLeaveEvent>(_ => { card.style.backgroundColor = baseBg; SetBorder2(card, Border); card.style.borderLeftColor = c; card.style.borderLeftWidth = 3; });
+            return card;
+        }
+        static void SetBorder2(VisualElement e, Color c)
+        { e.style.borderTopColor = c; e.style.borderBottomColor = c; e.style.borderRightColor = c; }
 
         public static Label Lbl(string text, Color? color = null, int size = 11)
         {
@@ -154,26 +182,62 @@ namespace ArmSmith.UI
             return l;
         }
 
+        /// <summary>A secondary (outline + soft tint) button with a hover state. The default ARMSMITH button:
+        /// taller, padded, rounded, with a faint accent-tinted fill so it reads as a real button (not a hairline
+        /// box), and it brightens on hover. Keeps the teal/orange/green/red colour grammar + mono font.</summary>
         public static Button Btn(string text, System.Action onClick, Color? color = null)
         {
             var b = new Button(onClick) { text = text.ToUpperInvariant() };
             var c = color ?? Teal;
-            b.style.fontSize = 11; b.style.letterSpacing = 1f;
+            b.style.fontSize = 11; b.style.letterSpacing = 1.2f;
             b.style.color = c;
-            b.style.backgroundColor = new Color(0, 0, 0, 0);
-            SetBorder(b, c, 1); SetRadius(b, 4);
-            b.style.paddingLeft = 8; b.style.paddingRight = 8; b.style.paddingTop = 4; b.style.paddingBottom = 4;
-            b.style.marginRight = 4; b.style.marginTop = 2; b.style.marginBottom = 2;
+            var idle = new Color(c.r, c.g, c.b, 0.10f);
+            var hover = new Color(c.r, c.g, c.b, 0.22f);
+            b.style.backgroundColor = idle;
+            SetBorder(b, new Color(c.r, c.g, c.b, 0.65f), 1); SetRadius(b, 5);
+            b.style.paddingLeft = 12; b.style.paddingRight = 12; b.style.paddingTop = 7; b.style.paddingBottom = 7;
+            b.style.marginRight = 5; b.style.marginTop = 3; b.style.marginBottom = 3;
             b.style.unityFontStyleAndWeight = FontStyle.Bold;
+            b.style.minHeight = 28;
+            // hover feedback (UI Toolkit pointer events)
+            b.RegisterCallback<PointerEnterEvent>(_ => { if (b.userData as string != "active") { b.style.backgroundColor = hover; b.style.color = TextHi; } });
+            b.RegisterCallback<PointerLeaveEvent>(_ => { if (b.userData as string != "active") { b.style.backgroundColor = idle; b.style.color = c; } });
+            b.userData = c;   // remember the accent so SetActive can restore
             return b;
         }
 
-        /// <summary>Mark a button as "active" (filled accent) or not.</summary>
+        /// <summary>A PRIMARY (solid accent fill) button — for the one main action on a screen.</summary>
+        public static Button BtnPrimary(string text, System.Action onClick, Color? color = null)
+        {
+            var b = Btn(text, onClick, color);
+            var c = color ?? Teal;
+            b.style.backgroundColor = new Color(c.r, c.g, c.b, 0.92f);
+            b.style.color = Bg;   // dark text on the bright fill
+            SetBorder(b, c, 1);
+            b.style.minHeight = 32; b.style.fontSize = 12;
+            b.RegisterCallback<PointerEnterEvent>(_ => { b.style.backgroundColor = c; });
+            b.RegisterCallback<PointerLeaveEvent>(_ => { b.style.backgroundColor = new Color(c.r, c.g, c.b, 0.92f); });
+            return b;
+        }
+
+        /// <summary>Mark a button as "active" (filled accent) or not. Persists through hover via userData.</summary>
         public static void SetActive(Button b, bool on, Color? color = null)
         {
-            var c = color ?? Teal;
-            if (on) { b.style.backgroundColor = new Color(c.r, c.g, c.b, 0.18f); b.style.color = TextHi; }
-            else    { b.style.backgroundColor = new Color(0, 0, 0, 0); b.style.color = c; }
+            var c = color ?? (b.userData as Color? ?? Teal);
+            if (on)
+            {
+                b.userData = "active";
+                b.style.backgroundColor = new Color(c.r, c.g, c.b, 0.85f);
+                b.style.color = Bg;
+                SetBorder(b, c, 1);
+            }
+            else
+            {
+                b.userData = c;
+                b.style.backgroundColor = new Color(c.r, c.g, c.b, 0.10f);
+                b.style.color = c;
+                SetBorder(b, new Color(c.r, c.g, c.b, 0.65f), 1);
+            }
         }
 
         /// <summary>A labelled slider row: [label  ====  value]. Returns the row; out-params expose the

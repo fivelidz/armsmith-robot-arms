@@ -6,7 +6,25 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22e (latest) — CONDITIONS PERSISTENCE (all training conditions now save/restore)
+## SESSION 2026-06-22f (latest) — UI polish + playtest verification (every element checked live)
+- **Visual polish (kept colours + font)**: `UiTheme.Btn` is now a real button — taller (28px min), padded,
+  rounded, faint accent-tint fill + **hover state** (PointerEnter/Leave brighten); new `BtnPrimary` (solid
+  accent fill, dark text) for the one main action per screen; `SetActive` gives a clear filled/outline state.
+  `Panel` has a thicker 3px accent edge + clipped corners; `PanelHeader` gains an accent tick before the
+  title; `Badge` is now a filled pill; new `CardEl` hoverable content card (left accent bar) used by the
+  scenario grid. Scenario LAUNCH buttons are solid + difficulty-coloured (green/teal/orange).
+- **Manual-control UX**: Dashboard shows a "⚙ TRAINING IS DRIVING THE ARM" banner with a "✋ Take Manual
+  Control" primary button (stops training + switches to Manual) whenever a run is active — no silent fight.
+- **Bug fix**: `RecordGeneration` mean/best now ignore -Infinity/NaN genomes, so POP MEAN no longer shows
+  -Infinity mid/after a generation (verified live: mean 12.03).
+- **Playtested every element LIVE via the bridge** and confirmed each does what it states:
+  mode switch (IK↔Manual), gripper close/open + GRASPED chip, mouse-follow active state, training run
+  (gen feedback best/mean/success update; success ACHIEVED ✓), take-manual-control (stops + switches),
+  presets (Robust→pop32/DR0.8/SensorPolicy), sensor mask (obs 68→27 when IMU+Lidar off), scenario load,
+  catalogue generate, URDF convert, servo torque saturation, conditions save/load round-trip, Build joint
+  limit edit applies, module advisor recommends. Suite still 16/16.
+
+## SESSION 2026-06-22e — CONDITIONS PERSISTENCE (all training conditions now save/restore)
 - **SaveState v2**: now persists the ENTIRE `TrainingConfig` (reward weights + per-term enables, domain-
   randomization ranges, termination/success params, curriculum difficulty, GA hyperparameters, sensor mask)
   + global settings (usePredicateSuccess, SensorRealism enabled/noise/latency, sim speed, policy mode).

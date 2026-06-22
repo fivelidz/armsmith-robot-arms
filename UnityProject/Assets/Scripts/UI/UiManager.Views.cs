@@ -66,17 +66,17 @@ namespace ArmSmith.UI
 
         VisualElement ScenarioCard(ScenarioType st)
         {
-            var card = UiTheme.Panel(); card.style.width = 220; card.style.marginRight = 8;
-            var b = new VisualElement(); UiTheme.Pad(b, 10); card.Add(b);
-            var name = UiTheme.Lbl(st.ToString(), UiTheme.TextHi, 13); name.style.unityFontStyleAndWeight = FontStyle.Bold; b.Add(name);
-            b.Add(UiTheme.Lbl(ScenarioBlurb(st), UiTheme.Muted, 10));
             int diff = ScenarioDifficulty(st);
-            var dots = UiTheme.Row();
-            for (int i = 0; i < 3; i++) { var d = new Label("●"); d.style.fontSize = 9; d.style.color = i < diff ? (diff == 3 ? UiTheme.Orange : UiTheme.Teal) : UiTheme.TextDim; dots.Add(d); }
-            dots.Add(UiTheme.Lbl(diff == 1 ? " easy" : diff == 2 ? " medium" : " hard", UiTheme.Muted, 9));
-            b.Add(dots);
-            var btn = UiTheme.Btn("Launch", () => { if (scenarios != null) scenarios.LoadScenario(st); SwitchTo(View.Dashboard); }, UiTheme.Green);
-            btn.style.marginTop = 6; b.Add(btn);
+            Color accent = diff == 3 ? UiTheme.Orange : (diff == 1 ? UiTheme.Green : UiTheme.Teal);
+            var card = UiTheme.CardEl(accent, 226);
+            var name = UiTheme.Lbl(st.ToString(), UiTheme.TextHi, 14); name.style.unityFontStyleAndWeight = FontStyle.Bold; card.Add(name);
+            var blurb = UiTheme.Lbl(ScenarioBlurb(st), UiTheme.Muted, 11); blurb.style.whiteSpace = WhiteSpace.Normal; blurb.style.marginTop = 3; blurb.style.marginBottom = 6; blurb.style.minHeight = 44; card.Add(blurb);
+            var dots = UiTheme.Row(); dots.style.marginBottom = 8;
+            for (int i = 0; i < 3; i++) { var d = new Label("●"); d.style.fontSize = 10; d.style.marginRight = 2; d.style.color = i < diff ? accent : UiTheme.TextDim; dots.Add(d); }
+            var dl = UiTheme.Lbl(diff == 1 ? " easy" : diff == 2 ? " medium" : " hard", UiTheme.Muted, 9); dl.style.marginLeft = 4; dots.Add(dl);
+            card.Add(dots);
+            var btn = UiTheme.BtnPrimary("▶  Launch", () => { if (scenarios != null) scenarios.LoadScenario(st); SwitchTo(View.Dashboard); }, accent);
+            btn.style.width = Length.Percent(100); card.Add(btn);
             return card;
         }
 
@@ -106,8 +106,8 @@ namespace ArmSmith.UI
 
         // ════════════════════════════ DASHBOARD VIEW ════════════════════════════
         Label _dbObjective, _dbReward, _dbSuccess, _dbEE, _dbGrip, _dbExportStatus;
-        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost;
-        Button _dbModeBtn, _dbGripBtn;
+        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost, _dbTrainBanner;
+        Button _dbModeBtn, _dbGripBtn, _dbMouseBtn;
 
         void ExportStl()
         {
@@ -132,11 +132,16 @@ namespace ArmSmith.UI
             var task   = ScrollPanel(UiTheme.PanelHeader("Task & Export", UiTheme.Green), out taskBody);
 
             // -- Driver --
+            // training-status banner: when the trainer is driving the arm, tell the user + offer a clean
+            // "take manual control" action (stops training + switches to Manual) so there's no silent fight.
+            _dbTrainBanner = new VisualElement(); driverBody.Add(_dbTrainBanner);
+
             driverBody.Add(UiTheme.SectionHead("Control Mode"));
             var modeRow = UiTheme.Row();
             _dbModeBtn = UiTheme.Btn("IK Mode", ToggleMode, UiTheme.Teal);
             modeRow.Add(_dbModeBtn);
-            modeRow.Add(UiTheme.Btn("Mouse-follow (M)", () => { if (controller != null) controller.mouseFollow = !controller.mouseFollow; }));
+            _dbMouseBtn = UiTheme.Btn("Mouse-follow (M)", () => { if (controller != null) controller.mouseFollow = !controller.mouseFollow; });
+            modeRow.Add(_dbMouseBtn);
             driverBody.Add(modeRow);
 
             driverBody.Add(UiTheme.SectionHead("Gripper"));
@@ -224,8 +229,33 @@ namespace ArmSmith.UI
             if (_dbModeBtn != null && controller != null)
             {
                 bool ik = controller.mode == ArmController.Mode.IK;
-                _dbModeBtn.text = ik ? "IK Mode" : "Manual";
+                _dbModeBtn.text = ik ? "IK Mode" : "Manual Mode";
                 UiTheme.SetActive(_dbModeBtn, ik, ik ? UiTheme.Teal : UiTheme.Orange);
+            }
+            if (_dbMouseBtn != null && controller != null)
+                UiTheme.SetActive(_dbMouseBtn, controller.mouseFollow, UiTheme.Teal);
+            // training banner: show when the trainer is actively driving the arm
+            if (_dbTrainBanner != null)
+            {
+                bool training = trainer != null && trainer.Running;
+                if (training && _dbTrainBanner.childCount == 0)
+                {
+                    var banner = UiTheme.CardEl(UiTheme.Orange);
+                    banner.style.marginRight = 0;
+                    banner.Add(UiTheme.Lbl("⚙ TRAINING IS DRIVING THE ARM", UiTheme.Orange, 11));
+                    var sub = UiTheme.Lbl("The evolution trainer controls the arm during a run. Take over to drive manually.", UiTheme.Muted, 10);
+                    sub.style.whiteSpace = WhiteSpace.Normal; banner.Add(sub);
+                    var take = UiTheme.BtnPrimary("✋  Take Manual Control", () => {
+                        if (trainer != null) trainer.StopTraining();
+                        if (controller != null) controller.mode = ArmController.Mode.Manual;
+                    }, UiTheme.Orange);
+                    take.style.width = Length.Percent(100); take.style.marginTop = 6; banner.Add(take);
+                    _dbTrainBanner.Add(banner);
+                }
+                else if (!training && _dbTrainBanner.childCount > 0)
+                {
+                    _dbTrainBanner.Clear();
+                }
             }
             if (_dbGripBtn != null && arm != null && arm.gripper != null)
             {
@@ -560,7 +590,7 @@ namespace ArmSmith.UI
             // controls
             dashBody.Add(UiTheme.SectionHead("Controls"));
             var c1 = UiTheme.Row();
-            _trStartBtn = UiTheme.Btn("▶ Start (T)", ToggleTraining, UiTheme.Green);
+            _trStartBtn = UiTheme.BtnPrimary("▶ Start (T)", ToggleTraining, UiTheme.Green);
             c1.Add(_trStartBtn);
             c1.Add(UiTheme.Btn("+1 Gen (N)", () => { if (trainer != null) trainer.StepOneGeneration(); }));
             dashBody.Add(c1);
@@ -729,7 +759,7 @@ namespace ArmSmith.UI
             if (_trMeanTile != null) _trMeanTile.text = trainer.lastMeanFitness.ToString("F2");
             if (_trSuccTile != null) _trSuccTile.text = $"{trainer.lastSuccessRate * 100f:F0}";
             if (_trCurr != null) _trCurr.text = $"{trainer.config.LevelName()} · difficulty {trainer.config.difficulty:F2} · gen {trainer.generation}";
-            if (_trStartBtn != null) { _trStartBtn.text = trainer.Running ? "■ Stop (T)" : "▶ Start (T)"; UiTheme.SetActive(_trStartBtn, trainer.Running, UiTheme.Green); }
+            if (_trStartBtn != null) { _trStartBtn.text = trainer.Running ? "■ Stop (T)" : "▶ Start (T)"; UiTheme.SetActive(_trStartBtn, trainer.Running, trainer.Running ? UiTheme.Red : UiTheme.Green); }
             if (_trObsTotal != null && sensorHub != null) _trObsTotal.text = sensorHub.BuildObservation().Length.ToString();
             if (_trAdvisor != null && scenarios != null)
             {

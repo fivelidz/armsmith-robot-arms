@@ -102,10 +102,13 @@ namespace ArmSmith
 
         void RecordGeneration()
         {
+            // Robust best/mean: ignore any genome still at -Infinity (un-evaluated / errored) so the MEAN
+            // never collapses to -Infinity in the UI. Best uses the max of evaluated genomes.
             float bf = float.NegativeInfinity, sum = 0f; int cnt = 0;
-            if (policyMode) { foreach (var g in policyPop) { bf = Mathf.Max(bf, g.fitness); sum += g.fitness; cnt++; } }
-            else            { foreach (var g in population) { bf = Mathf.Max(bf, g.fitness); sum += g.fitness; cnt++; } }
-            lastBestFitness = bf;
+            void Acc(float fit) { if (float.IsNegativeInfinity(fit) || float.IsNaN(fit)) return; bf = Mathf.Max(bf, fit); sum += fit; cnt++; }
+            if (policyMode) { foreach (var g in policyPop) Acc(g.fitness); }
+            else            { foreach (var g in population) Acc(g.fitness); }
+            lastBestFitness = cnt > 0 ? bf : 0f;
             lastMeanFitness = cnt > 0 ? sum / cnt : 0f;
             bestHistory.Add(lastBestFitness);
             meanHistory.Add(lastMeanFitness);

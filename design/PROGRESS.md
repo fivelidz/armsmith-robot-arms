@@ -560,3 +560,12 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - New gate ConditionsPersistenceCheck (35 assertions: save->mutate->load->verify all fields + conditionsOnly).
 - run_checks 15->16/16. Live-verified round-trip (wReach 2.22 / difficulty 0.66) in the running editor;
   autosave.save.json on disk with schema v2 + full trainingConfigJson. GUI relaunched and running.
+
+## Session 2026-06-22f — UI polish + full playtest verification (suite 16/16)
+- UiTheme: real buttons (hover, fill, min-height), BtnPrimary, improved Panel/PanelHeader/Badge, new CardEl
+  hoverable card. Scenario cards + LAUNCH buttons restyled (difficulty-coloured solid). Colours + font kept.
+- Dashboard: "TRAINING IS DRIVING THE ARM" banner + "Take Manual Control" primary button (stop+manual).
+- Fix: RecordGeneration ignores -Inf/NaN genomes -> POP MEAN no longer -Infinity (live mean 12.03).
+- Playtested every element live via the bridge (mode switch, gripper, training run + gen feedback, take
+  manual control, presets, sensor mask obs-count, scenario load, catalogue, URDF, servo torque, persistence
+  round-trip, build joint edit, advisor) — all correspond to their labels. Full suite 16/16.
