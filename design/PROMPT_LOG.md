@@ -397,3 +397,10 @@ Fusion, W&B, LeRobot) and implemented the top-impact patterns:
 - Module ADD menu: Modules view = mounted-loadout list + catalog cards + budget (Onshape/Fusion + game loadout).
 - CREATION menu: Build view = parametric joint editor + creations gallery (Fusion feature-tree + generative gallery).
 - Visual: semantic colour grammar (Foxglove). Verified headless (UI 32, suite 15/15) + live screenshots.
+
+## P-PERSIST (2026-06-22e): "ensure all conditions get properly saved; continue and test every element"
+Found the gap: SaveState only saved arm/sequence/scenario/sensor-flags/zero-pose — NONE of the training
+conditions. Fixed by persisting the whole TrainingConfig + global settings in SaveState v2, with auto-save
+(apply/interval/quit) and auto-load-on-start (conditionsOnly so the scene isn't yanked). Added UI Save/Reload
+buttons. New ConditionsPersistenceCheck (35 assertions, save->mutate->load->verify) -> suite 16/16. Relaunched
+the GUI (wayland) and live-verified the round-trip + the autosave.save.json on disk.

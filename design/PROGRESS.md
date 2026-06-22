@@ -550,3 +550,13 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - UiTheme widgets: Gauge, Sparkline, MetricTile, StatusChip, DualRange, SemColor.
 - TrainingConfig: per-term enable flags + DR ranges + termination params + ApplyPreset(4). Nav now 8 views.
 - UiToolkitCheck auto-covers all 8 views: 28->32 assertions. Full suite 15/15.
+
+## Session 2026-06-22e — Conditions persistence (suite 16/16)
+- SaveState bumped to v2: persists the full TrainingConfig (reward weights + per-term enables, DR ranges,
+  termination/success, curriculum difficulty, GA hyperparameters, sensor mask) + global settings
+  (usePredicateSuccess, SensorRealism enabled/noise/latency, sim speed, policy mode).
+- Auto-save on Apply / every 30s / on quit+pause; auto-load on Start (conditionsOnly = keep scenario).
+- UI: Training "Conditions Persistence" (Apply+Save / Reload); module toggles + Options Apply autosave.
+- New gate ConditionsPersistenceCheck (35 assertions: save->mutate->load->verify all fields + conditionsOnly).
+- run_checks 15->16/16. Live-verified round-trip (wReach 2.22 / difficulty 0.66) in the running editor;
+  autosave.save.json on disk with schema v2 + full trainingConfigJson. GUI relaunched and running.

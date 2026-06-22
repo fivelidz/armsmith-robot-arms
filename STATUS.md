@@ -4,9 +4,22 @@
 > every work session. Newest status at the top of each section.
 >
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
-> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 15/15.)
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22d (latest) — UI/UX overhaul from industry research (Isaac/Foxglove/Onshape/W&B)
+## SESSION 2026-06-22e (latest) — CONDITIONS PERSISTENCE (all training conditions now save/restore)
+- **SaveState v2**: now persists the ENTIRE `TrainingConfig` (reward weights + per-term enables, domain-
+  randomization ranges, termination/success params, curriculum difficulty, GA hyperparameters, sensor mask)
+  + global settings (usePredicateSuccess, SensorRealism enabled/noise/latency, sim speed, policy mode).
+  Previously NONE of the training conditions were saved — only arm/sequence/scenario/sensor-flags/zero-pose.
+- **Auto-save**: conditions auto-save on Apply, every 30s, and on quit/pause; **auto-load on Start**
+  (conditionsOnly — restores conditions/settings WITHOUT yanking the scene to a different scenario).
+- **UI**: Training view gains a "Conditions Persistence" section (APPLY + SAVE / RELOAD + status); module
+  loadout toggles and Options "Apply + Save" autosave immediately. Wired saveSystem into UiManager.
+- **Tested**: new headless `ConditionsPersistenceCheck` (35 assertions — save→mutate→load→verify every field
+  + conditionsOnly keeps scenario). Suite 15→16/16. LIVE-verified: wReach 2.22 / difficulty 0.66 round-trip
+  in the running editor; autosave.save.json on disk (schema v2, full config). GUI relaunched + running.
+
+## SESSION 2026-06-22d — UI/UX overhaul from industry research (Isaac/Foxglove/Onshape/W&B)
 - Researched leading robotics-sim/training tools and applied concrete patterns. Suite still 15/15; UI check 32.
 - **Training Conditions (Isaac Lab RewardsCfg/EventsCfg/TerminationsCfg patterns)**: presets (Quick GA /
   Robust / Sim-to-real / Reach-debug); per-term reward TABLE (toggle + weight slider, 7 terms); domain-

@@ -370,6 +370,7 @@ namespace ArmSmith.UI
             c.useLidar = sensorHub.Get("Lidar2D")?.Enabled ?? c.useLidar;
             c.useDepthCamera = sensorHub.Get("DepthCamera")?.Enabled ?? c.useDepthCamera;
             c.useTactile = sensorHub.Get("EFleshTactile")?.Enabled ?? c.useTactile;
+            if (saveSystem != null) saveSystem.AutoSaveConditions();   // loadout changes persist immediately
         }
 
         void RefreshModules()
@@ -526,9 +527,11 @@ namespace ArmSmith.UI
         }
 
         // ════════════════════════════ TRAINING VIEW ════════════════════════════
-        Label _trBackend, _trObsTotal, _trAdvisor, _trBestTile, _trMeanTile, _trSuccTile, _trCurr;
+        Label _trBackend, _trObsTotal, _trAdvisor, _trBestTile, _trMeanTile, _trSuccTile, _trCurr, _condStatus;
         Button _trStartBtn;
         VisualElement _trCurve, _trStepper;
+
+        void SetCondStatus(string msg) { if (_condStatus != null) _condStatus.text = msg; }
 
         void BuildTrainingView()
         {
@@ -612,7 +615,21 @@ namespace ArmSmith.UI
                 condBody.Add(UiTheme.ToggleRow("Predicate success (EV1)", "composable predicate tree", scenarios != null && scenarios.usePredicateSuccess, out var tPred2));
                 tPred2.RegisterValueChangedCallback(e => { if (scenarios != null) scenarios.usePredicateSuccess = e.newValue; });
 
-                condBody.Add(UiTheme.Btn("Apply to trainer", () => trainer.ApplyConfig(), UiTheme.Orange));
+                // apply + persistence (conditions are auto-saved on apply, on interval, and on quit)
+                condBody.Add(UiTheme.SectionHead("Conditions Persistence"));
+                var saveRow = UiTheme.Row();
+                saveRow.Add(UiTheme.Btn("Apply + Save", () => {
+                    trainer.ApplyConfig();
+                    if (sensorHub != null) trainer.config.ApplySensorMask(sensorHub);
+                    if (saveSystem != null) { saveSystem.AutoSaveConditions(); SetCondStatus("conditions saved (autosave)"); }
+                }, UiTheme.Orange));
+                saveRow.Add(UiTheme.Btn("Reload", () => {
+                    if (saveSystem != null && saveSystem.AutoLoadConditions()) { SetCondStatus("conditions reloaded"); SwitchTo(View.Training); }
+                    else SetCondStatus("no saved conditions");
+                }, UiTheme.Teal));
+                condBody.Add(saveRow);
+                _condStatus = UiTheme.Lbl("", UiTheme.Green, 10); _condStatus.style.whiteSpace = WhiteSpace.Normal; condBody.Add(_condStatus);
+                condBody.Add(UiTheme.Caption("Conditions auto-save on apply, every 30s, and on quit — they persist across sessions."));
             }
 
             // ── OBSERVATION + ADVISOR ──
@@ -778,7 +795,7 @@ namespace ArmSmith.UI
                 randBody.Add(UiTheme.SectionHead("GA Hyperparameters"));
                 AddOptSlider(randBody, "Population", 4f, 48f, () => trainer.config.populationSize, v => trainer.config.populationSize = Mathf.RoundToInt(v), "");
                 AddOptSlider(randBody, "Mutation rate", 0f, 1f, () => trainer.config.mutationRate, v => trainer.config.mutationRate = v, "");
-                randBody.Add(UiTheme.Btn("Apply to trainer", () => { if (trainer != null) trainer.ApplyConfig(); }, UiTheme.Orange));
+                randBody.Add(UiTheme.Btn("Apply + Save", () => { if (trainer != null) trainer.ApplyConfig(); if (saveSystem != null) saveSystem.AutoSaveConditions(); }, UiTheme.Orange));
             }
 
             var cols = Columns(sim, ctrl, rand); cols.style.flexGrow = 1;

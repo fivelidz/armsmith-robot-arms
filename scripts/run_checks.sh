@@ -89,6 +89,10 @@ if [ "$MODE" != "quick" ]; then
   echo "[3i] Elements (catalogue J2 + URDF import J3 + servo torque F-r1 + sensor realism F-r2 + advisor S10)"
   run_unity_method "Elements" \
     "ArmSmith.EditorTools.ElementsCheck.RunHeadless" "ElementsCheck] PASSED"
+
+  echo "[3j] Conditions persistence (all training conditions + settings round-trip through SaveSystem v2)"
+  run_unity_method "Conditions persistence" \
+    "ArmSmith.EditorTools.ConditionsPersistenceCheck.RunHeadless" "ConditionsPersistenceCheck] PASSED"
 fi
 
 echo "[3d] Vision grasp-geometry (numpy CV toolbox unit tests)"
