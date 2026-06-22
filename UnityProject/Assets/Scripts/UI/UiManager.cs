@@ -30,6 +30,7 @@ namespace ArmSmith.UI
         public SaveSystem saveSystem;        // persist/restore all conditions + settings (Save/Load buttons)
         public ArmSmith.Modules.AttachmentSystem attachments;   // KSP-style 3D part attachment (Build/Modules)
         public ArmSmith.Modules.MountNodeViz mountNodes;        // in-scene attach-node markers
+        public CameraRig cameraRig;          // orbit camera + named view presets (View Options)
 
         /// <summary>The legacy uGUI HUD canvas. When the new interface overlay is shown we HIDE this so the
         /// two don't overlap; restored when the overlay is hidden. Optional (null = ignore).</summary>
@@ -45,12 +46,28 @@ namespace ArmSmith.UI
 
         // live status-bar labels
         Label _stSim, _stArm, _stTask, _stIk, _stGen, _stFps, _stMode;
-        Button _navModeBtn;
+        Button _navModeBtn, _navViewBtn;
 
         void ToggleModeGlobal()
         {
             if (controller == null) return;
             controller.mode = controller.mode == ArmController.Mode.IK ? ArmController.Mode.Manual : ArmController.Mode.IK;
+        }
+
+        void CycleView(int dir)
+        {
+            if (cameraRig == null) return;
+            cameraRig.CycleView(dir);
+            UpdateViewBtn();
+        }
+
+        /// <summary>Clicking the VIEW pill cycles forward (a quick way without the arrows).</summary>
+        void CycleViewMenu() => CycleView(1);
+
+        void UpdateViewBtn()
+        {
+            if (_navViewBtn != null && cameraRig != null)
+                _navViewBtn.text = CameraRig.ViewName(cameraRig.currentView);
         }
         // per-view refreshers (called each frame for the active view)
         Action _refresh;
@@ -60,8 +77,8 @@ namespace ArmSmith.UI
         public void Bind(ProceduralArm a, ArmController c, ScenarioManager s, EvolutionTrainer t,
                          SensorHub hub, BehaviourRecorder rec, AgentCommands ag = null, ModuleMount mm = null,
                          SaveSystem ss = null, ArmSmith.Modules.AttachmentSystem at = null,
-                         ArmSmith.Modules.MountNodeViz mn = null)
-        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; saveSystem = ss; attachments = at; mountNodes = mn; }
+                         ArmSmith.Modules.MountNodeViz mn = null, CameraRig cam = null)
+        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; saveSystem = ss; attachments = at; mountNodes = mn; cameraRig = cam; }
 
         void Start()
         {
@@ -89,6 +106,8 @@ namespace ArmSmith.UI
             if (_fpsTimer >= 0.5f) { _fps = _frames / _fpsTimer; _frames = 0; _fpsTimer = 0f; }
 
             if (visible && current == View.Dashboard) PollKeyRebind();
+            // quick view cycle: Shift+V steps through camera viewpoints (plain V toggles the cam HUD)
+            if (Input.GetKeyDown(KeyCode.V) && Input.GetKey(KeyCode.LeftShift)) CycleView(1);
             RefreshStatusBar();
             _refresh?.Invoke();
         }
@@ -150,6 +169,17 @@ namespace ArmSmith.UI
 
             // spacer
             var spacer = new VisualElement(); spacer.style.flexGrow = 1; _navBar.Add(spacer);
+
+            // VIEW OPTIONS: cycle named camera viewpoints (Orbit/Front/Side/Top/Close/Wide) to inspect the
+            // arm + attachments from any angle.
+            var viewGroup = UiTheme.Row(); viewGroup.style.marginRight = 8; viewGroup.style.alignItems = Align.Center;
+            var eye = new Label("◉"); eye.style.color = UiTheme.Muted; eye.style.fontSize = 12; eye.style.marginRight = 4; viewGroup.Add(eye);
+            viewGroup.Add(UiTheme.Btn("◀", () => CycleView(-1), UiTheme.Muted));
+            _navViewBtn = UiTheme.Btn("VIEW", CycleViewMenu, UiTheme.Teal);
+            _navViewBtn.style.minWidth = 92;
+            viewGroup.Add(_navViewBtn);
+            viewGroup.Add(UiTheme.Btn("▶", () => CycleView(1), UiTheme.Muted));
+            _navBar.Add(viewGroup);
 
             // big clickable MODE indicator (every sim viewer has one — kills mode confusion)
             _navModeBtn = UiTheme.Btn("MODE", ToggleModeGlobal, UiTheme.Teal);
@@ -257,6 +287,7 @@ namespace ArmSmith.UI
                 _navModeBtn.text = ik ? "◀ IK ▶" : "◀ MANUAL ▶";
                 UiTheme.SetActive(_navModeBtn, true, ik ? UiTheme.Teal : UiTheme.Orange);
             }
+            UpdateViewBtn();
         }
 
         // ── views are in UiManager.Views.cs (partial) ──────────────────────────────────────────────────

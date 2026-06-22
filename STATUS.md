@@ -6,7 +6,14 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22i (latest) — attachment polish: in-scene attach-nodes, camera feeds, Modules 3D-part
+## SESSION 2026-06-22j (latest) — VIEW OPTIONS (named camera viewpoints)
+- **Camera view presets** (`CameraRig.SetView/CycleView`): Orbit · Front · Side · Top-down · Close-up ·
+  Workspace — snap the orbit camera to a named angle to inspect the arm + attachments (drag still works).
+- **View-options bar** in the nav: ◀ [view name] ▶ to cycle, plus **Shift+V** for next view. Help updated.
+- **Tested**: ElementsCheck extended with view-preset assertions (6 views, Top pitches down, Close-up zooms,
+  cycle wraps). Suite 17/17. LIVE-verified Top-down + Close-up reframe the camera correctly.
+
+## SESSION 2026-06-22i — attachment polish: in-scene attach-nodes, camera feeds, Modules 3D-part
 - **In-scene attach-node markers** (`Modules/MountNodeViz.cs`): KSP-style glowing teal discs at every mount
   socket on the arm, shown only while in Build/Modules (and hidden when the overlay is off). Tracks the arm.
 - **Camera Feeds panel** in the Control view: live RenderTexture thumbnails of every mounted camera part

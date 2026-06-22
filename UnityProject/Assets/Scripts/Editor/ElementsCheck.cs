@@ -145,9 +145,28 @@ namespace ArmSmith.EditorTools
             Check("advisor breaks tie by fewer channels", rec2 != null && rec2.channels == 30);
             Check("advisor ranked list", ModuleAdvisor.Ranked("TrayToTray").Count == 2);
 
+            // ── camera VIEW PRESETS (view options) ──
+            var rigGo = new GameObject("Rig");
+            try
+            {
+                var rig = rigGo.AddComponent<CameraRig>();
+                Check("6 view presets", CameraRig.AllViews.Length == 6);
+                rig.SetView(CameraRig.View.Top);
+                Check("Top view pitches down", rig.pitch > 60f && rig.currentView == CameraRig.View.Top);
+                rig.SetView(CameraRig.View.CloseUp);
+                Check("Close-up zooms in", rig.distance < 0.7f);
+                var v0 = rig.currentView; var v1 = rig.CycleView(1);
+                Check("cycle changes view", v1 != v0);
+                int n = CameraRig.AllViews.Length;
+                for (int i = 0; i < n; i++) rig.CycleView(1);
+                Check("cycle wraps to same view", rig.currentView == v1);
+                Check("every view named", !string.IsNullOrEmpty(CameraRig.ViewName(CameraRig.View.Wide)));
+            }
+            finally { Object.DestroyImmediate(rigGo); }
+
             bool ok = fail == 0;
             Debug.Log(ok
-                ? $"[ElementsCheck] PASSED — {pass} assertions (catalogue + URDF import + servo torque + sensor realism + advisor)."
+                ? $"[ElementsCheck] PASSED — {pass} assertions (catalogue + URDF import + servo torque + sensor realism + advisor + view presets)."
                 : $"[ElementsCheck] FAILED — {fail} of {pass + fail} assertions failed.");
             return ok;
         }

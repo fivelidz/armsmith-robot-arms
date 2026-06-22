@@ -28,6 +28,50 @@ namespace ArmSmith
         public RawImage wristPanel;
         public RawImage envPanel;
 
+        // ── named camera VIEW PRESETS (cycle through to inspect the arm + attachments) ──────────────────
+        public enum View { Orbit, Front, Side, Top, CloseUp, Wide }
+        public static readonly View[] AllViews = { View.Orbit, View.Front, View.Side, View.Top, View.CloseUp, View.Wide };
+        public View currentView = View.Orbit;
+
+        public static string ViewName(View v)
+        {
+            switch (v)
+            {
+                case View.Orbit:   return "Orbit";
+                case View.Front:   return "Front";
+                case View.Side:    return "Side";
+                case View.Top:     return "Top-down";
+                case View.CloseUp: return "Close-up";
+                case View.Wide:    return "Workspace";
+                default:           return v.ToString();
+            }
+        }
+
+        /// <summary>Snap the orbit camera to a named viewpoint (yaw/pitch/distance + pivot). The user can
+        /// still drag from there; the framing is just re-seeded.</summary>
+        public void SetView(View v)
+        {
+            currentView = v;
+            switch (v)
+            {
+                case View.Orbit:   yaw = 30f;  pitch = 28f; distance = 1.1f; pivotPoint = new Vector3(0f, 0.15f, 0.30f); break;
+                case View.Front:   yaw = 0f;   pitch = 8f;  distance = 1.0f; pivotPoint = new Vector3(0f, 0.18f, 0.30f); break;
+                case View.Side:    yaw = 90f;  pitch = 8f;  distance = 1.0f; pivotPoint = new Vector3(0f, 0.18f, 0.30f); break;
+                case View.Top:     yaw = 0f;   pitch = 78f; distance = 1.1f; pivotPoint = new Vector3(0f, 0.10f, 0.30f); break;
+                case View.CloseUp: yaw = 25f;  pitch = 20f; distance = 0.5f; pivotPoint = new Vector3(0f, 0.22f, 0.32f); break;
+                case View.Wide:    yaw = 35f;  pitch = 35f; distance = 2.0f; pivotPoint = new Vector3(0f, 0.12f, 0.28f); break;
+            }
+        }
+
+        /// <summary>Advance to the next/previous view preset (dir = +1 / -1).</summary>
+        public View CycleView(int dir)
+        {
+            int idx = System.Array.IndexOf(AllViews, currentView);
+            idx = ((idx + dir) % AllViews.Length + AllViews.Length) % AllViews.Length;
+            SetView(AllViews[idx]);
+            return currentView;
+        }
+
         public void Setup(Transform gripper, Vector3 envPos, Vector3 envLookAt)
         {
             Setup(gripper, null, null, null, envPos, envLookAt);

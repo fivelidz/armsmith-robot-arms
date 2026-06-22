@@ -598,3 +598,8 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - Modules view "+ 3D Part" button: places the matching part (SensorToPartId) + jumps to Build bench.
 - AttachmentCheck extended 33->36 (mount-node build/no-collider/clear-on-hide). run_checks 17/17.
 - Live-verified: attach-node discs on the arm; wrist-camera feed in Control.
+
+## Session 2026-06-22j — View Options (named camera viewpoints) (suite 17/17)
+- CameraRig.SetView/CycleView: Orbit/Front/Side/Top/Close-up/Workspace presets (yaw/pitch/distance/pivot).
+- Nav view-options bar (◀ name ▶) + Shift+V cycle; Help updated. UiManager wired to CameraRig.
+- ElementsCheck extended with view-preset assertions. run_checks 17/17. Live-verified Top + Close-up.

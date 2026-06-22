@@ -1327,6 +1327,8 @@ namespace ArmSmith.UI
                 ("double-click", "grab / place object"),
             });
             AddHelpSection(body, "Camera", new[] {
+                ("View bar (nav)", "◀ ▶ cycle camera views: Orbit/Front/Side/Top/Close/Wide"),
+                ("Shift+V", "next camera view"),
                 ("RMB", "orbit"), ("MMB", "pan"), ("Ctrl+scroll", "zoom"),
                 ("V", "camera HUD"), ("B", "bounds"), ("X", "axes"),
             });
