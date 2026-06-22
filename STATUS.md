@@ -6,7 +6,20 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22j (latest) — VIEW OPTIONS (named camera viewpoints)
+## SESSION 2026-06-22k (latest) — table-collision fix + Vision tab + info ticker
+- **Fixed the claw clipping through the table**: `IgnoreArmVsEnvironment` was ignoring the WHOLE arm vs the
+  worktop (because the joints are a nested chain and GetComponentsInChildren returned the entire sub-tree).
+  Now it ignores only the PROXIMAL base+shoulder OWN colliders (which overlap the mount by design) and lets
+  the DISTAL elbow→wrist→gripper collide with the worktop. Verified live: commanding the gripper below the
+  table now makes it REST ON the surface (tipY stays >0, no NaN) instead of passing through.
+- **Vision tab** (new nav view): a grid of ALL camera feeds (wrist cam + overview cam + every mounted camera
+  part) + a live readout of EVERY enabled sensor module's channels (the policy's input) + a live arm viewport.
+- **Always-on info TICKER** (top strip, visible even when the F1 overlay is hidden): ARMSMITH · TASK · MODE ·
+  GEN · ATTEMPTS · SUCCESS% · REWARD · SPEED× · FPS. The overlay chrome now lives in `_overlay` so only it
+  hides on F1; the ticker stays up.
+- Suite 17/17 (UI check covers the new Vision view). LIVE-verified ticker + Vision feeds + table rest.
+
+## SESSION 2026-06-22j — VIEW OPTIONS (named camera viewpoints)
 - **Camera view presets** (`CameraRig.SetView/CycleView`): Orbit · Front · Side · Top-down · Close-up ·
   Workspace — snap the orbit camera to a named angle to inspect the arm + attachments (drag still works).
 - **View-options bar** in the nav: ◀ [view name] ▶ to cycle, plus **Shift+V** for next view. Help updated.

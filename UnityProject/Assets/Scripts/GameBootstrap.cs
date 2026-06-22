@@ -642,18 +642,28 @@ namespace ArmSmith
             if (demoPath != null) Debug.Log($"[Export] + GA demo for diffusion -> {demoPath}");
         }
 
-        // Ignore collision between every arm link collider and the STATIC environment (worktop, floor,
-        // walls, legs). The arm is bolted to the table at y=0, so its base overlaps the worktop top by
-        // design — colliding them depenetrates violently on frame 1 and crashes PhysX. Static = collider
-        // with no Rigidbody and no non-kinematic ArticulationBody, excluding the arm itself. Manipulable
-        // props (cube/trays) have non-kinematic Rigidbodies and are intentionally NOT ignored.
+        // Arm-vs-environment collision policy. The arm is bolted to the table at y=0, so its BASE +
+        // shoulder links overlap the worktop top by design — colliding them depenetrates violently on frame
+        // 1 and crashes PhysX. So we ignore the table/environment for the PROXIMAL links only (base +
+        // shoulder), but let the DISTAL links (elbow → wrist → gripper) COLLIDE with the worktop so the claw
+        // rests ON the table instead of clipping THROUGH it. Manipulable props (cube/trays, non-kinematic
+        // Rigidbodies) are never ignored.
         void IgnoreArmVsEnvironment(ProceduralArm a)
         {
             if (a == null) return;
-            var armCols = new System.Collections.Generic.List<Collider>();
-            if (a.baseBody != null) armCols.AddRange(a.baseBody.GetComponentsInChildren<Collider>());
-            foreach (var ab in a.jointBodies)
-                if (ab != null) armCols.AddRange(ab.GetComponentsInChildren<Collider>());
+            // proximal colliders to ignore vs environment: base + the first 2 joint links (shoulder pan/lift).
+            // NOTE: the joints are a NESTED chain, so GetComponentsInChildren returns the whole sub-tree —
+            // we must keep only the colliders whose OWNING ArticulationBody is the proximal body itself,
+            // otherwise we'd (wrongly) ignore the entire arm including the distal links + gripper.
+            var proximal = new System.Collections.Generic.List<Collider>();
+            void AddOwn(ArticulationBody body)
+            {
+                if (body == null) return;
+                foreach (var c in body.GetComponentsInChildren<Collider>())
+                    if (c.GetComponentInParent<ArticulationBody>() == body) proximal.Add(c);
+            }
+            AddOwn(a.baseBody);
+            for (int i = 0; i < a.jointBodies.Count && i < 2; i++) AddOwn(a.jointBodies[i]);
 
             foreach (var ec in FindObjectsOfType<Collider>())
             {
@@ -661,8 +671,9 @@ namespace ArmSmith
                 if (ec.GetComponentInParent<ProceduralArm>() != null) continue;   // skip the arm itself
                 var rb = ec.attachedRigidbody;
                 if (rb != null && !rb.isKinematic) continue;                       // skip manipulable props
-                // treat the rest (worktop/floor/walls/legs and any static collider) as environment
-                foreach (var ac in armCols)
+                // ignore only the proximal (base/shoulder) colliders vs the static environment; distal links
+                // (elbow/wrist/gripper) keep colliding so the claw can't pass through the worktop.
+                foreach (var ac in proximal)
                     if (ac != null) Physics.IgnoreCollision(ac, ec, true);
             }
         }

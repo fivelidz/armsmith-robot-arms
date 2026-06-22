@@ -603,3 +603,13 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - CameraRig.SetView/CycleView: Orbit/Front/Side/Top/Close-up/Workspace presets (yaw/pitch/distance/pivot).
 - Nav view-options bar (◀ name ▶) + Shift+V cycle; Help updated. UiManager wired to CameraRig.
 - ElementsCheck extended with view-preset assertions. run_checks 17/17. Live-verified Top + Close-up.
+
+## Session 2026-06-22k — table-collision fix + Vision tab + info ticker (suite 17/17)
+- Fixed claw-through-table: IgnoreArmVsEnvironment now ignores only PROXIMAL base+shoulder OWN colliders vs
+  the worktop (was ignoring whole nested chain via GetComponentsInChildren); distal links collide. Verified
+  live the gripper rests on the table instead of clipping through.
+- Vision view: all camera feeds (wrist/overview/mounted part cams) + live readout of every enabled sensor
+  module's channels + live arm viewport.
+- Always-on info ticker (task/mode/gen/attempts/success/reward/speed/fps); overlay chrome moved into _overlay
+  so only it hides on F1, ticker stays visible.
+- run_checks 17/17. Live-verified ticker + Vision + table rest.

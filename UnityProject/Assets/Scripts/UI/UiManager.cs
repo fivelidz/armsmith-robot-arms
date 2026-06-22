@@ -36,7 +36,7 @@ namespace ArmSmith.UI
         /// two don't overlap; restored when the overlay is hidden. Optional (null = ignore).</summary>
         public GameObject legacyHud;
 
-        public enum View { Menu, Dashboard, Build, Modules, Catalogue, Training, Options, Help }
+        public enum View { Menu, Dashboard, Build, Modules, Vision, Catalogue, Training, Options, Help }
         public View current = View.Dashboard;
         public bool visible = true;
 
@@ -108,14 +108,15 @@ namespace ArmSmith.UI
             if (visible && current == View.Dashboard) PollKeyRebind();
             // quick view cycle: Shift+V steps through camera viewpoints (plain V toggles the cam HUD)
             if (Input.GetKeyDown(KeyCode.V) && Input.GetKey(KeyCode.LeftShift)) CycleView(1);
-            RefreshStatusBar();
-            _refresh?.Invoke();
+            RefreshTicker();   // always-on, even when the overlay is hidden
+            if (visible) { RefreshStatusBar(); _refresh?.Invoke(); }
         }
 
         public void SetVisible(bool v)
         {
             visible = v;
-            if (_root != null) _root.style.display = v ? DisplayStyle.Flex : DisplayStyle.None;
+            // hide only the OVERLAY chrome; the info ticker stays on screen always.
+            if (_overlay != null) _overlay.style.display = v ? DisplayStyle.Flex : DisplayStyle.None;
             // Hide the legacy uGUI HUD while the new interface is up, so they don't overlap. The legacy
             // panels are still reachable (toggle the overlay off with F1 to get them back).
             if (legacyHud != null) legacyHud.SetActive(!v);
@@ -132,12 +133,75 @@ namespace ArmSmith.UI
             _root.style.flexDirection = FlexDirection.Column;
             _root.style.flexGrow = 1;
 
+            // ALWAYS-ON info ticker (visible even when the F1 overlay is hidden).
+            BuildTicker();
+
+            // the toggleable OVERLAY chrome (nav + content + status). Hidden by SetVisible(false).
+            _overlay = new VisualElement(); _overlay.style.flexGrow = 1; _overlay.style.flexDirection = FlexDirection.Column; _root.Add(_overlay);
             BuildNavBar();
             _content = new VisualElement();
             _content.style.flexGrow = 1;
             _content.style.paddingLeft = 8; _content.style.paddingRight = 8; _content.style.paddingTop = 6; _content.style.paddingBottom = 6;
-            _root.Add(_content);
+            _overlay.Add(_content);
             BuildStatusBar();
+        }
+
+        // ── ALWAYS-ON INFO TICKER (gen · attempts · success · reward · speed · fps) ──────────────────────
+        VisualElement _overlay, _ticker;
+        Label _tkTask, _tkGen, _tkAttempts, _tkSuccess, _tkReward, _tkSpeed, _tkFps, _tkMode;
+
+        void BuildTicker()
+        {
+            _ticker = UiTheme.Row();
+            _ticker.style.height = 26; _ticker.style.alignItems = Align.Center;
+            _ticker.style.backgroundColor = new Color(UiTheme.Card2.r, UiTheme.Card2.g, UiTheme.Card2.b, 0.92f);
+            _ticker.style.borderBottomColor = UiTheme.BorderHi; _ticker.style.borderBottomWidth = 1;
+            _ticker.style.paddingLeft = 10; _ticker.style.paddingRight = 10;
+
+            var dot = new Label("●"); dot.style.color = UiTheme.Green; dot.style.fontSize = 9; dot.style.marginRight = 6; _ticker.Add(dot);
+            var brand = new Label("ARMSMITH"); brand.style.color = UiTheme.Teal; brand.style.fontSize = 10; brand.style.letterSpacing = 2f; brand.style.unityFontStyleAndWeight = FontStyle.Bold; brand.style.marginRight = 12; _ticker.Add(brand);
+
+            _tkTask = TickerCell("TASK", "—", UiTheme.Text, out _);
+            _tkMode = TickerCell("MODE", "—", UiTheme.Teal, out _);
+            _tkGen = TickerCell("GEN", "0", UiTheme.Text, out _);
+            _tkAttempts = TickerCell("ATTEMPTS", "0", UiTheme.Text, out _);
+            _tkSuccess = TickerCell("SUCCESS", "—", UiTheme.Green, out _);
+            _tkReward = TickerCell("REWARD", "—", UiTheme.Orange, out _);
+            var spacer = new VisualElement(); spacer.style.flexGrow = 1; _ticker.Add(spacer);
+            _tkSpeed = TickerCell("SPEED", "1×", UiTheme.Teal, out _);
+            _tkFps = TickerCell("FPS", "0", UiTheme.Muted, out _);
+
+            _root.Add(_ticker);
+        }
+
+        Label TickerCell(string label, string val, Color valColor, out Label cap)
+        {
+            var group = UiTheme.Row(); group.style.marginRight = 16; group.style.alignItems = Align.Center;
+            cap = new Label(label); cap.style.color = UiTheme.Muted; cap.style.fontSize = 9; cap.style.letterSpacing = 1f; cap.style.marginRight = 5;
+            var v = new Label(val); v.style.color = valColor; v.style.fontSize = 11; v.style.unityFontStyleAndWeight = FontStyle.Bold;
+            group.Add(cap); group.Add(v);
+            _ticker.Add(group);
+            return v;
+        }
+
+        void RefreshTicker()
+        {
+            if (_ticker == null) return;
+            if (_tkTask != null && scenarios != null) _tkTask.text = scenarios.current.ToString();
+            if (_tkMode != null && controller != null) { bool ik = controller.mode == ArmController.Mode.IK; _tkMode.text = ik ? "IK" : "MANUAL"; _tkMode.style.color = ik ? UiTheme.Teal : UiTheme.Orange; }
+            if (trainer != null)
+            {
+                if (_tkGen != null) _tkGen.text = trainer.generation.ToString() + (trainer.Running ? " ▶" : "");
+                if (_tkAttempts != null) _tkAttempts.text = (trainer.generation * Mathf.Max(1, trainer.config.populationSize)).ToString();
+                if (_tkSuccess != null) _tkSuccess.text = $"{trainer.lastSuccessRate * 100f:F0}%";
+            }
+            if (_tkReward != null && scenarios != null)
+            {
+                _tkReward.text = scenarios.LastReward.ToString("F1");
+                _tkReward.style.color = scenarios.SuccessNow ? UiTheme.Green : UiTheme.Orange;
+            }
+            if (_tkSpeed != null) _tkSpeed.text = $"{Time.timeScale:0.#}×";
+            if (_tkFps != null) _tkFps.text = $"{_fps:F0}";
         }
 
         void BuildNavBar()
@@ -162,6 +226,7 @@ namespace ArmSmith.UI
             AddNavTab("Control", View.Dashboard);
             AddNavTab("Build", View.Build);
             AddNavTab("Modules", View.Modules);
+            AddNavTab("Vision", View.Vision);
             AddNavTab("Catalogue", View.Catalogue);
             AddNavTab("Training", View.Training);
             AddNavTab("Options", View.Options);
@@ -225,6 +290,7 @@ namespace ArmSmith.UI
                 case View.Dashboard: BuildDashboardView(); break;
                 case View.Build:     BuildBuildView(); break;
                 case View.Modules:   BuildModulesView(); break;
+                case View.Vision:    BuildVisionView(); break;
                 case View.Catalogue: BuildCatalogueView(); break;
                 case View.Training:  BuildTrainingView(); break;
                 case View.Options:   BuildOptionsView(); break;

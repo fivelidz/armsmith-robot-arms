@@ -882,6 +882,97 @@ namespace ArmSmith.UI
             host.Add(row);
         }
 
+        // ════════════════════════════ VISION VIEW (all camera feeds + module readouts) ════════════════════════════
+        VisualElement _visFeeds, _visModules; int _visCamCount = -1;
+
+        void BuildVisionView()
+        {
+            VisualElement feedBody, modBody;
+            var feeds = ScrollPanel(UiTheme.PanelHeader("Camera Feeds", UiTheme.Teal, "what the robot sees"), out feedBody);
+            var mods  = ScrollPanel(UiTheme.PanelHeader("Sensor Modules", UiTheme.Green, "live channels"), out modBody);
+
+            feedBody.Add(UiTheme.Caption("Every mounted camera + the built-in wrist/overview cameras."));
+            _visFeeds = new VisualElement(); _visFeeds.style.flexDirection = FlexDirection.Row; _visFeeds.style.flexWrap = Wrap.Wrap; feedBody.Add(_visFeeds);
+            RebuildVisionFeeds();
+
+            modBody.Add(UiTheme.Caption("Live readout of every enabled sensor module (the policy's input)."));
+            _visModules = new VisualElement(); modBody.Add(_visModules);
+
+            // live 3D viewport on the right so you can see the arm while inspecting feeds
+            var wrap = new VisualElement(); wrap.style.flexDirection = FlexDirection.Row; wrap.style.flexGrow = 1;
+            feeds.style.width = 420; feeds.style.flexShrink = 0; feeds.style.marginRight = 8;
+            mods.style.width = 360; mods.style.flexShrink = 0; mods.style.marginRight = 8;
+            wrap.Add(feeds); wrap.Add(mods);
+            wrap.Add(LiveViewport("LIVE ARM"));
+            _content.Add(wrap);
+            _refresh = RefreshVision;
+        }
+
+        void AddFeedTile(VisualElement host, string label, Texture tex, Color accent)
+        {
+            var col = UiTheme.Col(); col.style.marginRight = 8; col.style.marginBottom = 8;
+            if (tex != null) { var img = new Image { image = tex }; img.style.width = 160; img.style.height = 160; UiTheme.SetBorder(img, accent, 1); UiTheme.SetRadius(img, 4); col.Add(img); }
+            else { var ph = new VisualElement(); ph.style.width = 160; ph.style.height = 160; ph.style.backgroundColor = UiTheme.Card2; UiTheme.SetBorder(ph, UiTheme.Border, 1); UiTheme.SetRadius(ph, 4); col.Add(ph); }
+            col.Add(UiTheme.Caption(label));
+            host.Add(col);
+        }
+
+        void RebuildVisionFeeds()
+        {
+            if (_visFeeds == null) return;
+            _visFeeds.Clear();
+            int cams = 0;
+            // built-in rig cameras
+            if (cameraRig != null)
+            {
+                if (cameraRig.wristRT != null) { AddFeedTile(_visFeeds, "WRIST CAM", cameraRig.wristRT, UiTheme.Teal); cams++; }
+                if (cameraRig.envRT != null)   { AddFeedTile(_visFeeds, "OVERVIEW CAM", cameraRig.envRT, UiTheme.Green); cams++; }
+            }
+            // mounted part cameras
+            if (attachments != null)
+                foreach (var pp in attachments.placed)
+                    if (pp.def != null && pp.def.kind == ArmSmith.Modules.PartKind.Camera && pp.rt != null)
+                    { AddFeedTile(_visFeeds, pp.def.name.ToUpperInvariant(), pp.rt, pp.def.color); cams++; }
+            if (cams == 0) _visFeeds.Add(UiTheme.Caption("No camera feeds — add a camera part in Build/Modules."));
+            _visCamCount = cams;
+        }
+
+        void RefreshVision()
+        {
+            // rebuild feed tiles only when the camera count changes
+            if (attachments != null)
+            {
+                int cams = (cameraRig != null && cameraRig.wristRT != null ? 1 : 0) + (cameraRig != null && cameraRig.envRT != null ? 1 : 0);
+                foreach (var pp in attachments.placed) if (pp.def != null && pp.def.kind == ArmSmith.Modules.PartKind.Camera && pp.rt != null) cams++;
+                if (cams != _visCamCount) RebuildVisionFeeds();
+            }
+            // live module readouts
+            if (_visModules != null && sensorHub != null)
+            {
+                _visModules.Clear();
+                foreach (var s in sensorHub.Sensors)
+                {
+                    if (!s.Enabled) continue;
+                    var panel = UiTheme.Panel(UiTheme.Green);
+                    panel.Add(UiTheme.PanelHeader(s.Name, UiTheme.Green, s.Channels.Length + " ch"));
+                    var b = new VisualElement(); UiTheme.Pad(b, 8); panel.Add(b);
+                    float[] vals = (s is SensorBase sb) ? sb.ObserveNoisy() : s.Observe();
+                    int n = Mathf.Min(vals.Length, s.Channels.Length);
+                    // compact: show up to 8 channels, summarise the rest
+                    for (int i = 0; i < n && i < 8; i++)
+                    {
+                        var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween;
+                        row.Add(UiTheme.Caption(s.Channels[i]));
+                        row.Add(UiTheme.Lbl(vals[i].ToString("F3"), UiTheme.Teal, 10));
+                        b.Add(row);
+                    }
+                    if (n > 8) b.Add(UiTheme.Caption($"+{n - 8} more channels"));
+                    _visModules.Add(panel);
+                }
+                if (_visModules.childCount == 0) _visModules.Add(UiTheme.Caption("No sensor modules enabled."));
+            }
+        }
+
         // ════════════════════════════ CATALOGUE VIEW (J2/J3) ════════════════════════════
         Label _catStatus, _catSelName, _catSelInfo;
         string _catSelId;
