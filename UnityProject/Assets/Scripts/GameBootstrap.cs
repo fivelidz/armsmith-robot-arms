@@ -471,6 +471,14 @@ namespace ArmSmith
             uiManager.Bind(arm, controller, scenarios, trainer, sensorHub, recorder);
             uiManager.legacyHud = canvasGo;   // hidden while the new interface overlay is up (F1 to swap)
             uiManager.visible = false;   // start hidden; legacy HUD is the default, F1 reveals the new UI
+
+            // ── SP1: SENSOR-ONLY TELEOP overlay (Shift+S) — operate from sensor data only ───────────────
+            var soGo = new GameObject("SensorOnlyMode");
+            var soDoc = soGo.AddComponent<UnityEngine.UIElements.UIDocument>();
+            soDoc.panelSettings = ArmSmith.UI.UiTheme.GetPanelSettings();
+            soDoc.sortingOrder = 30;   // above everything when active
+            var sensorOnly = soGo.AddComponent<ArmSmith.UI.SensorOnlyMode>();
+            sensorOnly.Bind(sensorHub, controller, arm);
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)

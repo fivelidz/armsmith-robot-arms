@@ -71,7 +71,8 @@ concatenates enabled modules into the training observation.
 - [ ] S7: EFleshTactileSensor — per-finger contact normal force + contact point (tactile/grasp feedback).
 - [ ] S8: ObservationBuilder — concatenate enabled sensors -> obs vector; expose to EvolutionTrainer.
 - [ ] S9: HUD/UI toggles for each module; show live channel readouts.
-- [ ] S10: Comparative analytics — per-task best-performing sensor set ("module advisor"); ablation runs.
+- [x] S10: Comparative analytics — Evolution/ModuleAdvisor.cs records (task, sensor-set)->best success across
+      ablation runs + recommends the best set; shown in Training view. (2026-06-22c)
 - [ ] S11: Train generatively with ALL enabled sensor info (now); subset ablation later.
 - [ ] S12: Sensors as physical add-on visuals on the arm (so attaching a module is visible).
 
@@ -106,9 +107,10 @@ So at every mouse position the servos receive a concrete tick target; recording 
 ### Pillar J: Open-source robot catalogue (importable systems)
 Goal: support many open-source robots, not just SO-101. Each = URDF/MJCF + meshes + joint map.
 - [ ] J1: ORCA Hand (open dexterous hand) - import + control as a gripper/hand module.
-- [ ] J2: Robot catalogue registry: SO-ARM100/101, Seeed reBot, Koch, Mobile ALOHA, OpenArm,
-      Dummy-Robot, LeRobot-supported arms. Each loadable via BuildFromKinematics(<json>).
-- [ ] J3: Generic URDF importer path (drop a URDF + meshes -> playable arm).
+- [x] J2: Robot catalogue registry — Catalogue/RobotCatalogue.cs: SO-101 + parametric 3/5/6-DOF generated
+      arms, each a kinematics JSON loadable via BuildFromKinematics. Catalogue view in the UI. (2026-06-22c)
+- [x] J3: Generic URDF importer — Catalogue/UrdfImporter.cs: URDF XML -> kinematics schema -> playable arm,
+      registered in the catalogue ("scan import folder"). Verified: 2-DOF URDF converts + builds. (2026-06-22c)
 - [ ] J4: eFlesh tactile as a real hardware module (already emulated; map to real sensor later).
 
 ### Pillar K: Multi-robot + communication
@@ -132,8 +134,10 @@ Goal: multiple arms, each with multiple modules, that communicate and coordinate
 - [ ] D3: Seed the policy/evolution population from recorded demos (warm-start training).
 
 ### Real-world fidelity (P13 / I46)
-- [ ] F-r1: Servo speed/torque limits per STS3215 datasheet (have rate-limit; add torque saturation).
-- [ ] F-r2: Sensor noise + latency models (IMU drift, lidar noise, camera lag) toggle.
+- [x] F-r1: STS3215 torque saturation — ServoModel.AvailableTorque/SaturateTorque/IsTorqueSaturated
+      (datasheet speed/torque curve). (2026-06-22c)
+- [x] F-r2: Sensor noise + latency models — SensorRealism + SensorBase.ObserveNoisy (Gaussian noise +
+      latency ring buffer), toggle in Training view. (2026-06-22c)
 - [ ] F-r3: Friction/mass calibration to match real cube/tray.
 - [ ] F-r4: DLS/Jacobian IK so the real offset-wrist arm reaches like the physical robot.
 
@@ -154,10 +158,8 @@ Jacobian with damping near singularities -> correct reaching for offset wrists (
 - [x] BUG: base-bend (shoulder_lift) wrong axis + links detach -> FIXED (see PROGRESS).
 
 ## Sensor-only play mode (P17 idea)
-- [ ] SP1: A mode where the human player controls the arm using ONLY the sensor-module information
-      (wrist cam + lidar + rangefinder + depth + tactile) — NO god-view of true object positions.
-      The main 3rd-person view is hidden/dimmed; you operate from the sensor panels like a real teleop.
-      This is also the exact information budget a trained policy gets -> direct human-vs-policy comparison.
+- [x] SP1: Sensor-only teleop — UI/SensorOnlyMode.cs (Shift+S) blacks out the god-view + surfaces every
+      enabled sensor module's live channels (the exact policy information budget). (2026-06-22c)
 
 ## MASTER "elements to add/include" list (living checklist)
 Bugs/blockers:
@@ -181,7 +183,7 @@ UI:
 Control:
 - [ ] Alt+LMB drag = camera orbit (keep RMB too).
 - [ ] Click in world to set next IK target / transition location.
-- [ ] Sensor-only play mode (SP1).
+- [x] Sensor-only play mode (SP1) — UI/SensorOnlyMode.cs (Shift+S). (2026-06-22c)
 Catalogue/multi-robot:
 - [ ] Import ORCA Hand (URDF) as a catalogue arm.
 - [ ] 2nd arm + shared world state + object hand-off.

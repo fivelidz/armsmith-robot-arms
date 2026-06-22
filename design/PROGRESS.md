@@ -523,3 +523,17 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
   refreshers run + legacy UXML named elements). Added as run_checks.sh step 3h. Suite 13/13 -> 14/14.
 - LIVE-verified in the GUI (wayland launch): screenshotted Menu/Dashboard/Training/Options/Help all
   rendering correctly; confirmed F1 legacy<->new swap leaves a clean console interface.
+
+## Session 2026-06-22c — catalogue/URDF/servo-torque/sensor-realism/advisor/sensor-only (suite 15/15)
+- Launched Unity (wayland), verified the new UI Toolkit interface live (Dashboard/Catalogue/Training/Options/
+  Help all render; real SO-101 STL arm in scene).
+- J2 RobotCatalogue: registry (SO-101 + parametric 3/5/6-DOF) + GenerateParametricKinematics + ResolveKinematicsPath.
+- J3 UrdfImporter: URDF XML -> kinematics schema -> playable arm + catalogue registration; 2-DOF URDF builds.
+- F-r1 ServoModel torque saturation (AvailableTorque/SaturateTorque/IsTorqueSaturated, datasheet curve).
+- F-r2 SensorRealism + SensorBase.ObserveNoisy (Gaussian noise + latency); SensorHub.BuildObservation uses it.
+- S10 ModuleAdvisor: per-(task,sensor-set) best-success ledger + recommend (tie-break fewer channels);
+  trainer records each gen; shown in Training view.
+- SP1 SensorOnlyMode (Shift+S): blackout + live sensor channels overlay (UI Toolkit).
+- New UI: Catalogue view; Training view gains sensor-realism toggle + module-advisor summary.
+- Tests: ElementsCheck (24 assertions) + UiToolkitCheck now covers Catalogue view (28). run_checks 14->15/15.
+- LIVE-verified: Catalogue view + Sensor-Only mode screenshotted working.

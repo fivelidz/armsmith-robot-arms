@@ -30,7 +30,7 @@ namespace ArmSmith.UI
         /// two don't overlap; restored when the overlay is hidden. Optional (null = ignore).</summary>
         public GameObject legacyHud;
 
-        public enum View { Menu, Dashboard, Training, Options, Help }
+        public enum View { Menu, Dashboard, Catalogue, Training, Options, Help }
         public View current = View.Dashboard;
         public bool visible = true;
 
@@ -125,6 +125,7 @@ namespace ArmSmith.UI
             // nav tabs
             AddNavTab("Menu", View.Menu);
             AddNavTab("Dashboard", View.Dashboard);
+            AddNavTab("Catalogue", View.Catalogue);
             AddNavTab("Training", View.Training);
             AddNavTab("Options", View.Options);
             AddNavTab("Help", View.Help);
@@ -166,6 +167,7 @@ namespace ArmSmith.UI
             {
                 case View.Menu:      BuildMenuView(); break;
                 case View.Dashboard: BuildDashboardView(); break;
+                case View.Catalogue: BuildCatalogueView(); break;
                 case View.Training:  BuildTrainingView(); break;
                 case View.Options:   BuildOptionsView(); break;
                 case View.Help:      BuildHelpView(); break;

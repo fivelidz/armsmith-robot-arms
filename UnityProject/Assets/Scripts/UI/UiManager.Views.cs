@@ -232,8 +232,57 @@ namespace ArmSmith.UI
             arm.gripper.SetClose(arm.gripper.closeAmount > 0.5f ? 0f : 1f);
         }
 
+        // ════════════════════════════ CATALOGUE VIEW (J2/J3) ════════════════════════════
+        Label _catStatus;
+
+        void BuildCatalogueView()
+        {
+            VisualElement body;
+            var panel = ScrollPanel(UiTheme.PanelHeader("Robot Catalogue", UiTheme.Teal, "import & generate"), out body);
+            body.Add(UiTheme.Caption("Open-source robots — each is a kinematics JSON the builder can load. " +
+                "Generate parametric arms or import a URDF; the active arm swaps on scene reload."));
+            _catStatus = UiTheme.Lbl("", UiTheme.Green, 11); _catStatus.style.whiteSpace = WhiteSpace.Normal; body.Add(_catStatus);
+
+            foreach (var d in ArmSmith.Catalogue.RobotCatalogue.Entries)
+            {
+                var card = UiTheme.Panel(d.hasMeshes ? UiTheme.Teal : UiTheme.Orange);
+                var cb = new VisualElement(); UiTheme.Pad(cb, 10); card.Add(cb);
+                var title = UiTheme.Row();
+                var nm = UiTheme.Lbl(d.displayName, UiTheme.TextHi, 13); nm.style.unityFontStyleAndWeight = FontStyle.Bold;
+                title.Add(nm);
+                title.Add(UiTheme.Badge($"{d.dof}-DOF", d.hasMeshes ? UiTheme.Teal : UiTheme.Orange));
+                title.Add(UiTheme.Badge(d.source, UiTheme.Muted));
+                cb.Add(title);
+                cb.Add(UiTheme.Lbl(d.notes, UiTheme.Muted, 10));
+                var actions = UiTheme.Row();
+                string id = d.id;
+                actions.Add(UiTheme.Btn("Resolve / Generate", () => {
+                    string path = ArmSmith.Catalogue.RobotCatalogue.ResolveKinematicsPath(id);
+                    if (_catStatus != null) _catStatus.text = path != null ? $"{id}: kinematics ready at {System.IO.Path.GetFileName(path)}" : $"{id}: failed to resolve.";
+                }, UiTheme.Green));
+                cb.Add(actions);
+            }
+
+            // URDF import affordance
+            body.Add(UiTheme.SectionHead("Import URDF (J3)"));
+            body.Add(UiTheme.Caption("Drop a .urdf into persistentDataPath/Import then click — it converts to " +
+                "the kinematics schema and registers as a catalogue entry."));
+            body.Add(UiTheme.Btn("Scan import folder", () => {
+                string dir = System.IO.Path.Combine(Application.persistentDataPath, "Import");
+                System.IO.Directory.CreateDirectory(dir);
+                int n = 0;
+                foreach (var f in System.IO.Directory.GetFiles(dir, "*.urdf"))
+                { if (ArmSmith.Catalogue.UrdfImporter.Import(f) != null) n++; }
+                if (_catStatus != null) _catStatus.text = $"URDF import: {n} robot(s) imported from {dir}";
+                SwitchTo(View.Catalogue);   // refresh the list
+            }, UiTheme.Orange));
+
+            _content.Add(panel);
+            _refresh = null;
+        }
+
         // ════════════════════════════ TRAINING VIEW ════════════════════════════
-        Label _trGen, _trBest, _trMean, _trSuccess, _trBackend, _trObsTotal;
+        Label _trGen, _trBest, _trMean, _trSuccess, _trBackend, _trObsTotal, _trAdvisor;
         Button _trStartBtn;
         VisualElement _trCurve;
 
@@ -291,6 +340,17 @@ namespace ArmSmith.UI
             AddObsToggle(obsBody, "EFlesh Tactile", () => trainer.config.useTactile, v => trainer.config.useTactile = v);
             obsBody.Add(UiTheme.Caption("F = task_reward − λ₁·time − λ₂·energy − λ₃·collisions"));
 
+            // F-r2: sensor realism (noise + latency) toggle
+            obsBody.Add(UiTheme.SectionHead("Sensor Realism (F-r2)"));
+            obsBody.Add(UiTheme.ToggleRow("Noise + latency", "imperfect sensors -> robust policy", SensorRealism.enabled, out var tReal));
+            tReal.RegisterValueChangedCallback(e => SensorRealism.enabled = e.newValue);
+
+            // S10: module advisor — which sensor set is best per task
+            obsBody.Add(UiTheme.SectionHead("Module Advisor (S10)"));
+            _trAdvisor = UiTheme.Lbl("Train with different sensor masks to compare sets.", UiTheme.Muted, 10);
+            _trAdvisor.style.whiteSpace = WhiteSpace.Normal;
+            obsBody.Add(_trAdvisor);
+
             var cols = Columns(pipe, dash, obs); cols.style.flexGrow = 1;
             _content.Add(cols);
             _refresh = RefreshTraining;
@@ -320,6 +380,13 @@ namespace ArmSmith.UI
             if (_trSuccess != null) _trSuccess.text = $"{trainer.lastSuccessRate * 100f:F0}%";
             if (_trStartBtn != null) { _trStartBtn.text = trainer.Running ? "■ Stop (T)" : "▶ Start (T)"; UiTheme.SetActive(_trStartBtn, trainer.Running, UiTheme.Green); }
             if (_trObsTotal != null && sensorHub != null) _trObsTotal.text = sensorHub.BuildObservation().Length.ToString();
+            if (_trAdvisor != null && scenarios != null)
+            {
+                var rec = ModuleAdvisor.Recommend(scenarios.current.ToString());
+                _trAdvisor.text = rec != null
+                    ? $"Best so far for {scenarios.current}: {rec.sensorSet} — {rec.bestSuccess * 100f:F0}% success, {rec.channels} ch (n={rec.samples})"
+                    : "Train with different sensor masks to compare sets.";
+            }
             if (_trCurve != null) _trCurve.MarkDirtyRepaint();
         }
 

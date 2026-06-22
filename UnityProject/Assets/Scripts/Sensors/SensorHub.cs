@@ -16,6 +16,8 @@ namespace ArmSmith
         public ProceduralArm arm;
         public CameraRig rig;
         public readonly List<SensorBase> sensors = new List<SensorBase>();
+        /// <summary>Public read accessor (SP1 sensor-only mode, advisor, UI).</summary>
+        public System.Collections.Generic.IReadOnlyList<SensorBase> Sensors => sensors;
 
         public void Init(ProceduralArm a, CameraRig camRig)
         {
@@ -54,7 +56,7 @@ namespace ArmSmith
         {
             var list = new List<float>(64);
             foreach (var s in sensors)
-                if (s.Enabled) list.AddRange(s.Observe());
+                if (s.Enabled) list.AddRange(s is SensorBase sb ? sb.ObserveNoisy() : s.Observe());
             return list.ToArray();
         }
 

@@ -82,9 +82,13 @@ if [ "$MODE" != "quick" ]; then
   run_unity_method "Multi-robot" \
     "ArmSmith.EditorTools.MultiRobotCheck.RunHeadless" "MultiRobotCheck] PASSED"
 
-  echo "[3h] UI Toolkit interface (theme + nav + all 5 views + refresh + legacy UXML)"
+  echo "[3h] UI Toolkit interface (theme + nav + all views + refresh + legacy UXML)"
   run_unity_method "UI Toolkit" \
     "ArmSmith.EditorTools.UiToolkitCheck.RunHeadless" "UiToolkitCheck] PASSED"
+
+  echo "[3i] Elements (catalogue J2 + URDF import J3 + servo torque F-r1 + sensor realism F-r2 + advisor S10)"
+  run_unity_method "Elements" \
+    "ArmSmith.EditorTools.ElementsCheck.RunHeadless" "ElementsCheck] PASSED"
 fi
 
 echo "[3d] Vision grasp-geometry (numpy CV toolbox unit tests)"

@@ -110,6 +110,10 @@ namespace ArmSmith
             bestHistory.Add(lastBestFitness);
             meanHistory.Add(lastMeanFitness);
             successHistory.Add(lastSuccessRate);
+            // S10: feed the Module Advisor so it can compare sensor sets per task across ablation runs.
+            int obsCh = sensorHub != null ? sensorHub.BuildObservation().Length : 0;
+            string taskName = scenarios != null ? scenarios.current.ToString() : "unknown";
+            ModuleAdvisor.RecordResult(taskName, config, lastSuccessRate, lastBestFitness, obsCh);
             if (!policyMode) CaptureBestTrajectory();   // multi-generation viz (motion-GA has explicit keys)
             // PERSIST the best of this generation as a browsable/replayable "creation" (Generations UI).
             if (autoSaveCreations) CaptureCreation();

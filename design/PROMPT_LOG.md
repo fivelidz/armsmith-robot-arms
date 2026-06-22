@@ -375,3 +375,14 @@ PLAN (build, incorporate, test — all headless-gated):
 4. CONVEY-TO-USER focus: every element labelled, tooltipped, with live readouts + an onboarding/help path.
 5. TEST: headless UiToolkitCheck (UXML loads, PanelSettings builds, all named elements resolve, binder runs
    without exceptions, windows toggle). Extend run_checks.sh. Keep suite green.
+
+## P-ELEMENTS (2026-06-22c): "launch the unity. continue all do not stop. Do all elements"
+Launched the editor live, verified the new interface, then built the next batch of open roadmap elements
+end-to-end (each headless-gated + the catalogue/sensor-only live-verified):
+- J2 robot catalogue registry + parametric kinematics generator + Catalogue UI view.
+- J3 generic URDF importer (URDF -> kinematics JSON -> playable arm) + import-folder scan.
+- F-r1 STS3215 torque saturation (speed/torque curve) in ServoModel.
+- F-r2 sensor noise + latency realism (SensorRealism + ObserveNoisy) wired through SensorHub + Training UI.
+- S10 module advisor (sensor-set ablation analytics + recommendation) fed by the trainer + shown in UI.
+- SP1 sensor-only teleop overlay (Shift+S).
+New gate ElementsCheck (24 assertions); suite 14 -> 15/15. Docs/STATUS/ROADMAP/PROGRESS updated; commit+push.

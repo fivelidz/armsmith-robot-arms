@@ -52,5 +52,31 @@ namespace ArmSmith
             float delta = Mathf.Clamp(commandedDeg - currentDeg, -maxStep, maxStep);
             return Mathf.Clamp(currentDeg + delta, minDeg, maxDeg);
         }
+
+        // ── F-r1: STS3215 TORQUE SATURATION (datasheet-accurate speed/torque curve) ─────────────────────
+        // A real DC-servo's AVAILABLE torque falls roughly linearly from stall torque (at zero speed) to
+        // zero (at no-load speed): τ_avail(ω) = τ_stall · (1 − |ω| / ω_noload). The drive can never command
+        // more than this, so a heavy load at speed slips/sags. This complements the rate-limit (which caps
+        // SPEED) by capping FORCE — together they make the small SO-101 servos behave like the real motors.
+
+        /// <summary>Torque the servo can still deliver at a given angular speed (deg/s). Clamped to [0, max].</summary>
+        public float AvailableTorque(float speedDegPerSec)
+        {
+            float frac = 1f - Mathf.Abs(speedDegPerSec) / Mathf.Max(1f, maxSpeedDegPerSec);
+            return Mathf.Clamp01(frac) * maxTorqueNm;
+        }
+
+        /// <summary>Saturate a requested torque to what the motor can actually produce at the current speed.
+        /// Returns the deliverable torque (same sign as request).</summary>
+        public float SaturateTorque(float requestedNm, float speedDegPerSec)
+        {
+            float cap = AvailableTorque(speedDegPerSec);
+            return Mathf.Clamp(requestedNm, -cap, cap);
+        }
+
+        /// <summary>True if a required holding/move torque EXCEEDS what the servo can deliver at this speed —
+        /// i.e. the joint will sag/slip. Useful for honest UI feedback + training penalties.</summary>
+        public bool IsTorqueSaturated(float requiredNm, float speedDegPerSec)
+            => Mathf.Abs(requiredNm) > AvailableTorque(speedDegPerSec) + 1e-4f;
     }
 }

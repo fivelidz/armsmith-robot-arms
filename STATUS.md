@@ -4,9 +4,28 @@
 > every work session. Newest status at the top of each section.
 >
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
-> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 14/14.)
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 15/15.)
 
-## SESSION 2026-06-22b (latest) — UNIFIED UI TOOLKIT INTERFACE (built · incorporated · live-verified)
+## SESSION 2026-06-22c (latest) — catalogue · URDF import · servo torque · sensor realism · advisor · sensor-only
+- **J2 Robot catalogue** (`Catalogue/RobotCatalogue.cs`): registry of importable robots (SO-101 + parametric
+  3/5/6-DOF generated arms). `GenerateParametricKinematics` writes a valid kinematics JSON; `ResolveKinematicsPath`
+  generates on demand — all loadable by the existing `BuildFromKinematics`. New **Catalogue view** in the UI.
+- **J3 URDF importer** (`Catalogue/UrdfImporter.cs`): parses standard URDF XML → the kinematics schema
+  (links/joints, rad→deg, continuous→wide revolute, fixed preserved) → registers a catalogue entry. "Scan
+  import folder" button reads persistentDataPath/Import/*.urdf. Verified: a 2-DOF URDF converts + BUILDS.
+- **F-r1 servo torque saturation** (`ServoModel`): datasheet speed/torque curve — `AvailableTorque(speed)`
+  falls linearly stall→no-load; `SaturateTorque` / `IsTorqueSaturated` for honest sag/slip + training penalties.
+- **F-r2 sensor realism** (`SensorRealism` + `SensorBase.ObserveNoisy`): global noise (relative+absolute
+  Gaussian) + latency (frame ring buffer); `SensorHub.BuildObservation` uses it. Toggle in the Training view.
+- **S10 module advisor** (`Evolution/ModuleAdvisor.cs`): records (task, sensor-set)→best success/fitness across
+  ablation runs; recommends the best set (tie-break: fewer channels). Trainer feeds it each generation; shown
+  in the Training view ("best so far for TrayToTray: …").
+- **SP1 sensor-only teleop** (`UI/SensorOnlyMode.cs`, Shift+S): blacks out the god-view and surfaces every
+  enabled sensor module's live channels — the exact information budget a policy gets (human-vs-policy compare).
+- **Tested**: new `ElementsCheck` (24 assertions) + UI check now covers the Catalogue view; **suite 14→15/15**.
+  LIVE-verified in the GUI: Catalogue view + Sensor-Only mode screenshotted working (real SO-101 STL arm renders).
+
+## SESSION 2026-06-22b — UNIFIED UI TOOLKIT INTERFACE (built · incorporated · live-verified)
 - **New interface system** (`UI/UiTheme.cs` + `UI/UiManager.cs` + `UI/UiManager.Views.cs`): a single
   UI Toolkit overlay in the robotics-console design language (from design/ui_html/) with a top NAV BAR,
   live STATUS BAR (sim/arm/task/IK/mode/gen/fps), and 5 switchable VIEWS:

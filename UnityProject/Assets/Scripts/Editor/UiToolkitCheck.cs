@@ -134,7 +134,7 @@ namespace ArmSmith.EditorTools
 
             bool ok2 = fail == 0;
             Debug.Log(ok2
-                ? $"[UiToolkitCheck] PASSED — {pass} UI assertions hold (theme + nav + all 5 views + refresh + legacy UXML)."
+                ? $"[UiToolkitCheck] PASSED — {pass} UI assertions hold (theme + nav + all views + refresh + legacy UXML)."
                 : $"[UiToolkitCheck] FAILED — {fail} of {pass + fail} assertions failed.");
             return ok2;
         }
