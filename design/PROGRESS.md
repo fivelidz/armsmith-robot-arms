@@ -569,3 +569,15 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - Playtested every element live via the bridge (mode switch, gripper, training run + gen feedback, take
   manual control, presets, sensor mask obs-count, scenario load, catalogue, URDF, servo torque, persistence
   round-trip, build joint edit, advisor) — all correspond to their labels. Full suite 16/16.
+
+## Session 2026-06-22g — layout overhaul + live 3D viewports + remappable keys (suite 16/16)
+- LiveViewport (transparent region → MainCam shows the arm through the UI) + EditLayout helpers.
+- Menu: 3 balanced columns filling the screen (nav · even scenario grid · live preview + quick-start).
+- Dashboard renamed "Control"; KEY BINDINGS remap section (KeyBindings.cs, PlayerPrefs; ArmController reads it).
+- Build: per-joint DRIVE slider + limit sliders + live 3D viewport (move arm while editing).
+- Modules: live viewport + obs/mass/power budget gauges + per-module perf cards (obs-cost + grasp-benefit + text).
+- Training: combined dashboard+observation column; 3rd column now a live training viewport.
+- Options: single sectioned panel + live sim + real-robot plug-in (serial/Connect) + calibration (Set/Go Zero;
+  new ArmController.CalibrateZeroHere).
+- Catalogue: thumbnail list (robots + saved models) + big selected live viewport + details.
+- Live-verified all 8 views via screenshots; rebind + calibrate tested. Suite 16/16.

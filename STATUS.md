@@ -6,7 +6,26 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22f (latest) — UI polish + playtest verification (every element checked live)
+## SESSION 2026-06-22g (latest) — LAYOUT OVERHAUL: live 3D viewports + organised pages (every view)
+- Addressed layout feedback across ALL views. New helpers `LiveViewport` (a TRANSPARENT region the
+  full-screen MainCam shows through → see the arm while editing) + `EditLayout` (control column + viewport).
+- **Menu**: 3 balanced columns that FILL the screen — [brand + grouped nav] · [even scenario grid, no
+  orphan card] · [LIVE WORKSPACE viewport + Quick-Start]. Empty right half is now used.
+- **Dashboard → renamed "Control"**; added a **KEY BINDINGS** section with REMAPPABLE keys (new
+  `KeyBindings.cs` store, PlayerPrefs-persisted; ArmController reads it). Click a binding → press a key.
+- **Build**: left joint/link editor (now with a live DRIVE slider per joint) + LIVE 3D viewport — edit
+  limits / drive the arm and watch it move in real time.
+- **Modules**: live 3D viewport + budget gauges (obs dim / mass / power) + per-module cards that clearly
+  EXPLAIN performance (obs-cost bar + grasp-benefit bar + plain-English text) with Mount/Remove.
+- **Training**: combined dashboard + observation into one column; freed 3rd column is now a LIVE training
+  viewport (arm attempting the task).
+- **Options**: one sectioned panel (no irregular panels/empty space) + LIVE sim viewport; added REAL ROBOT
+  plug-in (serial port + Connect) and CALIBRATION (Set Zero / Go To Zero; new ArmController.CalibrateZeroHere).
+- **Catalogue**: left scrollable THUMBNAIL list (robot models + saved training models, click to select) +
+  big SELECTED-MODEL live viewport + Model Details with Generate/Load + Import URDF.
+- Verified live (screenshots of all 8 views; key-rebind + calibrate tested). Suite 16/16.
+
+## SESSION 2026-06-22f — UI polish + playtest verification (every element checked live)
 - **Visual polish (kept colours + font)**: `UiTheme.Btn` is now a real button — taller (28px min), padded,
   rounded, faint accent-tint fill + **hover state** (PointerEnter/Leave brighten); new `BtnPrimary` (solid
   accent fill, dark text) for the one main action per screen; `SetActive` gives a clear filled/outline state.

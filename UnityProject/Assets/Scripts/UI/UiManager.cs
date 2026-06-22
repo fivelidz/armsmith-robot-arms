@@ -85,6 +85,7 @@ namespace ArmSmith.UI
             _frames++; _fpsTimer += Time.unscaledDeltaTime;
             if (_fpsTimer >= 0.5f) { _fps = _frames / _fpsTimer; _frames = 0; _fpsTimer = 0f; }
 
+            if (visible && current == View.Dashboard) PollKeyRebind();
             RefreshStatusBar();
             _refresh?.Invoke();
         }
@@ -135,7 +136,7 @@ namespace ArmSmith.UI
 
             // nav tabs
             AddNavTab("Menu", View.Menu);
-            AddNavTab("Dashboard", View.Dashboard);
+            AddNavTab("Control", View.Dashboard);
             AddNavTab("Build", View.Build);
             AddNavTab("Modules", View.Modules);
             AddNavTab("Catalogue", View.Catalogue);

@@ -133,6 +133,16 @@ namespace ArmSmith
                 GoToZero();
         }
 
+        /// <summary>Capture the arm's CURRENT joint angles as the calibrated zero/home pose. Used by the
+        /// Options "Set Zero" button and the calibrate key — this is the pose exported as the servo zero.</summary>
+        public void CalibrateZeroHere()
+        {
+            if (arm == null) return;
+            var cur = arm.GetJointAngles();
+            zeroPose = new float[cur.Length];
+            for (int i = 0; i < cur.Length; i++) zeroPose[i] = cur[i];
+        }
+
         /// <summary>Bring the arm back to its calibrated zero/home pose (all motors to zeroPose).</summary>
         public void GoToZero()
         {
@@ -252,7 +262,7 @@ namespace ArmSmith
 
         void HandleModeToggle()
         {
-            if (Input.GetKeyDown(KeyCode.Tab))
+            if (KeyBindings.Down(KeyBindings.Action.ToggleMode))
                 mode = mode == Mode.IK ? Mode.Manual : Mode.IK;
         }
 
@@ -261,11 +271,11 @@ namespace ArmSmith
         void HandleGripper()
         {
             if (arm.gripper == null) return;
-            if (Input.GetKeyDown(KeyCode.Space)) arm.gripper.Toggle();
-            // Comma = open, Period = close (hold to actuate continuously).
-            if (Input.GetKey(KeyCode.Comma))  arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 0f, 3f * Time.deltaTime));
-            if (Input.GetKey(KeyCode.Period)) arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 1f, 3f * Time.deltaTime));
-            if (Input.GetKeyDown(KeyCode.M)) mouseFollow = !mouseFollow;  // toggle mouse-follow
+            if (KeyBindings.Down(KeyBindings.Action.GripToggle)) arm.gripper.Toggle();
+            // open / close (hold to actuate continuously) — remappable.
+            if (KeyBindings.Held(KeyBindings.Action.GripOpen))  arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 0f, 3f * Time.deltaTime));
+            if (KeyBindings.Held(KeyBindings.Action.GripClose)) arm.gripper.SetClose(Mathf.MoveTowards(arm.gripper.closeAmount, 1f, 3f * Time.deltaTime));
+            if (KeyBindings.Down(KeyBindings.Action.MouseFollow)) mouseFollow = !mouseFollow;  // toggle mouse-follow
 
             // CLAW ROTATION: N / B roll the claw (wrist_roll joint), separate from open/close.
             if (wristRollJoint < 0) FindWristRoll();

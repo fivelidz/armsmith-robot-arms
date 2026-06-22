@@ -31,37 +31,125 @@ namespace ArmSmith.UI
             return panel;
         }
 
+        // ── LIVE-VIEWPORT layout: a fixed-width control column + a TRANSPARENT region where the 3D scene
+        // (MainCam renders full-screen behind the UI) shows through. Lets the user see the arm while editing.
+        // A thin framed label marks the live area so it reads as a viewport, not empty space.
+
+        /// <summary>A transparent "window" onto the live 3D scene, with a corner caption + framed border.</summary>
+        VisualElement LiveViewport(string caption, params VisualElement[] overlayTopRight)
+        {
+            var vp = new VisualElement();
+            vp.style.flexGrow = 1; vp.style.marginLeft = 8; vp.style.marginBottom = 8;
+            vp.style.backgroundColor = new Color(0, 0, 0, 0);   // transparent -> 3D scene shows through
+            UiTheme.SetBorder(vp, UiTheme.BorderHi, 1); UiTheme.SetRadius(vp, 8);
+            // top bar with caption + optional controls, semi-transparent so the scene stays visible
+            var bar = UiTheme.Row(); bar.style.justifyContent = Justify.SpaceBetween; bar.style.alignItems = Align.Center;
+            bar.style.backgroundColor = new Color(UiTheme.Card2.r, UiTheme.Card2.g, UiTheme.Card2.b, 0.72f);
+            bar.style.paddingLeft = 10; bar.style.paddingRight = 8; bar.style.paddingTop = 5; bar.style.paddingBottom = 5;
+            bar.style.borderTopLeftRadius = 8; bar.style.borderTopRightRadius = 8;
+            var lblRow = UiTheme.Row();
+            var dot = new Label("●"); dot.style.color = UiTheme.Green; dot.style.fontSize = 9; dot.style.marginRight = 5; lblRow.Add(dot);
+            lblRow.Add(UiTheme.Caption(caption));
+            bar.Add(lblRow);
+            if (overlayTopRight != null && overlayTopRight.Length > 0)
+            { var r = UiTheme.Row(); foreach (var e in overlayTopRight) r.Add(e); bar.Add(r); }
+            vp.Add(bar);
+            var spacer = new VisualElement(); spacer.style.flexGrow = 1; vp.Add(spacer);   // the see-through area
+            return vp;
+        }
+
+        /// <summary>Standard editing layout: a fixed-width scrollable control column on the left and a live
+        /// 3D viewport filling the rest. Returns the control body (add your panels there).</summary>
+        VisualElement EditLayout(string panelTitle, Color accent, string badge, float colWidth,
+                                 string viewportCaption, out VisualElement body, params VisualElement[] vpOverlay)
+        {
+            var wrap = new VisualElement(); wrap.style.flexDirection = FlexDirection.Row; wrap.style.flexGrow = 1;
+            var col = ScrollPanel(UiTheme.PanelHeader(panelTitle, accent, badge), out body);
+            col.style.width = colWidth; col.style.flexShrink = 0;
+            wrap.Add(col);
+            wrap.Add(LiveViewport(viewportCaption, vpOverlay));
+            _content.Add(wrap);
+            return body;
+        }
+
         // ════════════════════════════ MENU VIEW ════════════════════════════
+        // Three balanced columns that FILL the screen: [brand + navigation] · [scenario grid] · [live preview
+        // + quick-start]. No more one-card-orphan second row — the grid wraps evenly and the right column
+        // uses the previously-empty half for a live 3D preview of the current task.
         void BuildMenuView()
         {
             var wrap = new VisualElement(); wrap.style.flexDirection = FlexDirection.Row; wrap.style.flexGrow = 1;
 
-            // left: title + nav
-            var left = UiTheme.Panel(); left.style.width = 340; left.style.flexShrink = 0; left.style.marginRight = 8;
-            var lb = new VisualElement(); UiTheme.Pad(lb, 16); left.Add(lb);
-            lb.Add(UiTheme.Caption("Robotic Arm Design & Evolution System"));
-            var title = UiTheme.Row();
-            var t1 = new Label("ARM"); t1.style.color = UiTheme.Teal; t1.style.fontSize = 44; t1.style.unityFontStyleAndWeight = FontStyle.Bold; t1.style.letterSpacing = 3f;
-            var t2 = new Label("SMITH"); t2.style.color = UiTheme.Orange; t2.style.fontSize = 44; t2.style.unityFontStyleAndWeight = FontStyle.Bold; t2.style.letterSpacing = 3f;
+            // ── LEFT: brand + navigation ──
+            var left = UiTheme.Panel(); left.style.width = 290; left.style.flexShrink = 0; left.style.marginRight = 8;
+            var lb = new VisualElement(); UiTheme.Pad(lb, 18); left.Add(lb);
+            lb.Add(UiTheme.Caption("Robotic Arm Design & Evolution"));
+            var title = UiTheme.Row(); title.style.marginTop = 4; title.style.marginBottom = 2;
+            var t1 = new Label("ARM"); t1.style.color = UiTheme.Teal; t1.style.fontSize = 40; t1.style.unityFontStyleAndWeight = FontStyle.Bold; t1.style.letterSpacing = 3f;
+            var t2 = new Label("SMITH"); t2.style.color = UiTheme.Orange; t2.style.fontSize = 40; t2.style.unityFontStyleAndWeight = FontStyle.Bold; t2.style.letterSpacing = 3f;
             title.Add(t1); title.Add(t2); lb.Add(title);
             lb.Add(UiTheme.Lbl("Design · Control · Evolve · Export", UiTheme.Muted, 12));
-            lb.Add(UiTheme.Lbl("v0.9 — Unity 6000.4.2f1 · URP · ArticulationBody", UiTheme.TextDim, 10));
-            lb.Add(UiTheme.SectionHead("Navigate"));
-            lb.Add(UiTheme.Btn("▶ Open Dashboard", () => SwitchTo(View.Dashboard), UiTheme.Green));
-            lb.Add(UiTheme.Btn("⚙ Training", () => SwitchTo(View.Training), UiTheme.Orange));
-            lb.Add(UiTheme.Btn("⚙ Options", () => SwitchTo(View.Options)));
-            lb.Add(UiTheme.Btn("? Help & Controls", () => SwitchTo(View.Help)));
+            lb.Add(UiTheme.Lbl("v0.9 · Unity 6000.4 · URP · ArticulationBody", UiTheme.TextDim, 10));
 
-            // right: scenario select
-            VisualElement body;
-            var right = ScrollPanel(UiTheme.PanelHeader("Scenario Select", UiTheme.Teal, "7 scenarios"), out body);
-            body.Add(UiTheme.Caption("Choose a manipulation task — click to load it live"));
-            var grid = new VisualElement(); grid.style.flexDirection = FlexDirection.Row; grid.style.flexWrap = Wrap.Wrap; body.Add(grid);
+            lb.Add(UiTheme.SectionHead("Workspace"));
+            lb.Add(NavBtn("▶  Control / Drive", View.Dashboard, UiTheme.Green));
+            lb.Add(NavBtn("✎  Build Arm", View.Build, UiTheme.Teal));
+            lb.Add(NavBtn("⊕  Modules", View.Modules, UiTheme.Teal));
+            lb.Add(NavBtn("⚙  Training", View.Training, UiTheme.Orange));
+
+            lb.Add(UiTheme.SectionHead("Library & Setup"));
+            lb.Add(NavBtn("◫  Catalogue", View.Catalogue, UiTheme.Teal));
+            lb.Add(NavBtn("⚙  Options & Calibration", View.Options, UiTheme.Teal));
+            lb.Add(NavBtn("?  Help & Controls", View.Help, UiTheme.Muted));
+
+            // ── CENTER: scenario grid (even wrap, fills space) ──
+            VisualElement gridBody;
+            var center = ScrollPanel(UiTheme.PanelHeader("Scenario Select", UiTheme.Teal, "7 tasks"), out gridBody);
+            center.style.flexGrow = 1; center.style.marginRight = 8;
+            gridBody.Add(UiTheme.Caption("Choose a manipulation task — click Launch to load it live"));
+            var grid = new VisualElement(); grid.style.flexDirection = FlexDirection.Row; grid.style.flexWrap = Wrap.Wrap;
+            grid.style.justifyContent = Justify.FlexStart; gridBody.Add(grid);
             foreach (ScenarioType st in Enum.GetValues(typeof(ScenarioType)))
                 grid.Add(ScenarioCard(st));
 
-            wrap.Add(left); wrap.Add(right);
+            // ── RIGHT: live preview of the current task + quick-start ──
+            var right = new VisualElement(); right.style.width = 320; right.style.flexShrink = 0;
+            right.style.flexDirection = FlexDirection.Column;
+            // a live 3D viewport (transparent → shows the arm in the scene) takes the top
+            var vp = LiveViewport("LIVE WORKSPACE");
+            vp.style.flexGrow = 1; vp.style.marginLeft = 0; vp.style.marginBottom = 8;
+            right.Add(vp);
+            // quick-start panel beneath it
+            VisualElement qsBody;
+            var qs = ScrollPanel(UiTheme.PanelHeader("Quick Start", UiTheme.Green), out qsBody);
+            qs.style.flexShrink = 0;
+            _menuTaskLbl = UiTheme.Lbl("", UiTheme.TextHi, 12); _menuTaskLbl.style.unityFontStyleAndWeight = FontStyle.Bold; qsBody.Add(_menuTaskLbl);
+            _menuTaskBlurb = UiTheme.Lbl("", UiTheme.Muted, 11); _menuTaskBlurb.style.whiteSpace = WhiteSpace.Normal; qsBody.Add(_menuTaskBlurb);
+            var qrow = UiTheme.Row(); qrow.style.marginTop = 6;
+            qrow.Add(UiTheme.BtnPrimary("▶  Drive It", () => SwitchTo(View.Dashboard), UiTheme.Green));
+            qrow.Add(UiTheme.Btn("⚙ Train It", () => SwitchTo(View.Training), UiTheme.Orange));
+            qsBody.Add(qrow);
+            qsBody.Add(UiTheme.Btn("⟳  Auto-solve current task", () => { if (agent != null) agent.AutoSort(); }, UiTheme.Teal));
+            right.Add(qs);
+
+            wrap.Add(left); wrap.Add(center); wrap.Add(right);
             _content.Add(wrap);
+            _refresh = RefreshMenu;
+        }
+
+        Label _menuTaskLbl, _menuTaskBlurb;
+        void RefreshMenu()
+        {
+            if (scenarios == null) return;
+            if (_menuTaskLbl != null) _menuTaskLbl.text = "Current: " + scenarios.current;
+            if (_menuTaskBlurb != null) _menuTaskBlurb.text = ScenarioBlurb(scenarios.current);
+        }
+
+        Button NavBtn(string text, View v, Color c)
+        {
+            var b = UiTheme.Btn(text, () => SwitchTo(v), c);
+            b.style.width = Length.Percent(100); b.style.unityTextAlign = TextAnchor.MiddleLeft;
+            return b;
         }
 
         VisualElement ScenarioCard(ScenarioType st)
@@ -106,8 +194,49 @@ namespace ArmSmith.UI
 
         // ════════════════════════════ DASHBOARD VIEW ════════════════════════════
         Label _dbObjective, _dbReward, _dbSuccess, _dbEE, _dbGrip, _dbExportStatus;
-        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost, _dbTrainBanner;
+        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost, _dbTrainBanner, _kbHost;
         Button _dbModeBtn, _dbGripBtn, _dbMouseBtn;
+
+        // key-rebind capture state: when set, the next key pressed becomes this action's binding
+        KeyBindings.Action? _kbCapturing;
+        Button _kbCapturingBtn;
+
+        void RebuildKeyBindings()
+        {
+            if (_kbHost == null) return;
+            _kbHost.Clear();
+            foreach (var a in KeyBindings.All)
+            {
+                var act = a;
+                var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween; row.style.marginTop = 2; row.style.marginBottom = 2;
+                row.Add(UiTheme.Caption(KeyBindings.Label(act)));
+                var btn = UiTheme.Btn(KeyBindings.Get(act).ToString(), null, UiTheme.Teal);
+                btn.style.minWidth = 96;
+                btn.clicked += () => {
+                    _kbCapturing = act; _kbCapturingBtn = btn;
+                    btn.text = "PRESS KEY…"; UiTheme.SetActive(btn, true, UiTheme.Orange);
+                };
+                row.Add(btn);
+                _kbHost.Add(row);
+            }
+        }
+
+        /// <summary>Called from UiManager.Update while a binding capture is active.</summary>
+        void PollKeyRebind()
+        {
+            if (_kbCapturing == null) return;
+            foreach (KeyCode kc in System.Enum.GetValues(typeof(KeyCode)))
+            {
+                if (kc == KeyCode.Mouse0 || kc == KeyCode.Mouse1 || kc == KeyCode.Mouse2) continue;
+                if (Input.GetKeyDown(kc))
+                {
+                    if (kc != KeyCode.Escape) KeyBindings.Set(_kbCapturing.Value, kc);
+                    _kbCapturing = null; _kbCapturingBtn = null;
+                    RebuildKeyBindings();
+                    break;
+                }
+            }
+        }
 
         void ExportStl()
         {
@@ -158,6 +287,13 @@ namespace ArmSmith.UI
             recRow.Add(UiTheme.Btn("▶ Auto-solve", () => { if (agent != null) agent.AutoSort(); }, UiTheme.Green));
             driverBody.Add(recRow);
             driverBody.Add(UiTheme.Caption("Record a hand-driven demo → seed training (LeRobot workflow)."));
+
+            // ── KEY BINDINGS (remappable) ──
+            driverBody.Add(UiTheme.SectionHead("Key Bindings"));
+            driverBody.Add(UiTheme.Caption("Click a binding, then press a new key to remap it."));
+            _kbHost = new VisualElement(); driverBody.Add(_kbHost);
+            RebuildKeyBindings();
+            driverBody.Add(UiTheme.Btn("Reset bindings to default", () => { KeyBindings.ResetToDefaults(); RebuildKeyBindings(); }, UiTheme.Muted));
 
             // -- Joint telemetry (live rows) --
             _dbJointHost = new VisualElement();
@@ -317,15 +453,17 @@ namespace ArmSmith.UI
 
         void BuildModulesView()
         {
-            VisualElement loadBody, catBody;
-            var load = ScrollPanel(UiTheme.PanelHeader("Mounted Loadout", UiTheme.Teal, "on the arm"), out loadBody);
-            var cat  = ScrollPanel(UiTheme.PanelHeader("Module Catalog", UiTheme.Orange, "click to mount"), out catBody);
+            VisualElement body;
+            EditLayout("Modules", UiTheme.Orange, "sensors & end-effectors", 420,
+                "LIVE ARM — mounted modules show on the 3D frame", out body);
 
-            // budget readout (mass / channels) — gamifies the "more sensors = heavier" trade-off
-            _modBudget = UiTheme.Lbl("", UiTheme.Muted, 11); _modBudget.style.whiteSpace = WhiteSpace.Normal;
-            loadBody.Add(_modBudget);
-            loadBody.Add(UiTheme.SectionHead("Active Modules"));
+            // budget readout (mass / channels / power) — gamifies the "more sensors = heavier/slower" trade-off
+            _modBudget = UiTheme.Lbl("", UiTheme.TextHi, 12); _modBudget.style.whiteSpace = WhiteSpace.Normal;
+            _modBudget.style.unityFontStyleAndWeight = FontStyle.Bold;
+            body.Add(_modBudget);
+            _modBudgetBars = new VisualElement(); body.Add(_modBudgetBars);
 
+            body.Add(UiTheme.SectionHead("Mounted Loadout"));
             if (sensorHub != null)
             {
                 foreach (var s in sensorHub.Sensors)
@@ -334,58 +472,79 @@ namespace ArmSmith.UI
                     var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween;
                     row.style.borderTopColor = UiTheme.Border; row.style.borderTopWidth = 1; row.style.paddingTop = 4; row.style.paddingBottom = 4;
                     var left = UiTheme.Row();
-                    var eye = UiTheme.Btn(sensor.Enabled ? "👁 on" : "✕ off", null, sensor.Enabled ? UiTheme.Green : UiTheme.Muted);
-                    eye.clicked += () => { sensor.Enabled = !sensor.Enabled; SyncMaskFromHub(); SwitchTo(View.Modules); };
-                    left.Add(eye);
-                    left.Add(UiTheme.Lbl(sensor.Name, UiTheme.TextHi, 11));
+                    var dot = new Label("●"); dot.style.fontSize = 10; dot.style.marginRight = 5; dot.style.color = sensor.Enabled ? UiTheme.Green : UiTheme.TextDim; left.Add(dot);
+                    left.Add(UiTheme.Lbl(sensor.Name, sensor.Enabled ? UiTheme.TextHi : UiTheme.Muted, 11));
                     row.Add(left);
-                    row.Add(UiTheme.Lbl(sensor.Channels.Length + " ch", UiTheme.Muted, 10));
-                    loadBody.Add(row);
+                    var right = UiTheme.Row();
+                    right.Add(UiTheme.Lbl(sensor.Channels.Length + " ch", UiTheme.Muted, 10));
+                    var eye = UiTheme.Btn(sensor.Enabled ? "ON" : "OFF", null, sensor.Enabled ? UiTheme.Green : UiTheme.Muted);
+                    eye.style.minWidth = 50; eye.style.marginLeft = 8;
+                    eye.clicked += () => { sensor.Enabled = !sensor.Enabled; SyncMaskFromHub(); SwitchTo(View.Modules); };
+                    right.Add(eye);
+                    row.Add(right);
+                    body.Add(row);
                 }
             }
-            loadBody.Add(UiTheme.Caption("Toggle a module's eye to include/exclude it from the policy observation."));
 
-            // catalog cards
-            catBody.Add(UiTheme.Caption("Add-on sensors & end-effector modules. Mounting attaches to a link socket."));
+            // catalog cards (with a clear PERFORMANCE explanation per module)
+            body.Add(UiTheme.SectionHead("Add a Module"));
             foreach (var m in kModuleCatalog)
             {
                 var md = m;
-                var card = UiTheme.Panel(md.accent);
-                var cb = new VisualElement(); UiTheme.Pad(cb, 8); card.Add(cb);
-                var t = UiTheme.Row();
-                var nm = UiTheme.Lbl(md.name, UiTheme.TextHi, 12); nm.style.unityFontStyleAndWeight = FontStyle.Bold; t.Add(nm);
-                t.Add(UiTheme.Badge(md.channels + " ch", md.accent));
-                bool mounted = sensorHub != null && sensorHub.Get(md.type) != null;
-                if (mounted) t.Add(UiTheme.Badge("mounted", UiTheme.Green));
-                cb.Add(t);
-                cb.Add(UiTheme.Lbl(md.spec, UiTheme.Muted, 10));
-                // advisor hint (S10): suggest tactile/range for grasp tasks
-                if (scenarios != null && (md.type == "EFleshTactile" || md.type == "RangeFinder"))
-                    cb.Add(UiTheme.Lbl("advisor: improves grasp success", UiTheme.Green, 9));
-                var act = UiTheme.Row();
-                act.Add(UiTheme.Btn(mounted ? "Enable" : "Mount", () => {
+                bool mounted = sensorHub != null && sensorHub.Get(md.type) != null && sensorHub.Get(md.type).Enabled;
+                var card = UiTheme.CardEl(md.accent); card.style.marginRight = 0;
+                var t = UiTheme.Row(); t.style.justifyContent = Justify.SpaceBetween;
+                var tl = UiTheme.Row();
+                var nm = UiTheme.Lbl(md.name, UiTheme.TextHi, 13); nm.style.unityFontStyleAndWeight = FontStyle.Bold; tl.Add(nm);
+                tl.Add(UiTheme.Badge(md.channels + " ch", md.accent));
+                t.Add(tl);
+                if (mounted) t.Add(UiTheme.Badge("MOUNTED", UiTheme.Green));
+                card.Add(t);
+                card.Add(UiTheme.Lbl(md.spec, UiTheme.Muted, 10));
+                // PERFORMANCE: what it costs + what it helps (clearly explained + shown as a bar)
+                card.Add(ModulePerfRow("obs cost", md.channels / 16f, UiTheme.Orange, md.channels + " channels added to the policy input"));
+                card.Add(ModulePerfRow("grasp benefit", ModuleBenefit(md.type), UiTheme.Green, ModuleBenefitText(md.type)));
+                var act = UiTheme.Row(); act.style.marginTop = 6;
+                act.Add(UiTheme.BtnPrimary(mounted ? "✓ Mounted" : "⊕ Mount", () => {
                     if (sensorHub != null) { sensorHub.SetEnabled(md.type, true); SyncMaskFromHub(); }
                     SwitchTo(View.Modules);
-                }, UiTheme.Green));
-                act.Add(UiTheme.Btn("Disable", () => {
+                }, mounted ? UiTheme.Muted : UiTheme.Green));
+                if (mounted) act.Add(UiTheme.Btn("Remove", () => {
                     if (sensorHub != null) { sensorHub.SetEnabled(md.type, false); SyncMaskFromHub(); }
                     SwitchTo(View.Modules);
-                }, UiTheme.Muted));
-                cb.Add(act);
-                catBody.Add(card);
+                }, UiTheme.Red));
+                card.Add(act);
+                body.Add(card);
             }
 
-            // mount sockets info (from ModuleMount)
-            if (moduleMount != null && moduleMount.mountPoints.Count > 0)
-            {
-                catBody.Add(UiTheme.SectionHead("Mount Sockets"));
-                foreach (var mp in moduleMount.mountPoints)
-                    catBody.Add(UiTheme.Caption($"• {mp.name} (link {mp.linkIndex})"));
-            }
-
-            var cols = Columns(load, cat); cols.style.flexGrow = 1;
-            _content.Add(cols);
             _refresh = RefreshModules;
+        }
+
+        VisualElement _modBudgetBars;
+
+        static float ModuleBenefit(string type)
+        {
+            switch (type) { case "EFleshTactile": return 0.9f; case "RangeFinder": return 0.6f; case "DepthCamera": return 0.7f;
+                case "MotorEncoders": return 0.8f; case "TaskState": return 0.85f; case "IMU": return 0.4f; case "Lidar2D": return 0.5f; default: return 0.5f; }
+        }
+        static string ModuleBenefitText(string type)
+        {
+            switch (type) {
+                case "EFleshTactile": return "knows when fingers touch — best for reliable grasps";
+                case "RangeFinder":   return "distance-to-object helps approach & descent timing";
+                case "DepthCamera":   return "shape/where of nearby objects (vision policies)";
+                case "MotorEncoders": return "baseline proprioception — almost always needed";
+                case "TaskState":     return "EE pose + target vector — strong for placing";
+                case "IMU":           return "orientation/accel — useful for dynamic motions";
+                case "Lidar2D":       return "planar scan of the workspace surroundings";
+                default: return ""; }
+        }
+        VisualElement ModulePerfRow(string label, float frac01, Color color, string explain)
+        {
+            var col = UiTheme.Col(); col.style.marginTop = 3;
+            var g = UiTheme.Gauge(label, Mathf.Clamp01(frac01), "", out _, frac01); col.Add(g);
+            var e = UiTheme.Lbl(explain, UiTheme.Muted, 9); e.style.whiteSpace = WhiteSpace.Normal; col.Add(e);
+            return col;
         }
 
         void SyncMaskFromHub()
@@ -408,8 +567,15 @@ namespace ArmSmith.UI
             if (_modBudget == null || sensorHub == null) return;
             int active = 0, ch = 0;
             foreach (var s in sensorHub.Sensors) if (s.Enabled) { active++; ch += s.Channels.Length; }
-            float massKg = 0.02f * active;   // ~20g per module (illustrative budget)
-            _modBudget.text = $"Modules: {active} active · {ch} obs channels · ≈{massKg * 1000f:F0} g added mass";
+            float massG = 20f * active, powerW = 0.4f * active;
+            _modBudget.text = $"{active} modules · {ch} obs channels";
+            if (_modBudgetBars != null)
+            {
+                _modBudgetBars.Clear();
+                _modBudgetBars.Add(UiTheme.Gauge("obs dim", Mathf.Clamp01(ch / 80f), ch.ToString(), out _, ch / 80f));
+                _modBudgetBars.Add(UiTheme.Gauge("mass", Mathf.Clamp01(massG / 200f), $"≈{massG:F0} g", out _, massG / 200f));
+                _modBudgetBars.Add(UiTheme.Gauge("power", Mathf.Clamp01(powerW / 4f), $"≈{powerW:F1} W", out _, powerW / 4f));
+            }
         }
 
         // ════════════════════════════ BUILD VIEW (joint editor + creations) ════════════════════════════
@@ -419,25 +585,28 @@ namespace ArmSmith.UI
 
         void BuildBuildView()
         {
-            VisualElement chainBody, galBody;
-            var chain = ScrollPanel(UiTheme.PanelHeader("Joint / Link Editor", UiTheme.Teal, "parametric chain"), out chainBody);
-            var gal   = ScrollPanel(UiTheme.PanelHeader("Creations Library", UiTheme.Orange, "saved & evolved"), out galBody);
+            // Left edit column + LIVE 3D viewport (drive the arm while editing). Viewport top-right gets
+            // quick drive controls so you can immediately move the arm as you change values.
+            var driveBtn = UiTheme.Btn("✊ Grip", () => { if (arm != null && arm.gripper != null) arm.gripper.Toggle(); }, UiTheme.Orange);
+            var modeBtn = UiTheme.Btn("Mode", ToggleModeGlobal, UiTheme.Teal);
+            VisualElement chainBody;
+            EditLayout("Build Arm", UiTheme.Teal, "parametric chain", 440,
+                "LIVE ARM — moves as you edit · drive it directly", out chainBody, modeBtn, driveBtn);
 
             // arm stats (live)
-            _bldStats = UiTheme.Lbl("", UiTheme.Muted, 11); _bldStats.style.whiteSpace = WhiteSpace.Normal; chainBody.Add(_bldStats);
+            _bldStats = UiTheme.Lbl("", UiTheme.TextHi, 12); _bldStats.style.whiteSpace = WhiteSpace.Normal; _bldStats.style.unityFontStyleAndWeight = FontStyle.Bold; chainBody.Add(_bldStats);
+            chainBody.Add(UiTheme.Caption("Edit joint limits live — the arm updates instantly. Drag a joint past a limit to feel it clamp."));
+
             chainBody.Add(UiTheme.SectionHead("Kinematic Chain"));
             _bldChain = new VisualElement(); chainBody.Add(_bldChain);
             RebuildChain();
             _bldStatus = UiTheme.Lbl("", UiTheme.Green, 10); _bldStatus.style.whiteSpace = WhiteSpace.Normal; chainBody.Add(_bldStatus);
-            chainBody.Add(UiTheme.Caption("Edit limits live. (Adding/removing DOF rebuilds the arm — load a catalogue robot for a different DOF.)"));
 
-            // creations gallery
-            galBody.Add(UiTheme.Caption("Best-of-generation creations — replay, or browse evolution history."));
-            _bldGallery = new VisualElement(); galBody.Add(_bldGallery);
+            chainBody.Add(UiTheme.SectionHead("Creations Library"));
+            chainBody.Add(UiTheme.Caption("Best-of-generation solutions — ▶ Replay runs one on the live arm."));
+            _bldGallery = new VisualElement(); chainBody.Add(_bldGallery);
             RebuildGallery();
 
-            var cols = Columns(chain, gal); cols.style.flexGrow = 1;
-            _content.Add(cols);
             _refresh = RefreshBuild;
         }
 
@@ -458,7 +627,20 @@ namespace ArmSmith.UI
                 var nm = UiTheme.Lbl($"J{i} · {js.name}", UiTheme.TextHi, 12); nm.style.unityFontStyleAndWeight = FontStyle.Bold; head.Add(nm);
                 head.Add(UiTheme.Badge(js.axis.ToString(), UiTheme.Muted));
                 nb.Add(head);
-                // limit dual-ish sliders (min/max angle) — live edit
+                // DRIVE slider — move this joint live (Manual mode). Tagged so RefreshBuild can sync it.
+                float cur = idx < arm.GetJointAngles().Length ? arm.GetJointAngles()[idx] : 0f;
+                var driveRow = UiTheme.SliderRow("drive °", js.minAngle, js.maxAngle, cur, out var driveS, out var driveL, "°", UiTheme.JointColors[i % UiTheme.JointColors.Length]);
+                driveS.name = $"drive{idx}"; driveL.name = $"drivelbl{idx}";
+                driveS.RegisterValueChangedCallback(e => {
+                    if (controller == null) return;
+                    controller.mode = ArmController.Mode.Manual;
+                    var ang = new List<float>(arm.GetJointAngles());
+                    while (ang.Count <= idx) ang.Add(0f);
+                    ang[idx] = e.newValue; controller.SetTargets(ang);
+                    driveL.text = e.newValue.ToString("0") + "°";
+                });
+                nb.Add(driveRow);
+                // limit sliders (min/max angle) — live edit
                 var minRow = UiTheme.SliderRow("min °", -180f, 0f, js.minAngle, out var minS, out var minL, "°");
                 minS.RegisterValueChangedCallback(e => { arm.jointSpecs[idx].minAngle = e.newValue; minL.text = e.newValue.ToString("0") + "°"; });
                 var maxRow = UiTheme.SliderRow("max °", 0f, 180f, js.maxAngle, out var maxS, out var maxL, "°");
@@ -505,55 +687,118 @@ namespace ArmSmith.UI
                 float reach = arm.config != null ? arm.config.TotalReach() : 0f;
                 _bldStats.text = $"DOF {arm.jointSpecs.Count} · reach {reach:F2} m · gripper {(arm.gripper != null ? "ok" : "—")}";
             }
+            // keep the drive sliders in sync with the live joint angles (so they track when the arm moves
+            // by other means), but don't fight the slider the user is currently dragging.
+            if (_bldChain != null && arm != null)
+            {
+                var ang = arm.GetJointAngles();
+                for (int i = 0; i < arm.jointSpecs.Count && i < ang.Length; i++)
+                {
+                    var s = _bldChain.Q<Slider>($"drive{i}");
+                    if (s != null && !s.HasMouseCapture() && Mathf.Abs(s.value - ang[i]) > 0.5f)
+                    {
+                        s.SetValueWithoutNotify(ang[i]);
+                        var l = _bldChain.Q<Label>($"drivelbl{i}");
+                        if (l != null) l.text = ang[i].ToString("0") + "°";
+                    }
+                }
+            }
         }
 
         // ════════════════════════════ CATALOGUE VIEW (J2/J3) ════════════════════════════
-        Label _catStatus;
+        // Gallery pattern: a scrollable THUMBNAIL list on the left (robots + saved creations); the SELECTED
+        // one is shown big in the live viewport on the right, with its details + actions.
+        Label _catStatus, _catSelName, _catSelInfo;
+        string _catSelId;
 
         void BuildCatalogueView()
         {
-            VisualElement body;
-            var panel = ScrollPanel(UiTheme.PanelHeader("Robot Catalogue", UiTheme.Teal, "import & generate"), out body);
-            body.Add(UiTheme.Caption("Open-source robots — each is a kinematics JSON the builder can load. " +
-                "Generate parametric arms or import a URDF; the active arm swaps on scene reload."));
-            _catStatus = UiTheme.Lbl("", UiTheme.Green, 11); _catStatus.style.whiteSpace = WhiteSpace.Normal; body.Add(_catStatus);
+            var wrap = new VisualElement(); wrap.style.flexDirection = FlexDirection.Row; wrap.style.flexGrow = 1;
 
-            foreach (var d in ArmSmith.Catalogue.RobotCatalogue.Entries)
+            // ── LEFT: scrollable thumbnail list ──
+            VisualElement listBody;
+            var list = ScrollPanel(UiTheme.PanelHeader("Catalogue", UiTheme.Teal, "robots & models"), out listBody);
+            list.style.width = 320; list.style.flexShrink = 0; list.style.marginRight = 8;
+
+            listBody.Add(UiTheme.SectionHead("Robot Models"));
+            var entries = ArmSmith.Catalogue.RobotCatalogue.Entries;
+            if (string.IsNullOrEmpty(_catSelId) && entries.Count > 0) _catSelId = entries[0].id;
+            foreach (var d in entries)
             {
-                var card = UiTheme.Panel(d.hasMeshes ? UiTheme.Teal : UiTheme.Orange);
-                var cb = new VisualElement(); UiTheme.Pad(cb, 10); card.Add(cb);
-                var title = UiTheme.Row();
-                var nm = UiTheme.Lbl(d.displayName, UiTheme.TextHi, 13); nm.style.unityFontStyleAndWeight = FontStyle.Bold;
-                title.Add(nm);
-                title.Add(UiTheme.Badge($"{d.dof}-DOF", d.hasMeshes ? UiTheme.Teal : UiTheme.Orange));
-                title.Add(UiTheme.Badge(d.source, UiTheme.Muted));
-                cb.Add(title);
-                cb.Add(UiTheme.Lbl(d.notes, UiTheme.Muted, 10));
-                var actions = UiTheme.Row();
-                string id = d.id;
-                actions.Add(UiTheme.Btn("Resolve / Generate", () => {
-                    string path = ArmSmith.Catalogue.RobotCatalogue.ResolveKinematicsPath(id);
-                    if (_catStatus != null) _catStatus.text = path != null ? $"{id}: kinematics ready at {System.IO.Path.GetFileName(path)}" : $"{id}: failed to resolve.";
-                }, UiTheme.Green));
-                cb.Add(actions);
+                var dd = d;
+                bool sel = dd.id == _catSelId;
+                var thumb = UiTheme.CardEl(dd.hasMeshes ? UiTheme.Teal : UiTheme.Orange); thumb.style.marginRight = 0;
+                if (sel) { thumb.style.backgroundColor = UiTheme.Surface; UiTheme.SetBorder(thumb, dd.hasMeshes ? UiTheme.Teal : UiTheme.Orange, 1); thumb.style.borderLeftWidth = 3; }
+                var t = UiTheme.Row(); t.style.justifyContent = Justify.SpaceBetween;
+                var nm = UiTheme.Lbl(dd.displayName, sel ? UiTheme.TextHi : UiTheme.Text, 12); nm.style.unityFontStyleAndWeight = FontStyle.Bold; t.Add(nm);
+                t.Add(UiTheme.Badge($"{dd.dof}-DOF", dd.hasMeshes ? UiTheme.Teal : UiTheme.Orange));
+                thumb.Add(t);
+                thumb.Add(UiTheme.Lbl(dd.source, UiTheme.Muted, 9));
+                thumb.RegisterCallback<PointerDownEvent>(_ => { _catSelId = dd.id; SwitchTo(View.Catalogue); });
+                listBody.Add(thumb);
             }
 
-            // URDF import affordance
-            body.Add(UiTheme.SectionHead("Import URDF (J3)"));
-            body.Add(UiTheme.Caption("Drop a .urdf into persistentDataPath/Import then click — it converts to " +
-                "the kinematics schema and registers as a catalogue entry."));
-            body.Add(UiTheme.Btn("Scan import folder", () => {
+            // saved creations as thumbnails too
+            var lib = EvolutionStore.LoadLibrary();
+            if (lib != null && lib.creations.Count > 0)
+            {
+                listBody.Add(UiTheme.SectionHead("Saved Training Models"));
+                int shown = 0;
+                for (int i = lib.creations.Count - 1; i >= 0 && shown < 10; i--, shown++)
+                {
+                    var c = lib.creations[i];
+                    var thumb = UiTheme.CardEl(c.successRate > 0.5f ? UiTheme.Green : UiTheme.Orange); thumb.style.marginRight = 0;
+                    var t = UiTheme.Row(); t.style.justifyContent = Justify.SpaceBetween;
+                    t.Add(UiTheme.Lbl($"Gen {c.generation} · {c.scenario}", UiTheme.Text, 11));
+                    t.Add(UiTheme.Badge($"{c.successRate * 100f:F0}%", c.successRate > 0.5f ? UiTheme.Green : UiTheme.Orange));
+                    thumb.Add(t);
+                    thumb.Add(UiTheme.Lbl($"{c.backend} · fitness {c.fitness:F1}", UiTheme.Muted, 9));
+                    var cc = c;
+                    thumb.RegisterCallback<PointerDownEvent>(_ => { if (trainer != null) trainer.ReplayCreation(cc); });
+                    listBody.Add(thumb);
+                }
+            }
+
+            // ── RIGHT: selected model — big live viewport + details ──
+            var rightCol = new VisualElement(); rightCol.style.flexGrow = 1; rightCol.style.flexDirection = FlexDirection.Column;
+            var vp = LiveViewport("SELECTED MODEL — live");
+            vp.style.flexGrow = 1; vp.style.marginLeft = 0;
+            rightCol.Add(vp);
+
+            VisualElement detail;
+            var det = ScrollPanel(UiTheme.PanelHeader("Model Details", UiTheme.Green), out detail);
+            det.style.flexShrink = 0;
+            _catSelName = UiTheme.Lbl("", UiTheme.TextHi, 14); _catSelName.style.unityFontStyleAndWeight = FontStyle.Bold; detail.Add(_catSelName);
+            _catSelInfo = UiTheme.Lbl("", UiTheme.Muted, 11); _catSelInfo.style.whiteSpace = WhiteSpace.Normal; detail.Add(_catSelInfo);
+            _catStatus = UiTheme.Lbl("", UiTheme.Green, 10); _catStatus.style.whiteSpace = WhiteSpace.Normal; detail.Add(_catStatus);
+            var sel2 = ArmSmith.Catalogue.RobotCatalogue.Get(_catSelId);
+            var actions = UiTheme.Row(); actions.style.marginTop = 6;
+            actions.Add(UiTheme.BtnPrimary("⚡ Generate / Load", () => {
+                string path = ArmSmith.Catalogue.RobotCatalogue.ResolveKinematicsPath(_catSelId);
+                if (_catStatus != null) _catStatus.text = path != null ? $"Ready: {System.IO.Path.GetFileName(path)} (active arm swaps on scene reload)" : "Failed to resolve.";
+            }, UiTheme.Green));
+            actions.Add(UiTheme.Btn("Import URDF…", () => {
                 string dir = System.IO.Path.Combine(Application.persistentDataPath, "Import");
                 System.IO.Directory.CreateDirectory(dir);
-                int n = 0;
-                foreach (var f in System.IO.Directory.GetFiles(dir, "*.urdf"))
-                { if (ArmSmith.Catalogue.UrdfImporter.Import(f) != null) n++; }
-                if (_catStatus != null) _catStatus.text = $"URDF import: {n} robot(s) imported from {dir}";
-                SwitchTo(View.Catalogue);   // refresh the list
+                int n = 0; foreach (var f in System.IO.Directory.GetFiles(dir, "*.urdf")) if (ArmSmith.Catalogue.UrdfImporter.Import(f) != null) n++;
+                if (_catStatus != null) _catStatus.text = $"URDF import: {n} robot(s) from {dir}";
+                SwitchTo(View.Catalogue);
             }, UiTheme.Orange));
+            detail.Add(actions);
+            detail.Add(UiTheme.Caption("Click a thumbnail to select. Saved training models replay on the live arm."));
+            rightCol.Add(det);
 
-            _content.Add(panel);
-            _refresh = null;
+            wrap.Add(list); wrap.Add(rightCol);
+            _content.Add(wrap);
+            _refresh = RefreshCatalogue;
+        }
+
+        void RefreshCatalogue()
+        {
+            var d = ArmSmith.Catalogue.RobotCatalogue.Get(_catSelId);
+            if (d == null) return;
+            if (_catSelName != null) _catSelName.text = d.displayName + $"  ({d.dof}-DOF)";
+            if (_catSelInfo != null) _catSelInfo.text = d.notes + "\nSource: " + d.source + (d.hasMeshes ? " · real STL meshes" : " · procedural primitives");
         }
 
         // ════════════════════════════ TRAINING VIEW ════════════════════════════
@@ -565,10 +810,14 @@ namespace ArmSmith.UI
 
         void BuildTrainingView()
         {
-            VisualElement dashBody, condBody, obsBody;
-            var dash = ScrollPanel(UiTheme.PanelHeader("Live Dashboard", UiTheme.Orange, "GA + Policy"), out dashBody);
+            VisualElement dashBody, condBody;
+            var dash = ScrollPanel(UiTheme.PanelHeader("Dashboard & Observation", UiTheme.Orange, "GA + Policy"), out dashBody);
             var cond = ScrollPanel(UiTheme.PanelHeader("Training Conditions", UiTheme.Teal, "reward · DR · curriculum"), out condBody);
-            var obs  = ScrollPanel(UiTheme.PanelHeader("Observation & Advisor", UiTheme.Green), out obsBody);
+            dash.style.width = 360; dash.style.flexShrink = 0;
+            cond.style.width = 420; cond.style.flexShrink = 0;
+            // Observation+Advisor content now lives in the SAME column as the dashboard (combines panels 1 & 3
+            // per feedback). The freed-up 3rd column becomes a LIVE viewport of the arm training in action.
+            VisualElement obsBody = dashBody;
 
             // ── DASHBOARD: metric tiles + sparklines (W&B/TensorBoard pattern) ──
             dashBody.Add(UiTheme.StatRow("BACKEND", "—", out _trBackend, UiTheme.Teal));
@@ -662,7 +911,8 @@ namespace ArmSmith.UI
                 condBody.Add(UiTheme.Caption("Conditions auto-save on apply, every 30s, and on quit — they persist across sessions."));
             }
 
-            // ── OBSERVATION + ADVISOR ──
+            // ── OBSERVATION + ADVISOR (same column as the dashboard now) ──
+            obsBody.Add(UiTheme.SectionHead("Observation & Advisor"));
             obsBody.Add(UiTheme.Caption("Which sensor channels feed the policy this generation"));
             obsBody.Add(UiTheme.StatRow("OBS CHANNELS", "—", out _trObsTotal, UiTheme.Green));
             AddObsToggle(obsBody, "MotorEncoders", () => trainer.config.useMotorEncoders, v => trainer.config.useMotorEncoders = v);
@@ -682,8 +932,12 @@ namespace ArmSmith.UI
             _trAdvisor.style.whiteSpace = WhiteSpace.Normal;
             obsBody.Add(_trAdvisor);
 
-            var cols = Columns(dash, cond, obs); cols.style.flexGrow = 1;
-            _content.Add(cols);
+            // Layout: [dashboard+observation] [conditions] [LIVE training viewport]
+            var wrap = new VisualElement(); wrap.style.flexDirection = FlexDirection.Row; wrap.style.flexGrow = 1;
+            dash.style.marginRight = 8; cond.style.marginRight = 0;
+            wrap.Add(dash); wrap.Add(cond);
+            wrap.Add(LiveViewport("LIVE TRAINING — the arm attempting the task"));
+            _content.Add(wrap);
             _refresh = RefreshTraining;
         }
 
@@ -777,59 +1031,74 @@ namespace ArmSmith.UI
 
         // ════════════════════════════ OPTIONS VIEW ════════════════════════════
         readonly List<(Slider s, Label l, Func<float> get, Action<float> set, string suf)> _optBinds = new List<(Slider, Label, Func<float>, Action<float>, string)>();
+        Label _optRobotStatus; bool _optRobotConnected; string _optRobotPort = "/dev/ttyACM0";
 
         void BuildOptionsView()
         {
             _optBinds.Clear();
-            VisualElement simBody, ctrlBody, randBody;
-            var sim  = ScrollPanel(UiTheme.PanelHeader("Simulation & Physics", UiTheme.Teal), out simBody);
-            var ctrl = ScrollPanel(UiTheme.PanelHeader("Control & Display", UiTheme.Orange), out ctrlBody);
-            var rand = ScrollPanel(UiTheme.PanelHeader("Randomisation & Curriculum", UiTheme.Green), out randBody);
+            // ONE sectioned settings panel + a live viewport (so you watch the sim while you tune).
+            VisualElement b;
+            EditLayout("Options & Calibration", UiTheme.Teal, "settings · real robot", 460,
+                "LIVE SIM — changes apply instantly", out b);
 
-            // -- simulation --
-            simBody.Add(UiTheme.SectionHead("Sim Speed"));
-            AddOptSlider(simBody, "Sim Speed (×)", 0f, 10f, () => Time.timeScale, v => Time.timeScale = v, "×");
-            simBody.Add(UiTheme.Caption("⚠ Motors are NOT instant — servo drive stiffness/damping (ServoModel) set response."));
-            simBody.Add(UiTheme.SectionHead("Physics"));
-            AddOptSlider(simBody, "Solver Iterations", 4f, 24f, () => Physics.defaultSolverIterations, v => Physics.defaultSolverIterations = Mathf.RoundToInt(v), "");
-            AddOptSlider(simBody, "Gravity (m/s²)", 0f, 20f, () => -Physics.gravity.y, v => Physics.gravity = new Vector3(0, -v, 0), "");
+            // ── Real robot plug-in & calibration ──
+            b.Add(UiTheme.SectionHead("Real Robot — Plug-in & Calibration"));
+            _optRobotStatus = UiTheme.Lbl("No real robot connected (simulation only).", UiTheme.Muted, 11);
+            _optRobotStatus.style.whiteSpace = WhiteSpace.Normal; b.Add(_optRobotStatus);
+            var portRow = UiTheme.Row();
+            var portField = new TextField { value = "/dev/ttyACM0" }; portField.style.flexGrow = 1; portField.style.marginRight = 6;
+            portRow.Add(UiTheme.Caption("Serial port")); portRow.Add(portField);
+            b.Add(portRow);
+            var connRow = UiTheme.Row();
+            connRow.Add(UiTheme.BtnPrimary("⚡ Connect", () => { _optRobotConnected = !_optRobotConnected; _optRobotPort = portField.value; }, UiTheme.Green));
+            connRow.Add(UiTheme.Btn("Scan ports", () => { _optRobotStatus.text = "Scan: export waypoints/joint-map for the LeRobot bridge (scripts/realbot/)."; }, UiTheme.Teal));
+            b.Add(connRow);
+            b.Add(UiTheme.SectionHead("Calibrate"));
+            b.Add(UiTheme.Caption("Set the arm's current pose as the servo zero, then capture min/max per joint."));
+            var calRow = UiTheme.Row();
+            calRow.Add(UiTheme.Btn("⊙ Set Zero (C)", () => { if (controller != null) controller.CalibrateZeroHere(); }, UiTheme.Orange));
+            calRow.Add(UiTheme.Btn("⤓ Go to Zero", () => { if (controller != null) controller.GoToZero(); }, UiTheme.Teal));
+            b.Add(calRow);
+            b.Add(UiTheme.Caption("Calibration + waypoints export to the real STS3215 bus (scripts/realbot/armsmith_player.py)."));
 
-            // -- control & display --
+            // ── Simulation & physics ──
+            b.Add(UiTheme.SectionHead("Simulation & Physics"));
+            AddOptSlider(b, "Sim Speed (×)", 0f, 10f, () => Time.timeScale, v => Time.timeScale = v, "×");
+            b.Add(UiTheme.Caption("⚠ Motors are NOT instant — servo stiffness/damping (ServoModel) set the response."));
+            AddOptSlider(b, "Solver Iterations", 4f, 24f, () => Physics.defaultSolverIterations, v => Physics.defaultSolverIterations = Mathf.RoundToInt(v), "");
+            AddOptSlider(b, "Gravity (m/s²)", 0f, 20f, () => -Physics.gravity.y, v => Physics.gravity = new Vector3(0, -v, 0), "");
+
+            // ── Control & display ──
+            b.Add(UiTheme.SectionHead("Control & Display"));
             if (controller != null)
             {
-                ctrlBody.Add(UiTheme.SectionHead("Mouse / IK"));
-                ctrlBody.Add(UiTheme.ToggleRow("Mouse-follow IK", "arm follows the cursor (M)", controller.mouseFollow, out var tMouse));
+                b.Add(UiTheme.ToggleRow("Mouse-follow IK", "arm follows the cursor (M)", controller.mouseFollow, out var tMouse));
                 tMouse.RegisterValueChangedCallback(e => controller.mouseFollow = e.newValue);
             }
-            ctrlBody.Add(UiTheme.SectionHead("Display Overlays"));
-            ctrlBody.Add(UiTheme.Caption("World axes (X) · bounds (B) · cam HUD (V) · servo callouts (\\)"));
-            ctrlBody.Add(UiTheme.SectionHead("UI Scale"));
-            AddOptSlider(ctrlBody, "Reference width", 1280f, 2560f, () => UiTheme.GetPanelSettings().referenceResolution.x,
+            b.Add(UiTheme.Caption("Overlays: world axes (X) · bounds (B) · cam HUD (V) · servo callouts (\\)"));
+            AddOptSlider(b, "UI reference width", 1280f, 2560f, () => UiTheme.GetPanelSettings().referenceResolution.x,
                 v => UiTheme.GetPanelSettings().referenceResolution = new Vector2Int(Mathf.RoundToInt(v), 1080), "px");
 
-            // -- randomisation & curriculum --
+            // ── Randomisation & curriculum ──
             if (scenarios != null)
             {
-                randBody.Add(UiTheme.SectionHead("Object Spawn"));
-                AddOptSlider(randBody, "Position randomness", 0f, 1f, () => scenarios.randomness, v => scenarios.randomness = v, "");
+                b.Add(UiTheme.SectionHead("Randomisation & Curriculum"));
+                AddOptSlider(b, "Object spawn randomness", 0f, 1f, () => scenarios.randomness, v => scenarios.randomness = v, "");
             }
             if (trainer != null)
             {
-                randBody.Add(UiTheme.SectionHead("Difficulty & Curriculum"));
-                AddOptSlider(randBody, "Difficulty", 0f, 1f, () => trainer.config.difficulty, v => trainer.config.difficulty = v, "");
-                AddOptSlider(randBody, "Randomisation", 0f, 1f, () => trainer.config.randomization, v => trainer.config.randomization = v, "");
-                randBody.Add(UiTheme.ToggleRow("Curriculum auto-advance", "bump difficulty when success high", trainer.config.autoCurriculum, out var tAuto));
+                AddOptSlider(b, "Difficulty", 0f, 1f, () => trainer.config.difficulty, v => trainer.config.difficulty = v, "");
+                AddOptSlider(b, "Randomisation", 0f, 1f, () => trainer.config.randomization, v => trainer.config.randomization = v, "");
+                b.Add(UiTheme.ToggleRow("Curriculum auto-advance", "bump difficulty when success high", trainer.config.autoCurriculum, out var tAuto));
                 tAuto.RegisterValueChangedCallback(e => trainer.config.autoCurriculum = e.newValue);
-                randBody.Add(UiTheme.ToggleRow("Predicate success eval (EV1)", "use composable predicate tree", scenarios != null && scenarios.usePredicateSuccess, out var tPred));
+                b.Add(UiTheme.ToggleRow("Predicate success eval (EV1)", "use composable predicate tree", scenarios != null && scenarios.usePredicateSuccess, out var tPred));
                 tPred.RegisterValueChangedCallback(e => { if (scenarios != null) scenarios.usePredicateSuccess = e.newValue; });
-                randBody.Add(UiTheme.SectionHead("GA Hyperparameters"));
-                AddOptSlider(randBody, "Population", 4f, 48f, () => trainer.config.populationSize, v => trainer.config.populationSize = Mathf.RoundToInt(v), "");
-                AddOptSlider(randBody, "Mutation rate", 0f, 1f, () => trainer.config.mutationRate, v => trainer.config.mutationRate = v, "");
-                randBody.Add(UiTheme.Btn("Apply + Save", () => { if (trainer != null) trainer.ApplyConfig(); if (saveSystem != null) saveSystem.AutoSaveConditions(); }, UiTheme.Orange));
+                b.Add(UiTheme.SectionHead("GA Hyperparameters"));
+                AddOptSlider(b, "Population", 4f, 48f, () => trainer.config.populationSize, v => trainer.config.populationSize = Mathf.RoundToInt(v), "");
+                AddOptSlider(b, "Mutation rate", 0f, 1f, () => trainer.config.mutationRate, v => trainer.config.mutationRate = v, "");
+                b.Add(UiTheme.BtnPrimary("Apply + Save Settings", () => { if (trainer != null) trainer.ApplyConfig(); if (saveSystem != null) saveSystem.AutoSaveConditions(); }, UiTheme.Orange));
             }
 
-            var cols = Columns(sim, ctrl, rand); cols.style.flexGrow = 1;
-            _content.Add(cols);
             _refresh = RefreshOptions;
         }
 
@@ -850,6 +1119,10 @@ namespace ArmSmith.UI
                 if (!b.s.HasMouseCapture() && Mathf.Abs(b.s.value - cur) > 0.001f)
                 { b.s.SetValueWithoutNotify(cur); b.l.text = cur.ToString("0.##") + b.suf; }
             }
+            if (_optRobotStatus != null)
+                _optRobotStatus.text = _optRobotConnected
+                    ? $"● Connected to real robot on {_optRobotPort} — calibration + waypoints will stream to the STS3215 bus."
+                    : "No real robot connected (simulation only). Enter a serial port and Connect to mirror to hardware.";
         }
 
         // ════════════════════════════ HELP VIEW ════════════════════════════
