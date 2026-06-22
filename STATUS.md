@@ -6,7 +6,25 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22g (latest) — LAYOUT OVERHAUL: live 3D viewports + organised pages (every view)
+## SESSION 2026-06-22h (latest) — KSP-STYLE 3D ATTACHMENTS + training-solves-task verified
+- **Training actually solves the task** (verified LIVE): fresh GA on TrayToTray reaches **100% success by
+  gen 1** (best 13.7, pop-mean climbs 5.2→10.4 as it breeds). The sim does its job.
+- **KSP-style modular ATTACHMENT system** (new `Modules/AttachmentSystem.cs` + `Modules/ModuleParts.cs`):
+  a parts bin (Wrist/Overview Camera, ToF Rangefinder, 2D Lidar, IMU, EFlesh Tactile, LED Spotlight, Riser
+  Bracket, Counterweight). `Place(defId, link, pose, scale)` snaps a procedurally-built 3D part onto a link
+  (collider-free so it can't disturb physics), `Move` re-poses/rescales, `Remove` deletes. Camera parts get
+  a real Camera + RenderTexture (live feed); Light parts get a spotlight. Placing a sensor part auto-enables
+  its SensorHub module; removing the last one disables it. Loadout serialises (ToJson/FromJson) and is saved
+  with the rest of the state (SaveState attachmentsJson).
+- **Build menu = the KSP build bench**: parts bin (cards) + a Mount-Target picker (◀ Auto/Base/J0..Jn ▶) +
+  per-part ADJUST sliders (fwd/up/side · yaw/pitch · scale) + a live camera-feed thumbnail + Remove.
+- **Player cameras**: add Wrist/Overview camera parts, position/aim/scale them live, see their feed in the card.
+- **Tested**: new headless `AttachmentCheck` (33 assertions: every part builds a collider-free mesh; place
+  parents+enables sensor+makes camera/RT; move; json round-trip; remove disables unused sensor). Suite 16→17/17.
+  LIVE-verified: placed a camera + rangefinder on the wrist (visible 3D objects on the arm), moved/scaled them,
+  and round-tripped the loadout.
+
+## SESSION 2026-06-22g — LAYOUT OVERHAUL: live 3D viewports + organised pages (every view)
 - Addressed layout feedback across ALL views. New helpers `LiveViewport` (a TRANSPARENT region the
   full-screen MainCam shows through → see the arm while editing) + `EditLayout` (control column + viewport).
 - **Menu**: 3 balanced columns that FILL the screen — [brand + grouped nav] · [even scenario grid, no

@@ -28,6 +28,7 @@ namespace ArmSmith.UI
         public AgentCommands agent;          // text/auto-solve agent (Dashboard auto-solve button)
         public ModuleMount moduleMount;      // mount sockets + mounted modules (Modules view)
         public SaveSystem saveSystem;        // persist/restore all conditions + settings (Save/Load buttons)
+        public ArmSmith.Modules.AttachmentSystem attachments;   // KSP-style 3D part attachment (Build/Modules)
 
         /// <summary>The legacy uGUI HUD canvas. When the new interface overlay is shown we HIDE this so the
         /// two don't overlap; restored when the overlay is hidden. Optional (null = ignore).</summary>
@@ -57,8 +58,8 @@ namespace ArmSmith.UI
 
         public void Bind(ProceduralArm a, ArmController c, ScenarioManager s, EvolutionTrainer t,
                          SensorHub hub, BehaviourRecorder rec, AgentCommands ag = null, ModuleMount mm = null,
-                         SaveSystem ss = null)
-        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; saveSystem = ss; }
+                         SaveSystem ss = null, ArmSmith.Modules.AttachmentSystem at = null)
+        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; saveSystem = ss; attachments = at; }
 
         void Start()
         {

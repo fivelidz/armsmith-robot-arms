@@ -27,6 +27,7 @@ namespace ArmSmith
         EvolutionTrainer trainer;
         AgentCommands agent;
         SensorHub sensorHub;
+        ArmSmith.Modules.AttachmentSystem attachmentSystem;
         SensorViz sensorViz;
         MouseInteraction mouse;
         ServoPanel servoPanel;
@@ -97,6 +98,10 @@ namespace ArmSmith
 
             sensorViz = go.AddComponent<SensorViz>();
             sensorViz.Bind(sensorHub);
+
+            // KSP-style 3D ATTACHMENT system: snap camera/sensor/structural parts onto the arm's links.
+            attachmentSystem = go.AddComponent<ArmSmith.Modules.AttachmentSystem>();
+            attachmentSystem.Bind(arm, moduleMount, sensorHub, Mat);
         }
 
         void BuildTrainer()
@@ -125,6 +130,7 @@ namespace ArmSmith
             var saveGo = new GameObject("SaveSystem");
             saveSystem = saveGo.AddComponent<SaveSystem>();
             saveSystem.Bind(arm, controller, scenarios, sensorHub, sequence, trainer);
+            saveSystem.attachments = attachmentSystem;
         }
 
         void BuildScenarios()
@@ -234,6 +240,7 @@ namespace ArmSmith
             // Module-mounting system: exposes mount sockets on the arm; modules can be placed/oriented.
             moduleMount = armGo.AddComponent<ModuleMount>();
             moduleMount.Setup(arm);
+            if (attachmentSystem != null) attachmentSystem.mount = moduleMount;   // late-bind the sockets
 
             // Multi-robot foundation: publish this arm's state to the shared WorldBlackboard so future
             // additional arms can coordinate (hand-offs, do-not-collide, collaborative tasks).
@@ -468,7 +475,7 @@ namespace ArmSmith
             uiDoc.panelSettings = ArmSmith.UI.UiTheme.GetPanelSettings();
             uiDoc.sortingOrder = 20;   // above the uGUI canvas
             uiManager = uiGo.AddComponent<ArmSmith.UI.UiManager>();
-            uiManager.Bind(arm, controller, scenarios, trainer, sensorHub, recorder, agent, moduleMount, saveSystem);
+            uiManager.Bind(arm, controller, scenarios, trainer, sensorHub, recorder, agent, moduleMount, saveSystem, attachmentSystem);
             uiManager.legacyHud = canvasGo;   // hidden while the new interface overlay is up (F1 to swap)
             uiManager.visible = false;   // start hidden; legacy HUD is the default, F1 reveals the new UI
 

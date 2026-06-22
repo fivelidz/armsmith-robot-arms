@@ -602,6 +602,18 @@ namespace ArmSmith.UI
             RebuildChain();
             _bldStatus = UiTheme.Lbl("", UiTheme.Green, 10); _bldStatus.style.whiteSpace = WhiteSpace.Normal; chainBody.Add(_bldStatus);
 
+            // ── KSP-style ATTACHMENTS (parts bin → mount on a link → adjust pose) ──
+            chainBody.Add(UiTheme.SectionHead("Attachments — Parts Bin"));
+            chainBody.Add(UiTheme.Caption("Pick a part, choose a link, Place it. Then adjust its pose live (KSP-style)."));
+            BuildMountTargetRow(chainBody);
+            var bin = new VisualElement(); bin.style.flexDirection = FlexDirection.Row; bin.style.flexWrap = Wrap.Wrap; chainBody.Add(bin);
+            foreach (var def in ArmSmith.Modules.AttachmentSystem.Catalog)
+                bin.Add(PartCard(def));
+
+            chainBody.Add(UiTheme.SectionHead("Mounted Parts"));
+            _bldAttached = new VisualElement(); chainBody.Add(_bldAttached);
+            RebuildAttached();
+
             chainBody.Add(UiTheme.SectionHead("Creations Library"));
             chainBody.Add(UiTheme.Caption("Best-of-generation solutions — ▶ Replay runs one on the live arm."));
             _bldGallery = new VisualElement(); chainBody.Add(_bldGallery);
@@ -705,9 +717,114 @@ namespace ArmSmith.UI
             }
         }
 
+        // ── KSP-style attachment UI ──────────────────────────────────────────────────────────────────
+        VisualElement _bldAttached;
+        int _mountTargetLink = -2;   // -2 = "auto (gripper)"; -1 = base; >=0 = jointBody index
+        Label _mountTargetLbl;
+
+        void BuildMountTargetRow(VisualElement host)
+        {
+            var row = UiTheme.Row(); row.style.marginTop = 4; row.style.marginBottom = 4;
+            row.Add(UiTheme.Caption("Mount on"));
+            _mountTargetLbl = UiTheme.Lbl(MountTargetName(), UiTheme.Teal, 11); _mountTargetLbl.style.width = 130; _mountTargetLbl.style.unityTextAlign = TextAnchor.MiddleCenter;
+            row.Add(UiTheme.Btn("◀", () => { CycleMountTarget(-1); }, UiTheme.Muted));
+            row.Add(_mountTargetLbl);
+            row.Add(UiTheme.Btn("▶", () => { CycleMountTarget(1); }, UiTheme.Muted));
+            host.Add(row);
+        }
+
+        void CycleMountTarget(int dir)
+        {
+            int n = arm != null ? arm.jointSpecs.Count : 6;
+            // order: auto(-2), base(-1), 0..n-1
+            _mountTargetLink += dir;
+            if (_mountTargetLink < -2) _mountTargetLink = n - 1;
+            if (_mountTargetLink > n - 1) _mountTargetLink = -2;
+            if (_mountTargetLbl != null) _mountTargetLbl.text = MountTargetName();
+        }
+
+        string MountTargetName()
+        {
+            if (_mountTargetLink == -2) return "Auto (gripper)";
+            if (_mountTargetLink == -1) return "Base";
+            if (arm != null && _mountTargetLink < arm.jointSpecs.Count) return $"J{_mountTargetLink} {arm.jointSpecs[_mountTargetLink].name}";
+            return "Link " + _mountTargetLink;
+        }
+
+        int ResolveMountLink()
+        {
+            if (_mountTargetLink == -2) return arm != null ? Mathf.Max(0, arm.jointSpecs.Count - 2) : 0;   // wrist-ish
+            return _mountTargetLink;
+        }
+
+        VisualElement PartCard(ArmSmith.Modules.PartDef def)
+        {
+            var card = UiTheme.CardEl(def.color, 200);
+            var t = UiTheme.Row(); t.style.justifyContent = Justify.SpaceBetween;
+            var nm = UiTheme.Lbl(def.name, UiTheme.TextHi, 12); nm.style.unityFontStyleAndWeight = FontStyle.Bold; t.Add(nm);
+            t.Add(UiTheme.Badge(def.kind.ToString(), def.color));
+            card.Add(t);
+            var bl = UiTheme.Lbl(def.blurb, UiTheme.Muted, 10); bl.style.whiteSpace = WhiteSpace.Normal; bl.style.minHeight = 40; card.Add(bl);
+            card.Add(UiTheme.Lbl($"mass ≈{def.massKg * 1000f:F0} g" + (def.sensorType != null ? " · sensor: " + def.sensorType : " · structural"), UiTheme.Muted, 9));
+            var place = UiTheme.BtnPrimary("⊕  Place", () => {
+                if (attachments == null) return;
+                int link = ResolveMountLink();
+                // sensible default local pose on the link surface
+                var pp = attachments.Place(def.id, link, new Vector3(0f, 0.03f, 0.02f), Vector3.zero, 1f);
+                if (saveSystem != null) saveSystem.AutoSaveConditions();
+                RebuildAttached();
+            }, def.color);
+            place.style.width = Length.Percent(100); card.Add(place);
+            return card;
+        }
+
+        void RebuildAttached()
+        {
+            if (_bldAttached == null) return;
+            _bldAttached.Clear();
+            if (attachments == null || attachments.placed.Count == 0)
+            { _bldAttached.Add(UiTheme.Caption("No parts mounted yet — place one from the bin above.")); return; }
+
+            foreach (var pp in attachments.placed)
+            {
+                var part = pp;
+                var def = part.def;
+                var card = UiTheme.CardEl(def != null ? def.color : UiTheme.Teal); card.style.marginRight = 0;
+                var t = UiTheme.Row(); t.style.justifyContent = Justify.SpaceBetween;
+                t.Add(UiTheme.Lbl(def != null ? def.name : part.defId, UiTheme.TextHi, 12));
+                string linkName = part.linkIndex < 0 ? "base" : (arm != null && part.linkIndex < arm.jointSpecs.Count ? $"J{part.linkIndex}" : "link" + part.linkIndex);
+                t.Add(UiTheme.Badge("on " + linkName, UiTheme.Muted));
+                card.Add(t);
+
+                // adjust pose — position (along link), rotate, scale
+                var pos = part.localPos; var eul = part.localEuler; float sc = part.scale;
+                AddAdjust(card, "fwd  (z)", -0.1f, 0.1f, pos.z, v => { pos.z = v; attachments.Move(part, pos, eul, sc); });
+                AddAdjust(card, "up   (y)", -0.05f, 0.1f, pos.y, v => { pos.y = v; attachments.Move(part, pos, eul, sc); });
+                AddAdjust(card, "side (x)", -0.06f, 0.06f, pos.x, v => { pos.x = v; attachments.Move(part, pos, eul, sc); });
+                AddAdjust(card, "yaw °", -180f, 180f, eul.y, v => { eul.y = v; attachments.Move(part, pos, eul, sc); });
+                AddAdjust(card, "pitch °", -180f, 180f, eul.x, v => { eul.x = v; attachments.Move(part, pos, eul, sc); });
+                AddAdjust(card, "scale", 0.4f, 2.5f, sc, v => { sc = v; attachments.Move(part, pos, eul, sc); });
+
+                var actions = UiTheme.Row();
+                if (def != null && def.kind == ArmSmith.Modules.PartKind.Camera && part.rt != null)
+                {
+                    var feed = new Image { image = part.rt }; feed.style.width = 96; feed.style.height = 96; UiTheme.SetBorder(feed, UiTheme.BorderHi, 1); UiTheme.SetRadius(feed, 4); feed.style.marginRight = 8;
+                    actions.Add(feed);
+                }
+                actions.Add(UiTheme.Btn("✕ Remove", () => { attachments.Remove(part); if (saveSystem != null) saveSystem.AutoSaveConditions(); RebuildAttached(); }, UiTheme.Red));
+                card.Add(actions);
+                _bldAttached.Add(card);
+            }
+        }
+
+        void AddAdjust(VisualElement host, string label, float min, float max, float val, Action<float> set)
+        {
+            var row = UiTheme.SliderRow(label, min, max, val, out var s, out var l, "");
+            s.RegisterValueChangedCallback(e => { set(e.newValue); l.text = e.newValue.ToString("0.###"); });
+            host.Add(row);
+        }
+
         // ════════════════════════════ CATALOGUE VIEW (J2/J3) ════════════════════════════
-        // Gallery pattern: a scrollable THUMBNAIL list on the left (robots + saved creations); the SELECTED
-        // one is shown big in the live viewport on the right, with its details + actions.
         Label _catStatus, _catSelName, _catSelInfo;
         string _catSelId;
 

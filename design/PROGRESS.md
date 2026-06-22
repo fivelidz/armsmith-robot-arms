@@ -581,3 +581,13 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
   new ArmController.CalibrateZeroHere).
 - Catalogue: thumbnail list (robots + saved models) + big selected live viewport + details.
 - Live-verified all 8 views via screenshots; rebind + calibrate tested. Suite 16/16.
+
+## Session 2026-06-22h — KSP-style 3D attachments + training-solves-task verified (suite 17/17)
+- Verified LIVE: fresh GA on TrayToTray hits 100% success by gen 1 (best 13.7, mean 5.2->10.4). Sim works.
+- Modules/AttachmentSystem.cs + ModuleParts.cs: KSP-style parts bin (cameras/range/lidar/imu/tactile/light/
+  bracket/weight). Place() snaps a procedural 3D part onto a link (collider-free), Move re-poses/scales,
+  Remove deletes. Cameras get Camera+RenderTexture (live feed); placing a sensor part enables its SensorHub
+  module. Loadout serialises (ToJson/FromJson) + saved in SaveState.attachmentsJson.
+- Build menu: parts bin + Mount-Target picker + per-part adjust sliders + camera-feed thumbnail + Remove.
+- Editor/AttachmentCheck.cs: 33 assertions (build/place/parent/sensor/move/json/remove). run_checks 16->17/17.
+- Live-verified placement (camera+rangefinder visible on the wrist), move/scale, and loadout round-trip.

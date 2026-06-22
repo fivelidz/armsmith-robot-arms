@@ -28,6 +28,9 @@ namespace ArmSmith
         public float sensorNoiseRel, sensorNoiseAbs;
         public int sensorLatencyFrames;
         public float simSpeed;               // Time.timeScale at save time
+
+        // v2: KSP-style 3D attachments (parts placed on the arm) so a built loadout survives a restart.
+        public string attachmentsJson;
     }
 
     /// <summary>
@@ -44,6 +47,7 @@ namespace ArmSmith
         public SensorHub sensorHub;
         public SequenceEditor sequence;
         public EvolutionTrainer trainer;
+        public ArmSmith.Modules.AttachmentSystem attachments;
 
         public string slot = "quicksave";
 
@@ -71,6 +75,7 @@ namespace ArmSmith
                 sensorNoiseAbs = SensorRealism.noiseAbsolute,
                 sensorLatencyFrames = SensorRealism.latencyFrames,
                 simSpeed = Time.timeScale,
+                attachmentsJson = attachments != null ? attachments.ToJson() : "",
             };
             if (sensorHub != null)
             {
@@ -119,6 +124,7 @@ namespace ArmSmith
             if (st.sensorNoiseAbs > 0f) SensorRealism.noiseAbsolute = st.sensorNoiseAbs;
             SensorRealism.latencyFrames = st.sensorLatencyFrames;
             if (st.simSpeed > 0f) Time.timeScale = st.simSpeed;
+            if (attachments != null && !string.IsNullOrEmpty(st.attachmentsJson)) attachments.FromJson(st.attachmentsJson);
             Debug.Log($"[Save] loaded {p}");
             return true;
         }

@@ -93,6 +93,10 @@ if [ "$MODE" != "quick" ]; then
   echo "[3j] Conditions persistence (all training conditions + settings round-trip through SaveSystem v2)"
   run_unity_method "Conditions persistence" \
     "ArmSmith.EditorTools.ConditionsPersistenceCheck.RunHeadless" "ConditionsPersistenceCheck] PASSED"
+
+  echo "[3k] Attachments (KSP-style 3D parts: build + place/sensor + move + json round-trip)"
+  run_unity_method "Attachments" \
+    "ArmSmith.EditorTools.AttachmentCheck.RunHeadless" "AttachmentCheck] PASSED"
 fi
 
 echo "[3d] Vision grasp-geometry (numpy CV toolbox unit tests)"
