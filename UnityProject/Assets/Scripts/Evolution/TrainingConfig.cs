@@ -40,6 +40,22 @@ namespace ArmSmith
         public bool useDepthCamera   = false;   // heavy; off by default for fast GA/policy training
         public bool useTactile       = true;
 
+        // ---- per-term reward ENABLE flags (Isaac Lab RewardsCfg pattern: named, individually toggleable) ----
+        public bool eReach = true, eGrasp = true, ePlace = true, eSuccess = true, eEnergy = true, eSelfPen = true, eOob = true;
+
+        // ---- domain-randomization RANGES (Isaac Lab EventsCfg: named per-axis min/max, scaled by the
+        // global `randomization` master). Each has an enable flag. Conservative sim-to-real defaults. ----
+        public bool drSpawnPos = true;   public float drSpawnPosM = 0.06f;        // ± metres
+        public bool drMass     = true;   public float drMassLo = 0.85f, drMassHi = 1.15f;   // × factor
+        public bool drFriction = true;   public float drFrictionLo = 0.7f, drFrictionHi = 1.3f;
+        public bool drYaw      = true;   public float drYawDeg = 45f;             // ± degrees
+        public bool drSensorNoise = false;                                         // ties to SensorRealism
+
+        // ---- termination / success (Isaac Lab TerminationsCfg: termination ≠ success) ----
+        public float timeoutSec = 20f;          // episode time limit
+        public bool termOnOob = true;           // end episode if object leaves the table
+        public float successHoldSec = 0.3f;     // object must rest in goal this long to count
+
         // ---- GA / policy hyperparameters ----
         public int populationSize = 16;
         public int elite = 3;
@@ -51,6 +67,45 @@ namespace ArmSmith
         public float rolloutSpeedup = 4f;    // headless eval time-scale
 
         public TrainingConfig Clone() => (TrainingConfig)MemberwiseClone();
+
+        // ── presets (Isaac Lab task registry / RoboSuite controller configs pattern) ──────────────────
+        public enum Preset { QuickGA, Robust, SimToReal, ReachDebug }
+
+        /// <summary>Overwrite this config with a named preset (solves the blank-page problem).</summary>
+        public void ApplyPreset(Preset p)
+        {
+            switch (p)
+            {
+                case Preset.QuickGA:   // fast iteration
+                    backend = Backend.MotionGA; difficulty = 0.3f; randomization = 0.1f; autoCurriculum = true;
+                    populationSize = 16; elite = 3; mutationRate = 0.3f; evalResets = 2; rolloutSpeedup = 6f;
+                    drSensorNoise = false; break;
+                case Preset.Robust:    // heavy randomization for generalisation
+                    backend = Backend.SensorPolicy; difficulty = 0.6f; randomization = 0.8f; autoCurriculum = true;
+                    populationSize = 32; elite = 5; mutationRate = 0.3f; evalResets = 5; rolloutSpeedup = 4f;
+                    drSpawnPos = drMass = drFriction = drYaw = true; drSensorNoise = true; break;
+                case Preset.SimToReal: // conservative ranges matching the real rig
+                    backend = Backend.SensorPolicy; difficulty = 0.5f; randomization = 0.4f; autoCurriculum = true;
+                    populationSize = 24; elite = 4; evalResets = 4; rolloutSpeedup = 4f;
+                    drSpawnPosM = 0.05f; drMassLo = 0.9f; drMassHi = 1.1f; drFrictionLo = 0.8f; drFrictionHi = 1.2f;
+                    drSensorNoise = true; break;
+                case Preset.ReachDebug:  // simplest task, no randomization, fast
+                    backend = Backend.MotionGA; difficulty = 0.0f; randomization = 0f; autoCurriculum = false;
+                    populationSize = 12; elite = 3; evalResets = 1; rolloutSpeedup = 8f;
+                    drSpawnPos = drMass = drFriction = drYaw = drSensorNoise = false; break;
+            }
+        }
+
+        public static string PresetName(Preset p)
+        {
+            switch (p)
+            {
+                case Preset.QuickGA: return "Quick GA (fast)";
+                case Preset.Robust: return "Robust (heavy DR)";
+                case Preset.SimToReal: return "Sim-to-real (conservative)";
+                default: return "Reach-only debug";
+            }
+        }
 
         /// <summary>Apply the sensor mask to a SensorHub (model inclusion/exclusion of information).</summary>
         public void ApplySensorMask(SensorHub hub)

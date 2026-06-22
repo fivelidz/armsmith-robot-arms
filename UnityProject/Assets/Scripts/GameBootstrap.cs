@@ -468,7 +468,7 @@ namespace ArmSmith
             uiDoc.panelSettings = ArmSmith.UI.UiTheme.GetPanelSettings();
             uiDoc.sortingOrder = 20;   // above the uGUI canvas
             uiManager = uiGo.AddComponent<ArmSmith.UI.UiManager>();
-            uiManager.Bind(arm, controller, scenarios, trainer, sensorHub, recorder);
+            uiManager.Bind(arm, controller, scenarios, trainer, sensorHub, recorder, agent, moduleMount);
             uiManager.legacyHud = canvasGo;   // hidden while the new interface overlay is up (F1 to swap)
             uiManager.visible = false;   // start hidden; legacy HUD is the default, F1 reveals the new UI
 

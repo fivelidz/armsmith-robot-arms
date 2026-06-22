@@ -105,9 +105,23 @@ namespace ArmSmith.UI
         }
 
         // ════════════════════════════ DASHBOARD VIEW ════════════════════════════
-        Label _dbObjective, _dbReward, _dbSuccess, _dbEE, _dbGrip;
-        VisualElement _dbJointHost, _dbRewardBar;
+        Label _dbObjective, _dbReward, _dbSuccess, _dbEE, _dbGrip, _dbExportStatus;
+        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost;
         Button _dbModeBtn, _dbGripBtn;
+
+        void ExportStl()
+        {
+            if (arm == null || arm.baseBody == null) { if (_dbExportStatus != null) _dbExportStatus.text = "no arm to export"; return; }
+            try
+            {
+                string dir = System.IO.Path.Combine(Application.persistentDataPath, "Exports");
+                System.IO.Directory.CreateDirectory(dir);
+                string path = System.IO.Path.Combine(dir, $"armsmith_{System.DateTime.Now:yyyyMMdd_HHmmss}.stl");
+                StlExporter.ExportHierarchy(arm.baseBody.transform, path);
+                if (_dbExportStatus != null) _dbExportStatus.text = "saved " + System.IO.Path.GetFileName(path);
+            }
+            catch (System.Exception e) { if (_dbExportStatus != null) _dbExportStatus.text = "export failed: " + e.Message; }
+        }
 
         void BuildDashboardView()
         {
@@ -130,12 +144,15 @@ namespace ArmSmith.UI
             driverBody.Add(_dbGripBtn);
             driverBody.Add(UiTheme.StatRow("EE POSITION", "—", out _dbEE));
             driverBody.Add(UiTheme.StatRow("GRIP", "—", out _dbGrip));
+            // grasp/contact state chip (Foxglove contact-panel pattern)
+            _dbContactHost = UiTheme.Row(); driverBody.Add(_dbContactHost);
 
-            driverBody.Add(UiTheme.SectionHead("Demonstration"));
+            driverBody.Add(UiTheme.SectionHead("Demonstration & Solve"));
             var recRow = UiTheme.Row();
-            recRow.Add(UiTheme.Btn("⏺ Record (Backspace)", () => { }, UiTheme.Red));
-            recRow.Add(UiTheme.Btn("▶ Auto-solve (F1 agent)", () => { }, UiTheme.Green));
+            recRow.Add(UiTheme.Btn("⏺ Record demo", () => { if (recorder != null) recorder.StartRecording(); }, UiTheme.Red));
+            recRow.Add(UiTheme.Btn("▶ Auto-solve", () => { if (agent != null) agent.AutoSort(); }, UiTheme.Green));
             driverBody.Add(recRow);
+            driverBody.Add(UiTheme.Caption("Record a hand-driven demo → seed training (LeRobot workflow)."));
 
             // -- Joint telemetry (live rows) --
             _dbJointHost = new VisualElement();
@@ -151,9 +168,10 @@ namespace ArmSmith.UI
 
             taskBody.Add(UiTheme.SectionHead("Quick Export"));
             var exRow = UiTheme.Row();
-            exRow.Add(UiTheme.Btn("▼ STL (F9)", () => { }, UiTheme.Green));
-            exRow.Add(UiTheme.Btn("▼ Waypoints (F10)", () => { }, UiTheme.Orange));
+            exRow.Add(UiTheme.Btn("▼ STL", ExportStl, UiTheme.Green));
+            exRow.Add(UiTheme.Btn("▼ Waypoints", () => { if (recorder != null) recorder.StartRecording(); }, UiTheme.Orange));
             taskBody.Add(exRow);
+            _dbExportStatus = UiTheme.Lbl("", UiTheme.Green, 10); _dbExportStatus.style.whiteSpace = WhiteSpace.Normal; taskBody.Add(_dbExportStatus);
             taskBody.Add(UiTheme.Caption("Safety: joint-limits ✓ · torque ✓ · self-collision ✓"));
 
             var cols = Columns(driver, joints, task);
@@ -170,14 +188,16 @@ namespace ArmSmith.UI
             int n = arm.jointSpecs.Count;
             for (int i = 0; i < n; i++)
             {
-                var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween;
-                row.style.borderTopColor = UiTheme.Border; row.style.borderTopWidth = 1; row.style.paddingTop = 3; row.style.paddingBottom = 3;
+                // colour swatch (joint identity) + name, then a GAUGE of angle-within-limit (RViz JointState pattern)
+                var line = UiTheme.Col(); line.style.marginTop = 3;
+                var head = UiTheme.Row();
                 var swatch = new VisualElement(); swatch.style.width = 10; swatch.style.height = 10; swatch.style.marginRight = 6;
                 swatch.style.backgroundColor = UiTheme.JointColors[i % UiTheme.JointColors.Length]; UiTheme.SetRadius(swatch, 2);
-                var nameCell = UiTheme.Row(); nameCell.Add(swatch); nameCell.Add(UiTheme.Caption($"J{i} {arm.jointSpecs[i].name}"));
-                var angle = UiTheme.Lbl("0.0°", UiTheme.Teal, 11); angle.name = $"jangle{i}"; angle.style.width = 64; angle.style.unityTextAlign = TextAnchor.MiddleRight;
-                row.Add(nameCell); row.Add(angle);
-                _dbJointHost.Add(row);
+                head.Add(swatch); head.Add(UiTheme.Caption($"J{i} {arm.jointSpecs[i].name}"));
+                line.Add(head);
+                var gauge = UiTheme.Gauge("angle", 0.5f, "0.0°", out _, 0.5f); gauge.name = $"jgauge{i}";
+                line.Add(gauge);
+                _dbJointHost.Add(line);
             }
         }
 
@@ -189,8 +209,16 @@ namespace ArmSmith.UI
                 var ang = arm.GetJointAngles();
                 for (int i = 0; i < arm.jointSpecs.Count; i++)
                 {
-                    var l = _dbJointHost.Q<Label>($"jangle{i}");
-                    if (l != null) l.text = $"{ang[i]:F1}°";
+                    var g = _dbJointHost.Q<VisualElement>($"jgauge{i}");
+                    if (g != null)
+                    {
+                        var js = arm.jointSpecs[i];
+                        float frac = Mathf.InverseLerp(js.minAngle, js.maxAngle, ang[i]);
+                        // colour by how close to a joint limit (amber/red near the ends)
+                        float edge = Mathf.Max(frac, 1f - frac);   // 0.5 = centre, ->1 near a limit
+                        float pctOfLimit = Mathf.InverseLerp(0.5f, 1f, edge);
+                        UiTheme.SetGauge(g, frac, $"{ang[i]:F1}°", pctOfLimit);
+                    }
                 }
             }
             if (_dbModeBtn != null && controller != null)
@@ -212,6 +240,16 @@ namespace ArmSmith.UI
             }
             if (_dbGrip != null && arm != null && arm.gripper != null)
                 _dbGrip.text = arm.gripper.IsHolding ? $"HOLDING ({arm.gripper.closeAmount * 100f:F0}%)" : $"{arm.gripper.closeAmount * 100f:F0}% closed";
+            // grasp/contact chip (semantic colour grammar)
+            if (_dbContactHost != null && arm != null && arm.gripper != null)
+            {
+                _dbContactHost.Clear();
+                bool holding = arm.gripper.IsHolding;
+                bool closing = arm.gripper.closeAmount > 0.5f;
+                if (holding) _dbContactHost.Add(UiTheme.StatusChip("GRASPED ✓", UiTheme.Green));
+                else if (closing) _dbContactHost.Add(UiTheme.StatusChip("CLOSING…", UiTheme.Orange));
+                else _dbContactHost.Add(UiTheme.StatusChip("OPEN", UiTheme.Muted));
+            }
             if (scenarios != null)
             {
                 if (_dbObjective != null) _dbObjective.text = scenarios.Objective();
@@ -230,6 +268,212 @@ namespace ArmSmith.UI
         {
             if (arm == null || arm.gripper == null) return;
             arm.gripper.SetClose(arm.gripper.closeAmount > 0.5f ? 0f : 1f);
+        }
+
+        // ════════════════════════════ MODULES VIEW (loadout + add menu) ════════════════════════════
+        // Onshape/Fusion "parts catalog + mounted browser" + game loadout pattern.
+        struct ModuleDef { public string name; public string type; public string spec; public int channels; public Color accent; }
+        static readonly ModuleDef[] kModuleCatalog = {
+            new ModuleDef{ name="Motor Encoders", type="MotorEncoders", spec="joint angles ×6 · baseline proprioception", channels=6, accent=UiTheme.Teal },
+            new ModuleDef{ name="Task State",     type="TaskState",     spec="EE pose + gripper + vel + vector-to-target", channels=16, accent=UiTheme.Teal },
+            new ModuleDef{ name="IMU",            type="IMU",           spec="orientation + gyro + accel (9 ch)", channels=9, accent=UiTheme.Orange },
+            new ModuleDef{ name="Range Finder",   type="RangeFinder",   spec="1-pt ToF from gripper (1 ch)", channels=1, accent=UiTheme.Orange },
+            new ModuleDef{ name="Lidar 2D",       type="Lidar2D",       spec="planar fan scan (16 ch)", channels=16, accent=UiTheme.Orange },
+            new ModuleDef{ name="Depth Camera",   type="DepthCamera",   spec="wrist-cam depth patch (1 ch)", channels=1, accent=UiTheme.Orange },
+            new ModuleDef{ name="EFlesh Tactile", type="EFleshTactile", spec="per-finger contact force (1 ch)", channels=1, accent=UiTheme.Green },
+        };
+
+        Label _modBudget;
+
+        void BuildModulesView()
+        {
+            VisualElement loadBody, catBody;
+            var load = ScrollPanel(UiTheme.PanelHeader("Mounted Loadout", UiTheme.Teal, "on the arm"), out loadBody);
+            var cat  = ScrollPanel(UiTheme.PanelHeader("Module Catalog", UiTheme.Orange, "click to mount"), out catBody);
+
+            // budget readout (mass / channels) — gamifies the "more sensors = heavier" trade-off
+            _modBudget = UiTheme.Lbl("", UiTheme.Muted, 11); _modBudget.style.whiteSpace = WhiteSpace.Normal;
+            loadBody.Add(_modBudget);
+            loadBody.Add(UiTheme.SectionHead("Active Modules"));
+
+            if (sensorHub != null)
+            {
+                foreach (var s in sensorHub.Sensors)
+                {
+                    var sensor = s;
+                    var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween;
+                    row.style.borderTopColor = UiTheme.Border; row.style.borderTopWidth = 1; row.style.paddingTop = 4; row.style.paddingBottom = 4;
+                    var left = UiTheme.Row();
+                    var eye = UiTheme.Btn(sensor.Enabled ? "👁 on" : "✕ off", null, sensor.Enabled ? UiTheme.Green : UiTheme.Muted);
+                    eye.clicked += () => { sensor.Enabled = !sensor.Enabled; SyncMaskFromHub(); SwitchTo(View.Modules); };
+                    left.Add(eye);
+                    left.Add(UiTheme.Lbl(sensor.Name, UiTheme.TextHi, 11));
+                    row.Add(left);
+                    row.Add(UiTheme.Lbl(sensor.Channels.Length + " ch", UiTheme.Muted, 10));
+                    loadBody.Add(row);
+                }
+            }
+            loadBody.Add(UiTheme.Caption("Toggle a module's eye to include/exclude it from the policy observation."));
+
+            // catalog cards
+            catBody.Add(UiTheme.Caption("Add-on sensors & end-effector modules. Mounting attaches to a link socket."));
+            foreach (var m in kModuleCatalog)
+            {
+                var md = m;
+                var card = UiTheme.Panel(md.accent);
+                var cb = new VisualElement(); UiTheme.Pad(cb, 8); card.Add(cb);
+                var t = UiTheme.Row();
+                var nm = UiTheme.Lbl(md.name, UiTheme.TextHi, 12); nm.style.unityFontStyleAndWeight = FontStyle.Bold; t.Add(nm);
+                t.Add(UiTheme.Badge(md.channels + " ch", md.accent));
+                bool mounted = sensorHub != null && sensorHub.Get(md.type) != null;
+                if (mounted) t.Add(UiTheme.Badge("mounted", UiTheme.Green));
+                cb.Add(t);
+                cb.Add(UiTheme.Lbl(md.spec, UiTheme.Muted, 10));
+                // advisor hint (S10): suggest tactile/range for grasp tasks
+                if (scenarios != null && (md.type == "EFleshTactile" || md.type == "RangeFinder"))
+                    cb.Add(UiTheme.Lbl("advisor: improves grasp success", UiTheme.Green, 9));
+                var act = UiTheme.Row();
+                act.Add(UiTheme.Btn(mounted ? "Enable" : "Mount", () => {
+                    if (sensorHub != null) { sensorHub.SetEnabled(md.type, true); SyncMaskFromHub(); }
+                    SwitchTo(View.Modules);
+                }, UiTheme.Green));
+                act.Add(UiTheme.Btn("Disable", () => {
+                    if (sensorHub != null) { sensorHub.SetEnabled(md.type, false); SyncMaskFromHub(); }
+                    SwitchTo(View.Modules);
+                }, UiTheme.Muted));
+                cb.Add(act);
+                catBody.Add(card);
+            }
+
+            // mount sockets info (from ModuleMount)
+            if (moduleMount != null && moduleMount.mountPoints.Count > 0)
+            {
+                catBody.Add(UiTheme.SectionHead("Mount Sockets"));
+                foreach (var mp in moduleMount.mountPoints)
+                    catBody.Add(UiTheme.Caption($"• {mp.name} (link {mp.linkIndex})"));
+            }
+
+            var cols = Columns(load, cat); cols.style.flexGrow = 1;
+            _content.Add(cols);
+            _refresh = RefreshModules;
+        }
+
+        void SyncMaskFromHub()
+        {
+            // mirror the hub's enabled state into the TrainingConfig mask so training uses it
+            if (trainer == null || sensorHub == null) return;
+            var c = trainer.config;
+            c.useMotorEncoders = sensorHub.Get("MotorEncoders")?.Enabled ?? c.useMotorEncoders;
+            c.useTaskState = sensorHub.Get("TaskState")?.Enabled ?? c.useTaskState;
+            c.useImu = sensorHub.Get("IMU")?.Enabled ?? c.useImu;
+            c.useRangeFinder = sensorHub.Get("RangeFinder")?.Enabled ?? c.useRangeFinder;
+            c.useLidar = sensorHub.Get("Lidar2D")?.Enabled ?? c.useLidar;
+            c.useDepthCamera = sensorHub.Get("DepthCamera")?.Enabled ?? c.useDepthCamera;
+            c.useTactile = sensorHub.Get("EFleshTactile")?.Enabled ?? c.useTactile;
+        }
+
+        void RefreshModules()
+        {
+            if (_modBudget == null || sensorHub == null) return;
+            int active = 0, ch = 0;
+            foreach (var s in sensorHub.Sensors) if (s.Enabled) { active++; ch += s.Channels.Length; }
+            float massKg = 0.02f * active;   // ~20g per module (illustrative budget)
+            _modBudget.text = $"Modules: {active} active · {ch} obs channels · ≈{massKg * 1000f:F0} g added mass";
+        }
+
+        // ════════════════════════════ BUILD VIEW (joint editor + creations) ════════════════════════════
+        // Fusion feature-tree (parametric chain) + generative-design outcome gallery patterns.
+        Label _bldStats, _bldStatus;
+        VisualElement _bldChain, _bldGallery;
+
+        void BuildBuildView()
+        {
+            VisualElement chainBody, galBody;
+            var chain = ScrollPanel(UiTheme.PanelHeader("Joint / Link Editor", UiTheme.Teal, "parametric chain"), out chainBody);
+            var gal   = ScrollPanel(UiTheme.PanelHeader("Creations Library", UiTheme.Orange, "saved & evolved"), out galBody);
+
+            // arm stats (live)
+            _bldStats = UiTheme.Lbl("", UiTheme.Muted, 11); _bldStats.style.whiteSpace = WhiteSpace.Normal; chainBody.Add(_bldStats);
+            chainBody.Add(UiTheme.SectionHead("Kinematic Chain"));
+            _bldChain = new VisualElement(); chainBody.Add(_bldChain);
+            RebuildChain();
+            _bldStatus = UiTheme.Lbl("", UiTheme.Green, 10); _bldStatus.style.whiteSpace = WhiteSpace.Normal; chainBody.Add(_bldStatus);
+            chainBody.Add(UiTheme.Caption("Edit limits live. (Adding/removing DOF rebuilds the arm — load a catalogue robot for a different DOF.)"));
+
+            // creations gallery
+            galBody.Add(UiTheme.Caption("Best-of-generation creations — replay, or browse evolution history."));
+            _bldGallery = new VisualElement(); galBody.Add(_bldGallery);
+            RebuildGallery();
+
+            var cols = Columns(chain, gal); cols.style.flexGrow = 1;
+            _content.Add(cols);
+            _refresh = RefreshBuild;
+        }
+
+        void RebuildChain()
+        {
+            if (_bldChain == null || arm == null) return;
+            _bldChain.Clear();
+            for (int i = 0; i < arm.jointSpecs.Count; i++)
+            {
+                var js = arm.jointSpecs[i];
+                int idx = i;
+                var node = UiTheme.Panel(UiTheme.JointColors[i % UiTheme.JointColors.Length]);
+                var nb = new VisualElement(); UiTheme.Pad(nb, 8); node.Add(nb);
+                var head = UiTheme.Row();
+                var sw = new VisualElement(); sw.style.width = 10; sw.style.height = 10; sw.style.marginRight = 6;
+                sw.style.backgroundColor = UiTheme.JointColors[i % UiTheme.JointColors.Length]; UiTheme.SetRadius(sw, 2);
+                head.Add(sw);
+                var nm = UiTheme.Lbl($"J{i} · {js.name}", UiTheme.TextHi, 12); nm.style.unityFontStyleAndWeight = FontStyle.Bold; head.Add(nm);
+                head.Add(UiTheme.Badge(js.axis.ToString(), UiTheme.Muted));
+                nb.Add(head);
+                // limit dual-ish sliders (min/max angle) — live edit
+                var minRow = UiTheme.SliderRow("min °", -180f, 0f, js.minAngle, out var minS, out var minL, "°");
+                minS.RegisterValueChangedCallback(e => { arm.jointSpecs[idx].minAngle = e.newValue; minL.text = e.newValue.ToString("0") + "°"; });
+                var maxRow = UiTheme.SliderRow("max °", 0f, 180f, js.maxAngle, out var maxS, out var maxL, "°");
+                maxS.RegisterValueChangedCallback(e => { arm.jointSpecs[idx].maxAngle = e.newValue; maxL.text = e.newValue.ToString("0") + "°"; });
+                nb.Add(minRow); nb.Add(maxRow);
+                _bldChain.Add(node);
+            }
+        }
+
+        void RebuildGallery()
+        {
+            if (_bldGallery == null) return;
+            _bldGallery.Clear();
+            var lib = EvolutionStore.LoadLibrary();
+            if (lib == null || lib.creations.Count == 0)
+            {
+                _bldGallery.Add(UiTheme.Caption("No creations yet — train, then best-of-generation solutions appear here."));
+                return;
+            }
+            // newest first
+            int shown = 0;
+            for (int i = lib.creations.Count - 1; i >= 0 && shown < 12; i--, shown++)
+            {
+                var c = lib.creations[i];
+                var card = UiTheme.Panel(c.successRate > 0.5f ? UiTheme.Green : UiTheme.Orange);
+                var cb = new VisualElement(); UiTheme.Pad(cb, 8); card.Add(cb);
+                var t = UiTheme.Row();
+                t.Add(UiTheme.Lbl($"Gen {c.generation} · {c.scenario}", UiTheme.TextHi, 11));
+                t.Add(UiTheme.Badge(c.backend, UiTheme.Muted));
+                cb.Add(t);
+                cb.Add(UiTheme.Lbl($"fitness {c.fitness:F2} · success {c.successRate * 100f:F0}% · {c.timestamp}", UiTheme.Muted, 10));
+                var captured = c;
+                cb.Add(UiTheme.Btn("▶ Replay", () => {
+                    if (trainer != null) { trainer.ReplayCreation(captured); if (_bldStatus != null) _bldStatus.text = $"replaying Gen {captured.generation} creation"; }
+                }, UiTheme.Green));
+                _bldGallery.Add(card);
+            }
+        }
+
+        void RefreshBuild()
+        {
+            if (_bldStats != null && arm != null)
+            {
+                float reach = arm.config != null ? arm.config.TotalReach() : 0f;
+                _bldStats.text = $"DOF {arm.jointSpecs.Count} · reach {reach:F2} m · gripper {(arm.gripper != null ? "ok" : "—")}";
+            }
         }
 
         // ════════════════════════════ CATALOGUE VIEW (J2/J3) ════════════════════════════
@@ -282,41 +526,35 @@ namespace ArmSmith.UI
         }
 
         // ════════════════════════════ TRAINING VIEW ════════════════════════════
-        Label _trGen, _trBest, _trMean, _trSuccess, _trBackend, _trObsTotal, _trAdvisor;
+        Label _trBackend, _trObsTotal, _trAdvisor, _trBestTile, _trMeanTile, _trSuccTile, _trCurr;
         Button _trStartBtn;
-        VisualElement _trCurve;
+        VisualElement _trCurve, _trStepper;
 
         void BuildTrainingView()
         {
-            VisualElement pipeBody, dashBody, obsBody;
-            var pipe = ScrollPanel(UiTheme.PanelHeader("Intelligence Pipeline", UiTheme.Teal, "text → control"), out pipeBody);
-            var dash = ScrollPanel(UiTheme.PanelHeader("Live Training Dashboard", UiTheme.Orange, "GA + Policy"), out dashBody);
-            var obs  = ScrollPanel(UiTheme.PanelHeader("Observation Composition", UiTheme.Green), out obsBody);
+            VisualElement dashBody, condBody, obsBody;
+            var dash = ScrollPanel(UiTheme.PanelHeader("Live Dashboard", UiTheme.Orange, "GA + Policy"), out dashBody);
+            var cond = ScrollPanel(UiTheme.PanelHeader("Training Conditions", UiTheme.Teal, "reward · DR · curriculum"), out condBody);
+            var obs  = ScrollPanel(UiTheme.PanelHeader("Observation & Advisor", UiTheme.Green), out obsBody);
 
-            // -- pipeline (text -> plan -> skill -> control -> physics) --
-            string[] stages = { "TEXT — natural-language instruction", "TASK PLAN — AgentCommands grammar",
-                "SKILL — pick/place/reach coroutines", "CONTROL — DLS-IK → ServoModel 4096-tick",
-                "PHYSICS — ArticulationBody + friction (emergent grasp)" };
-            Color[] sc = { UiTheme.Teal, UiTheme.Teal, UiTheme.Text, UiTheme.Orange, UiTheme.Green };
-            for (int i = 0; i < stages.Length; i++)
-            {
-                var node = UiTheme.Panel(sc[i]); var nb = new VisualElement(); UiTheme.Pad(nb, 8); node.Add(nb);
-                nb.Add(UiTheme.Lbl(stages[i], sc[i], 11));
-                pipeBody.Add(node);
-                if (i < stages.Length - 1) { var arrow = UiTheme.Lbl("↓", UiTheme.Muted, 12); arrow.style.unityTextAlign = TextAnchor.MiddleCenter; pipeBody.Add(arrow); }
-            }
-            pipeBody.Add(UiTheme.Caption("Same plan runs in sim AND on the real arm — text is only correct at the plan level."));
-
-            // -- dashboard --
+            // ── DASHBOARD: metric tiles + sparklines (W&B/TensorBoard pattern) ──
             dashBody.Add(UiTheme.StatRow("BACKEND", "—", out _trBackend, UiTheme.Teal));
-            dashBody.Add(UiTheme.StatRow("GENERATION", "0", out _trGen));
-            dashBody.Add(UiTheme.StatRow("BEST FITNESS", "—", out _trBest, UiTheme.Orange));
-            dashBody.Add(UiTheme.StatRow("POP MEAN", "—", out _trMean));
-            dashBody.Add(UiTheme.StatRow("SUCCESS RATE", "—", out _trSuccess, UiTheme.Green));
-            _trCurve = new VisualElement(); _trCurve.style.height = 80; _trCurve.style.backgroundColor = UiTheme.Card2; UiTheme.SetBorder(_trCurve, UiTheme.Border, 1); UiTheme.SetRadius(_trCurve, 4); _trCurve.style.marginTop = 6;
-            _trCurve.generateVisualContent += DrawFitnessCurve;
-            dashBody.Add(_trCurve);
+            var tiles = UiTheme.Row(); tiles.style.flexWrap = Wrap.Wrap;
+            tiles.Add(UiTheme.MetricTile("BEST FITNESS", UiTheme.Orange, () => SafeF(trainer?.lastBestFitness ?? 0f),
+                () => trainer != null ? (IList<float>)trainer.bestHistory : null, out _trBestTile));
+            tiles.Add(UiTheme.MetricTile("POP MEAN", UiTheme.Teal, () => trainer?.lastMeanFitness ?? 0f,
+                () => trainer != null ? (IList<float>)trainer.meanHistory : null, out _trMeanTile));
+            tiles.Add(UiTheme.MetricTile("SUCCESS %", UiTheme.Green, () => (trainer?.lastSuccessRate ?? 0f) * 100f,
+                () => trainer != null ? (IList<float>)trainer.successHistory : null, out _trSuccTile, "F0"));
+            dashBody.Add(tiles);
 
+            // curriculum stepper (Isaac Lab CurriculumCfg viz): L0..L4 nodes, current highlighted
+            dashBody.Add(UiTheme.SectionHead("Curriculum"));
+            _trStepper = UiTheme.Row(); dashBody.Add(_trStepper);
+            _trCurr = UiTheme.Lbl("", UiTheme.Muted, 10); dashBody.Add(_trCurr);
+            RebuildStepper();
+
+            // controls
             dashBody.Add(UiTheme.SectionHead("Controls"));
             var c1 = UiTheme.Row();
             _trStartBtn = UiTheme.Btn("▶ Start (T)", ToggleTraining, UiTheme.Green);
@@ -328,7 +566,56 @@ namespace ArmSmith.UI
             c2.Add(UiTheme.Btn("Mode F8 (GA/Policy)", () => { if (trainer != null) trainer.policyMode = !trainer.policyMode; }, UiTheme.Orange));
             dashBody.Add(c2);
 
-            // -- observation composition (sensor toggles -> obs total) --
+            // ── CONDITIONS: presets + reward-term table + DR ranges + termination/success ──
+            if (trainer != null)
+            {
+                condBody.Add(UiTheme.SectionHead("Presets"));
+                var presetRow = UiTheme.Row(); presetRow.style.flexWrap = Wrap.Wrap;
+                foreach (TrainingConfig.Preset p in Enum.GetValues(typeof(TrainingConfig.Preset)))
+                {
+                    var pp = p;
+                    presetRow.Add(UiTheme.Btn(TrainingConfig.PresetName(pp), () => {
+                        trainer.config.ApplyPreset(pp); trainer.ApplyConfig();
+                        if (sensorHub != null) trainer.config.ApplySensorMask(sensorHub);
+                        SwitchTo(View.Training);   // rebuild to reflect new values
+                    }, UiTheme.Muted));
+                }
+                condBody.Add(presetRow);
+
+                // reward-term table (Isaac Lab RewardsCfg: named, toggleable, weighted)
+                condBody.Add(UiTheme.SectionHead("Reward Terms"));
+                AddRewardTerm(condBody, "Reach  −dist(tip,target)", () => trainer.config.eReach, v => trainer.config.eReach = v, () => trainer.config.wReach, v => trainer.config.wReach = v, 0, 5);
+                AddRewardTerm(condBody, "Grasp  + when holding", () => trainer.config.eGrasp, v => trainer.config.eGrasp = v, () => trainer.config.wGrasp, v => trainer.config.wGrasp = v, 0, 5);
+                AddRewardTerm(condBody, "Place  −dist(obj,goal)", () => trainer.config.ePlace, v => trainer.config.ePlace = v, () => trainer.config.wPlace, v => trainer.config.wPlace = v, 0, 5);
+                AddRewardTerm(condBody, "Success bonus", () => trainer.config.eSuccess, v => trainer.config.eSuccess = v, () => trainer.config.wSuccess, v => trainer.config.wSuccess = v, 0, 10);
+                AddRewardTerm(condBody, "Energy  −Σ|Δθ|", () => trainer.config.eEnergy, v => trainer.config.eEnergy = v, () => trainer.config.wEnergy, v => trainer.config.wEnergy = v, 0, 0.02f);
+                AddRewardTerm(condBody, "Self-penetration", () => trainer.config.eSelfPen, v => trainer.config.eSelfPen = v, () => trainer.config.wSelfPen, v => trainer.config.wSelfPen = v, 0, 5);
+                AddRewardTerm(condBody, "Out-of-bounds", () => trainer.config.eOob, v => trainer.config.eOob = v, () => trainer.config.wOob, v => trainer.config.wOob = v, 0, 10);
+
+                // domain randomization ranges (Isaac Lab EventsCfg)
+                condBody.Add(UiTheme.SectionHead("Domain Randomization"));
+                AddOptSlider(condBody, "DR master (×)", 0f, 1f, () => trainer.config.randomization, v => trainer.config.randomization = v, "");
+                AddDrToggle(condBody, "Spawn position ±", () => trainer.config.drSpawnPos, v => trainer.config.drSpawnPos = v, () => trainer.config.drSpawnPosM, "m");
+                AddDrToggle(condBody, "Object yaw ±", () => trainer.config.drYaw, v => trainer.config.drYaw = v, () => trainer.config.drYawDeg, "°");
+                condBody.Add(UiTheme.ToggleRow("Mass ×0.85–1.15", null, trainer.config.drMass, out var tMass));
+                tMass.RegisterValueChangedCallback(e => trainer.config.drMass = e.newValue);
+                condBody.Add(UiTheme.ToggleRow("Friction ×0.7–1.3", null, trainer.config.drFriction, out var tFric));
+                tFric.RegisterValueChangedCallback(e => trainer.config.drFriction = e.newValue);
+
+                // termination / success (Isaac Lab TerminationsCfg: termination ≠ success)
+                condBody.Add(UiTheme.SectionHead("Termination & Success"));
+                AddOptSlider(condBody, "Timeout (s)", 5f, 60f, () => trainer.config.timeoutSec, v => trainer.config.timeoutSec = v, "s");
+                AddOptSlider(condBody, "Success hold (s)", 0f, 2f, () => trainer.config.successHoldSec, v => trainer.config.successHoldSec = v, "s");
+                AddOptSlider(condBody, "Advance @ success", 0.1f, 1f, () => trainer.config.advanceSuccessRate, v => trainer.config.advanceSuccessRate = v, "");
+                condBody.Add(UiTheme.ToggleRow("Terminate on out-of-bounds", "end episode if object leaves table", trainer.config.termOnOob, out var tOob));
+                tOob.RegisterValueChangedCallback(e => trainer.config.termOnOob = e.newValue);
+                condBody.Add(UiTheme.ToggleRow("Predicate success (EV1)", "composable predicate tree", scenarios != null && scenarios.usePredicateSuccess, out var tPred2));
+                tPred2.RegisterValueChangedCallback(e => { if (scenarios != null) scenarios.usePredicateSuccess = e.newValue; });
+
+                condBody.Add(UiTheme.Btn("Apply to trainer", () => trainer.ApplyConfig(), UiTheme.Orange));
+            }
+
+            // ── OBSERVATION + ADVISOR ──
             obsBody.Add(UiTheme.Caption("Which sensor channels feed the policy this generation"));
             obsBody.Add(UiTheme.StatRow("OBS CHANNELS", "—", out _trObsTotal, UiTheme.Green));
             AddObsToggle(obsBody, "MotorEncoders", () => trainer.config.useMotorEncoders, v => trainer.config.useMotorEncoders = v);
@@ -338,22 +625,68 @@ namespace ArmSmith.UI
             AddObsToggle(obsBody, "Lidar2D", () => trainer.config.useLidar, v => trainer.config.useLidar = v);
             AddObsToggle(obsBody, "DepthCamera", () => trainer.config.useDepthCamera, v => trainer.config.useDepthCamera = v);
             AddObsToggle(obsBody, "EFlesh Tactile", () => trainer.config.useTactile, v => trainer.config.useTactile = v);
-            obsBody.Add(UiTheme.Caption("F = task_reward − λ₁·time − λ₂·energy − λ₃·collisions"));
 
-            // F-r2: sensor realism (noise + latency) toggle
             obsBody.Add(UiTheme.SectionHead("Sensor Realism (F-r2)"));
             obsBody.Add(UiTheme.ToggleRow("Noise + latency", "imperfect sensors -> robust policy", SensorRealism.enabled, out var tReal));
             tReal.RegisterValueChangedCallback(e => SensorRealism.enabled = e.newValue);
 
-            // S10: module advisor — which sensor set is best per task
             obsBody.Add(UiTheme.SectionHead("Module Advisor (S10)"));
             _trAdvisor = UiTheme.Lbl("Train with different sensor masks to compare sets.", UiTheme.Muted, 10);
             _trAdvisor.style.whiteSpace = WhiteSpace.Normal;
             obsBody.Add(_trAdvisor);
 
-            var cols = Columns(pipe, dash, obs); cols.style.flexGrow = 1;
+            var cols = Columns(dash, cond, obs); cols.style.flexGrow = 1;
             _content.Add(cols);
             _refresh = RefreshTraining;
+        }
+
+        static float SafeF(float f) => f <= float.NegativeInfinity ? 0f : f;
+
+        void RebuildStepper()
+        {
+            if (_trStepper == null || trainer == null) return;
+            _trStepper.Clear();
+            string[] levels = { "L0", "L1", "L2", "L3", "L4" };
+            int cur = Mathf.Clamp(Mathf.RoundToInt(trainer.config.difficulty * 4f), 0, 4);
+            for (int i = 0; i < levels.Length; i++)
+            {
+                var node = new Label(levels[i]);
+                node.style.fontSize = 10; node.style.unityFontStyleAndWeight = FontStyle.Bold;
+                node.style.paddingLeft = 6; node.style.paddingRight = 6; node.style.paddingTop = 3; node.style.paddingBottom = 3;
+                node.style.marginRight = 3;
+                bool done = i < cur, active = i == cur;
+                Color c = active ? UiTheme.Teal : (done ? UiTheme.Green : UiTheme.Muted);
+                node.style.color = active ? UiTheme.TextHi : c;
+                node.style.backgroundColor = active ? new Color(UiTheme.Teal.r, UiTheme.Teal.g, UiTheme.Teal.b, 0.2f) : new Color(0, 0, 0, 0);
+                UiTheme.SetBorder(node, c, 1); UiTheme.SetRadius(node, 3);
+                _trStepper.Add(node);
+                if (i < levels.Length - 1) { var a = new Label("→"); a.style.color = UiTheme.Muted; a.style.marginRight = 3; _trStepper.Add(a); }
+            }
+        }
+
+        void AddRewardTerm(VisualElement host, string label, Func<bool> getEn, Action<bool> setEn,
+                           Func<float> getW, Action<float> setW, float min, float max)
+        {
+            var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween; row.style.marginTop = 2; row.style.marginBottom = 2;
+            var tog = new Toggle { value = getEn() }; tog.style.marginRight = 4; tog.style.flexShrink = 0;
+            tog.RegisterValueChangedCallback(e => setEn(e.newValue));
+            var name = UiTheme.Caption(label); name.style.flexGrow = 1;
+            var s = new Slider(min, max) { value = getW() }; s.style.width = 90; s.style.flexShrink = 0; s.style.marginLeft = 4; s.style.marginRight = 4;
+            var v = UiTheme.Lbl(getW().ToString("0.###"), UiTheme.Orange, 10); v.style.width = 44; v.style.flexShrink = 0; v.style.unityTextAlign = TextAnchor.MiddleRight;
+            s.RegisterValueChangedCallback(e => { setW(e.newValue); v.text = e.newValue.ToString("0.###"); });
+            row.Add(tog); row.Add(name); row.Add(s); row.Add(v);
+            host.Add(row);
+        }
+
+        void AddDrToggle(VisualElement host, string label, Func<bool> getEn, Action<bool> setEn, Func<float> getVal, string suf)
+        {
+            var row = UiTheme.Row(); row.style.justifyContent = Justify.SpaceBetween; row.style.marginTop = 2; row.style.marginBottom = 2;
+            var tog = new Toggle { value = getEn() }; tog.style.marginRight = 4; tog.style.flexShrink = 0;
+            tog.RegisterValueChangedCallback(e => setEn(e.newValue));
+            row.Add(tog);
+            var name = UiTheme.Caption(label); name.style.flexGrow = 1; row.Add(name);
+            row.Add(UiTheme.Lbl(getVal().ToString("0.##") + suf, UiTheme.Teal, 10));
+            host.Add(row);
         }
 
         void AddObsToggle(VisualElement host, string name, Func<bool> get, Action<bool> set)
@@ -370,14 +703,15 @@ namespace ArmSmith.UI
             if (trainer.Running) trainer.StopTraining(); else trainer.StartTraining();
         }
 
+        int _trLastDifficultyTick = -1;
         void RefreshTraining()
         {
             if (trainer == null) return;
             if (_trBackend != null) _trBackend.text = trainer.policyMode ? "Sensor-Policy (closed-loop)" : "Motion-GA (open-loop)";
-            if (_trGen != null) _trGen.text = trainer.generation.ToString();
-            if (_trBest != null) _trBest.text = trainer.lastBestFitness <= float.NegativeInfinity ? "—" : trainer.lastBestFitness.ToString("F2");
-            if (_trMean != null) _trMean.text = trainer.lastMeanFitness.ToString("F2");
-            if (_trSuccess != null) _trSuccess.text = $"{trainer.lastSuccessRate * 100f:F0}%";
+            if (_trBestTile != null) _trBestTile.text = trainer.lastBestFitness <= float.NegativeInfinity ? "—" : trainer.lastBestFitness.ToString("F2");
+            if (_trMeanTile != null) _trMeanTile.text = trainer.lastMeanFitness.ToString("F2");
+            if (_trSuccTile != null) _trSuccTile.text = $"{trainer.lastSuccessRate * 100f:F0}";
+            if (_trCurr != null) _trCurr.text = $"{trainer.config.LevelName()} · difficulty {trainer.config.difficulty:F2} · gen {trainer.generation}";
             if (_trStartBtn != null) { _trStartBtn.text = trainer.Running ? "■ Stop (T)" : "▶ Start (T)"; UiTheme.SetActive(_trStartBtn, trainer.Running, UiTheme.Green); }
             if (_trObsTotal != null && sensorHub != null) _trObsTotal.text = sensorHub.BuildObservation().Length.ToString();
             if (_trAdvisor != null && scenarios != null)
@@ -387,27 +721,11 @@ namespace ArmSmith.UI
                     ? $"Best so far for {scenarios.current}: {rec.sensorSet} — {rec.bestSuccess * 100f:F0}% success, {rec.channels} ch (n={rec.samples})"
                     : "Train with different sensor masks to compare sets.";
             }
-            if (_trCurve != null) _trCurve.MarkDirtyRepaint();
-        }
-
-        void DrawFitnessCurve(MeshGenerationContext ctx)
-        {
-            if (trainer == null) return;
-            var hist = trainer.bestHistory;
-            if (hist == null || hist.Count < 2) return;
-            var p = ctx.painter2D;
-            float w = _trCurve.contentRect.width, h = _trCurve.contentRect.height;
-            float min = float.MaxValue, max = float.MinValue;
-            foreach (var v in hist) { if (v < min) min = v; if (v > max) max = v; }
-            if (max - min < 0.01f) max = min + 1f;
-            p.strokeColor = UiTheme.Green; p.lineWidth = 2f; p.BeginPath();
-            for (int i = 0; i < hist.Count; i++)
-            {
-                float x = (i / (float)(hist.Count - 1)) * w;
-                float y = h - Mathf.InverseLerp(min, max, hist[i]) * h;
-                if (i == 0) p.MoveTo(new Vector2(x, y)); else p.LineTo(new Vector2(x, y));
-            }
-            p.Stroke();
+            // rebuild the curriculum stepper only when the level actually changes (auto-curriculum advance)
+            int tick = Mathf.RoundToInt(trainer.config.difficulty * 4f);
+            if (tick != _trLastDifficultyTick) { _trLastDifficultyTick = tick; RebuildStepper(); }
+            // refresh the metric-tile sparklines
+            foreach (var sl in _content.Query<UiTheme.Sparkline>().ToList()) sl.MarkDirtyRepaint();
         }
 
         // ════════════════════════════ OPTIONS VIEW ════════════════════════════
@@ -495,9 +813,16 @@ namespace ArmSmith.UI
 
             AddHelpSection(body, "Interface", new[] {
                 ("F1", "toggle this interface overlay"),
-                ("Nav tabs", "Menu · Dashboard · Training · Options · Help"),
+                ("Nav tabs", "Menu · Dashboard · Build · Modules · Catalogue · Training · Options · Help"),
+                ("MODE pill (nav)", "click ◀ IK/MANUAL ▶ to switch control mode"),
+                ("Shift+S", "sensor-only teleop (operate from sensor data only)"),
                 ("Esc", "back to Dashboard"),
                 ("Shift+H", "this Help view"),
+            });
+            AddHelpSection(body, "Build & Modules", new[] {
+                ("Build view", "edit joint limits (parametric chain) + replay creations"),
+                ("Modules view", "mount/enable sensor modules; see obs-channel + mass budget"),
+                ("Catalogue view", "generate parametric arms / import a URDF robot"),
             });
             AddHelpSection(body, "Control", new[] {
                 ("M", "mouse-follow IK on/off"),

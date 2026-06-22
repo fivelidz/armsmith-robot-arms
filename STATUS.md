@@ -6,7 +6,27 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 15/15.)
 
-## SESSION 2026-06-22c (latest) — catalogue · URDF import · servo torque · sensor realism · advisor · sensor-only
+## SESSION 2026-06-22d (latest) — UI/UX overhaul from industry research (Isaac/Foxglove/Onshape/W&B)
+- Researched leading robotics-sim/training tools and applied concrete patterns. Suite still 15/15; UI check 32.
+- **Training Conditions (Isaac Lab RewardsCfg/EventsCfg/TerminationsCfg patterns)**: presets (Quick GA /
+  Robust / Sim-to-real / Reach-debug); per-term reward TABLE (toggle + weight slider, 7 terms); domain-
+  randomization as named ranges (spawn ±, yaw ±, mass ×, friction ×) scaled by a DR master; termination vs
+  success editor (timeout, success-hold, advance-@-success, terminate-on-OOB, EV1 predicate toggle).
+- **Live Dashboard (W&B/TensorBoard pattern)**: metric TILES with Painter2D SPARKLINES (best/mean/success
+  history) + a curriculum STEPPER (L0→L4, current highlighted, auto-advance flashes).
+- **Controls**: big clickable MODE pill in the nav (◀ IK/MANUAL ▶) — kills mode confusion; Dashboard joint
+  telemetry upgraded to GAUGES (angle-within-limit, amber/red near limits) + a grasp/contact STATUS CHIP;
+  Record/Auto-solve/STL/Waypoints buttons now wired to real actions.
+- **Module add menu (Modules view)**: mounted-loadout list (eye-toggle per module) + module CATALOG cards
+  (mount/enable/disable, advisor hints) + obs-channel & mass BUDGET readout; mount-socket list.
+- **Creation menu (Build view)**: parametric joint/link editor (live limit edit per joint) + CREATIONS
+  LIBRARY gallery (best-of-gen cards with fitness/success + ▶ Replay) backed by EvolutionStore.
+- **Widgets (UiTheme)**: Gauge/SetGauge, Sparkline, MetricTile, StatusChip, DualRange, SemColor (Foxglove
+  semantic colour grammar: green ok / amber near-limit / red over).
+- Nav now: Menu · Dashboard · Build · Modules · Catalogue · Training · Options · Help (8 views).
+- TrainingConfig: per-term enable flags, DR ranges, termination params, ApplyPreset(4). Help view updated.
+
+## SESSION 2026-06-22c — catalogue · URDF import · servo torque · sensor realism · advisor · sensor-only
 - **J2 Robot catalogue** (`Catalogue/RobotCatalogue.cs`): registry of importable robots (SO-101 + parametric
   3/5/6-DOF generated arms). `GenerateParametricKinematics` writes a valid kinematics JSON; `ResolveKinematicsPath`
   generates on demand — all loadable by the existing `BuildFromKinematics`. New **Catalogue view** in the UI.

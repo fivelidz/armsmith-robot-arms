@@ -386,3 +386,14 @@ end-to-end (each headless-gated + the catalogue/sensor-only live-verified):
 - S10 module advisor (sensor-set ablation analytics + recommendation) fed by the trainer + shown in UI.
 - SP1 sensor-only teleop overlay (Shift+S).
 New gate ElementsCheck (24 assertions); suite 14 -> 15/15. Docs/STATUS/ROADMAP/PROGRESS updated; commit+push.
+
+## P-UIUX (2026-06-22d): "improve the UI, training conditions, controls, interface; module add + creation menus; research industry techniques"
+Researched leading robotics-sim/training tools (Isaac Lab/Gym, MuJoCo Playground, Foxglove, RViz, Onshape/
+Fusion, W&B, LeRobot) and implemented the top-impact patterns:
+- Training conditions: presets, per-term reward table, domain-randomization ranges, termination-vs-success
+  editor, curriculum stepper (Isaac Lab Rewards/Events/Terminations/Curriculum Cfg).
+- Live dashboard: metric tiles + sparklines (W&B/TensorBoard).
+- Controls: big clickable MODE indicator (every sim viewer); limit-aware joint gauges + grasp chip (RViz/Foxglove).
+- Module ADD menu: Modules view = mounted-loadout list + catalog cards + budget (Onshape/Fusion + game loadout).
+- CREATION menu: Build view = parametric joint editor + creations gallery (Fusion feature-tree + generative gallery).
+- Visual: semantic colour grammar (Foxglove). Verified headless (UI 32, suite 15/15) + live screenshots.

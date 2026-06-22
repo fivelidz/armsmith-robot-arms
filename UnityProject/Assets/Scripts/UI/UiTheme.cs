@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -279,6 +280,135 @@ namespace ArmSmith.UI
         public static void Pad(VisualElement e, float p)
         {
             e.style.paddingTop = p; e.style.paddingBottom = p; e.style.paddingLeft = p; e.style.paddingRight = p;
+        }
+
+        // ── industry-pattern widgets (Foxglove/W&B/RViz style) ──────────────────────────────────────────
+
+        /// <summary>Semantic colour for a bounded quantity: green within range, amber approaching the limit,
+        /// red over. `pct01` is fraction of the limit used (0..1+).</summary>
+        public static Color SemColor(float pct01)
+        {
+            if (pct01 >= 0.92f) return Red;
+            if (pct01 >= 0.75f) return Orange;
+            return Green;
+        }
+
+        /// <summary>A status chip: ● dot + label, with a consistent colour grammar (the Foxglove pattern).
+        /// Pair colour with text so it survives colour-blindness.</summary>
+        public static VisualElement StatusChip(string text, Color color)
+        {
+            var chip = Row();
+            chip.style.paddingLeft = 6; chip.style.paddingRight = 8; chip.style.paddingTop = 2; chip.style.paddingBottom = 2;
+            chip.style.marginRight = 6;
+            chip.style.backgroundColor = new Color(color.r, color.g, color.b, 0.12f);
+            SetBorder(chip, color, 1); SetRadius(chip, 10);
+            var dot = new Label("●"); dot.style.color = color; dot.style.fontSize = 9; dot.style.marginRight = 4;
+            var l = new Label(text); l.style.color = TextHi; l.style.fontSize = 10; l.style.letterSpacing = 0.8f;
+            chip.Add(dot); chip.Add(l);
+            return chip;
+        }
+
+        /// <summary>A labelled GAUGE bar: name + coloured fill (auto amber/red near the limit) + numeric value.
+        /// `value01` is the fill fraction; `pctOfLimit` decides the colour (defaults to value01).</summary>
+        public static VisualElement Gauge(string label, float value01, string valueText, out VisualElement fill, float? pctOfLimit = null)
+        {
+            var row = Row(); row.style.justifyContent = Justify.SpaceBetween; row.style.marginTop = 2; row.style.marginBottom = 2;
+            var name = Caption(label); name.style.width = 86; name.style.flexShrink = 0;
+            var track = new VisualElement();
+            track.style.flexGrow = 1; track.style.height = 10; track.style.backgroundColor = Card2;
+            SetRadius(track, 3); track.style.marginLeft = 6; track.style.marginRight = 6;
+            fill = new VisualElement();
+            fill.style.height = 10; SetRadius(fill, 3);
+            fill.style.width = new Length(Mathf.Clamp01(value01) * 100f, LengthUnit.Percent);
+            fill.style.backgroundColor = SemColor(pctOfLimit ?? value01);
+            fill.name = "gfill";
+            track.Add(fill);
+            var v = Lbl(valueText, Text, 10); v.style.width = 64; v.style.flexShrink = 0; v.style.unityTextAlign = TextAnchor.MiddleRight;
+            row.Add(name); row.Add(track); row.Add(v);
+            return row;
+        }
+
+        /// <summary>Update a gauge row built by Gauge(): re-set fill width + colour + value text.</summary>
+        public static void SetGauge(VisualElement row, float value01, string valueText, float? pctOfLimit = null)
+        {
+            var fill = row?.Q<VisualElement>("gfill");
+            if (fill != null)
+            {
+                fill.style.width = new Length(Mathf.Clamp01(value01) * 100f, LengthUnit.Percent);
+                fill.style.backgroundColor = SemColor(pctOfLimit ?? value01);
+            }
+            // value label is the last child
+            if (row != null && row.childCount > 0 && row[row.childCount - 1] is Label l) l.text = valueText;
+        }
+
+        /// <summary>A SPARKLINE element backed by a live data source (W&B/Grafana inline-trend pattern).
+        /// Draws the supplied series via the Vector API; call MarkDirtyRepaint() to refresh.</summary>
+        public sealed class Sparkline : VisualElement
+        {
+            public System.Func<IList<float>> source;
+            public Color lineColor = Teal;
+            public bool fillArea = false;
+            public Sparkline(System.Func<IList<float>> src, Color color, float height = 40, bool fill = false)
+            {
+                source = src; lineColor = color; fillArea = fill;
+                style.height = height; style.backgroundColor = Card2; SetRadius(this, 4);
+                style.marginTop = 4; style.marginBottom = 4;
+                generateVisualContent += Draw;
+            }
+            void Draw(MeshGenerationContext ctx)
+            {
+                var data = source != null ? source() : null;
+                if (data == null || data.Count < 2) return;
+                float w = contentRect.width, h = contentRect.height;
+                if (w <= 1 || h <= 1) return;
+                float min = float.MaxValue, max = float.MinValue;
+                foreach (var v in data) { if (v < min) min = v; if (v > max) max = v; }
+                if (max - min < 1e-4f) { max = min + 1f; }
+                var p = ctx.painter2D;
+                float pad = 3f;
+                Vector2 P(int i) => new Vector2(pad + (i / (float)(data.Count - 1)) * (w - 2 * pad),
+                                                h - pad - Mathf.InverseLerp(min, max, data[i]) * (h - 2 * pad));
+                if (fillArea)
+                {
+                    p.fillColor = new Color(lineColor.r, lineColor.g, lineColor.b, 0.15f);
+                    p.BeginPath(); p.MoveTo(new Vector2(P(0).x, h - pad));
+                    for (int i = 0; i < data.Count; i++) p.LineTo(P(i));
+                    p.LineTo(new Vector2(P(data.Count - 1).x, h - pad)); p.ClosePath(); p.Fill();
+                }
+                p.strokeColor = lineColor; p.lineWidth = 1.6f; p.BeginPath();
+                for (int i = 0; i < data.Count; i++) { if (i == 0) p.MoveTo(P(i)); else p.LineTo(P(i)); }
+                p.Stroke();
+            }
+        }
+
+        /// <summary>A titled metric tile (big number + sparkline) — the W&B/TensorBoard dashboard cell.</summary>
+        public static VisualElement MetricTile(string title, Color accent, System.Func<float> value,
+                                               System.Func<IList<float>> series, out Label valueLabel, string fmt = "F2")
+        {
+            var tile = Panel(accent); tile.style.flexGrow = 1; tile.style.marginRight = 6; tile.style.minWidth = 130;
+            var b = new VisualElement(); Pad(b, 8); tile.Add(b);
+            b.Add(Caption(title));
+            valueLabel = new Label(value != null ? value().ToString(fmt) : "—");
+            valueLabel.style.color = accent; valueLabel.style.fontSize = 22; valueLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            b.Add(valueLabel);
+            if (series != null) b.Add(new Sparkline(series, accent, 34, true));
+            return tile;
+        }
+
+        /// <summary>A dual-range (min/max) row built from two sliders — for domain-randomization ranges.</summary>
+        public static VisualElement DualRange(string label, float absMin, float absMax, float lo, float hi,
+                                              out Slider loS, out Slider hiS, out Label valLbl)
+        {
+            var col = Col(); col.style.marginTop = 3; col.style.marginBottom = 3;
+            var head = Row(); head.style.justifyContent = Justify.SpaceBetween;
+            head.Add(Caption(label));
+            valLbl = Lbl($"{lo:0.##} – {hi:0.##}", Teal, 10);
+            head.Add(valLbl); col.Add(head);
+            var sliders = Row();
+            loS = new Slider(absMin, absMax) { value = lo }; loS.style.flexGrow = 1; loS.style.marginRight = 4;
+            hiS = new Slider(absMin, absMax) { value = hi }; hiS.style.flexGrow = 1;
+            sliders.Add(loS); sliders.Add(hiS); col.Add(sliders);
+            return col;
         }
     }
 }

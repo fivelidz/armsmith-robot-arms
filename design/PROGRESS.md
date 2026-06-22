@@ -537,3 +537,16 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - New UI: Catalogue view; Training view gains sensor-realism toggle + module-advisor summary.
 - Tests: ElementsCheck (24 assertions) + UiToolkitCheck now covers Catalogue view (28). run_checks 14->15/15.
 - LIVE-verified: Catalogue view + Sensor-Only mode screenshotted working.
+
+## Session 2026-06-22d — UI/UX overhaul from industry research (suite 15/15, UI check 32)
+- Researched Isaac Lab/Gym, MuJoCo Playground, Foxglove, RViz, Onshape/Fusion, W&B, LeRobot; applied patterns.
+- Training Conditions: presets (4); per-term reward table (toggle+weight); domain-randomization named ranges
+  (spawn/yaw/mass/friction) + DR master; termination vs success editor; curriculum stepper L0->L4.
+- Live Dashboard: metric tiles + Painter2D sparklines (best/mean/success); curriculum stepper viz.
+- Controls: big clickable MODE pill in nav; Dashboard joint GAUGES (limit-aware colour) + grasp chip; wired
+  Record/Auto-solve/STL/Waypoints buttons to real actions.
+- Modules view (add menu): mounted-loadout list + catalog cards (mount/enable/disable + advisor hints) + budget.
+- Build view (creation menu): parametric joint/link editor (live limits) + creations gallery (Replay) via EvolutionStore.
+- UiTheme widgets: Gauge, Sparkline, MetricTile, StatusChip, DualRange, SemColor.
+- TrainingConfig: per-term enable flags + DR ranges + termination params + ApplyPreset(4). Nav now 8 views.
+- UiToolkitCheck auto-covers all 8 views: 28->32 assertions. Full suite 15/15.

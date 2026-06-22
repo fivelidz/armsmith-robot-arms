@@ -25,12 +25,14 @@ namespace ArmSmith.UI
         public EvolutionTrainer trainer;
         public SensorHub sensorHub;
         public BehaviourRecorder recorder;
+        public AgentCommands agent;          // text/auto-solve agent (Dashboard auto-solve button)
+        public ModuleMount moduleMount;      // mount sockets + mounted modules (Modules view)
 
         /// <summary>The legacy uGUI HUD canvas. When the new interface overlay is shown we HIDE this so the
         /// two don't overlap; restored when the overlay is hidden. Optional (null = ignore).</summary>
         public GameObject legacyHud;
 
-        public enum View { Menu, Dashboard, Catalogue, Training, Options, Help }
+        public enum View { Menu, Dashboard, Build, Modules, Catalogue, Training, Options, Help }
         public View current = View.Dashboard;
         public bool visible = true;
 
@@ -40,14 +42,21 @@ namespace ArmSmith.UI
 
         // live status-bar labels
         Label _stSim, _stArm, _stTask, _stIk, _stGen, _stFps, _stMode;
+        Button _navModeBtn;
+
+        void ToggleModeGlobal()
+        {
+            if (controller == null) return;
+            controller.mode = controller.mode == ArmController.Mode.IK ? ArmController.Mode.Manual : ArmController.Mode.IK;
+        }
         // per-view refreshers (called each frame for the active view)
         Action _refresh;
 
         float _fps; int _frames; float _fpsTimer;
 
         public void Bind(ProceduralArm a, ArmController c, ScenarioManager s, EvolutionTrainer t,
-                         SensorHub hub, BehaviourRecorder rec)
-        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; }
+                         SensorHub hub, BehaviourRecorder rec, AgentCommands ag = null, ModuleMount mm = null)
+        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; }
 
         void Start()
         {
@@ -125,6 +134,8 @@ namespace ArmSmith.UI
             // nav tabs
             AddNavTab("Menu", View.Menu);
             AddNavTab("Dashboard", View.Dashboard);
+            AddNavTab("Build", View.Build);
+            AddNavTab("Modules", View.Modules);
             AddNavTab("Catalogue", View.Catalogue);
             AddNavTab("Training", View.Training);
             AddNavTab("Options", View.Options);
@@ -132,6 +143,11 @@ namespace ArmSmith.UI
 
             // spacer
             var spacer = new VisualElement(); spacer.style.flexGrow = 1; _navBar.Add(spacer);
+
+            // big clickable MODE indicator (every sim viewer has one — kills mode confusion)
+            _navModeBtn = UiTheme.Btn("MODE", ToggleModeGlobal, UiTheme.Teal);
+            _navModeBtn.style.minWidth = 96;
+            _navBar.Add(_navModeBtn);
 
             // sim transport (right)
             _navBar.Add(UiTheme.Btn("▶ Play", () => Time.timeScale = Mathf.Max(1f, Time.timeScale), UiTheme.Green));
@@ -167,6 +183,8 @@ namespace ArmSmith.UI
             {
                 case View.Menu:      BuildMenuView(); break;
                 case View.Dashboard: BuildDashboardView(); break;
+                case View.Build:     BuildBuildView(); break;
+                case View.Modules:   BuildModulesView(); break;
                 case View.Catalogue: BuildCatalogueView(); break;
                 case View.Training:  BuildTrainingView(); break;
                 case View.Options:   BuildOptionsView(); break;
@@ -223,6 +241,12 @@ namespace ArmSmith.UI
             if (_stGen != null && trainer != null) _stGen.text = $"Gen {trainer.generation} · {(trainer.Running ? "running" : "idle")}";
             if (_stFps != null) _stFps.text = $"FPS {_fps:F0}";
             if (_stSim != null) _stSim.text = Time.timeScale > 0f ? "SIM LIVE" : "PAUSED";
+            if (_navModeBtn != null && controller != null)
+            {
+                bool ik = controller.mode == ArmController.Mode.IK;
+                _navModeBtn.text = ik ? "◀ IK ▶" : "◀ MANUAL ▶";
+                UiTheme.SetActive(_navModeBtn, true, ik ? UiTheme.Teal : UiTheme.Orange);
+            }
         }
 
         // ── views are in UiManager.Views.cs (partial) ──────────────────────────────────────────────────
