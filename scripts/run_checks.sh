@@ -81,6 +81,10 @@ if [ "$MODE" != "quick" ]; then
   echo "[3g] Multi-robot (shared bus + events + claims + 2-arm spawn)"
   run_unity_method "Multi-robot" \
     "ArmSmith.EditorTools.MultiRobotCheck.RunHeadless" "MultiRobotCheck] PASSED"
+
+  echo "[3h] UI Toolkit interface (theme + nav + all 5 views + refresh + legacy UXML)"
+  run_unity_method "UI Toolkit" \
+    "ArmSmith.EditorTools.UiToolkitCheck.RunHeadless" "UiToolkitCheck] PASSED"
 fi
 
 echo "[3d] Vision grasp-geometry (numpy CV toolbox unit tests)"

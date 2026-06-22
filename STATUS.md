@@ -4,9 +4,31 @@
 > every work session. Newest status at the top of each section.
 >
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
-> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 13/13.)
+> gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 14/14.)
 
-## SESSION 2026-06-22 (latest) — EV1 predicates · reactive expert · multi-robot bus (suite 13/13)
+## SESSION 2026-06-22b (latest) — UNIFIED UI TOOLKIT INTERFACE (built · incorporated · live-verified)
+- **New interface system** (`UI/UiTheme.cs` + `UI/UiManager.cs` + `UI/UiManager.Views.cs`): a single
+  UI Toolkit overlay in the robotics-console design language (from design/ui_html/) with a top NAV BAR,
+  live STATUS BAR (sim/arm/task/IK/mode/gen/fps), and 5 switchable VIEWS:
+  - **Menu** — ARM·SMITH splash + Navigate + all 7 scenario cards (difficulty dots + Launch).
+  - **Dashboard** — Driver/Teleop (mode/gripper/EE/grip + record/auto-solve), live Joint Telemetry
+    (6 colour-coded joints), Task & Export (objective/reward/success bar + STL/Waypoints + safety).
+  - **Training** — intelligence pipeline (text→plan→skill→control→physics), live dashboard (backend/gen/
+    best/mean/success + fitness curve via Painter2D), observation-composition toggles (live obs-channel count).
+  - **Options** — sim speed/solver/gravity, mouse-follow, UI scale, randomness/difficulty/curriculum/
+    EV1-predicate toggle/GA params, "Apply to trainer". Sliders two-way bound to live values.
+  - **Help** — full controls reference by category (conveys everything to the user).
+- **Runtime, no asset-authoring**: `UiTheme.GetPanelSettings()` builds a PanelSettings in code + loads the
+  runtime theme + shared USS from `Resources/UI/` (copied ArmSmithTheme.tss + ArmSmithUI.uss).
+- **Incorporated**: GameBootstrap builds it behind **F1** (additive). When the overlay is up it HIDES the
+  legacy uGUI HUD so they don't overlap; F1 again restores the legacy panels.
+- **Revived the orphaned UXML**: fixed the unsupported `:last-child` USS selector; ArmSmithHud/ArmSmithUI.uxml
+  remain valid (covered by the check).
+- **Tested**: new headless gate `UiToolkitCheck` (26 assertions: theme/PanelSettings/USS + nav + all 5 views
+  build + per-frame refreshers run + legacy UXML declares its named elements). **Suite 13/13 -> 14/14.**
+  Also LIVE-verified in the GUI: all 5 views screenshotted rendering correctly; F1 legacy/new swap clean.
+
+## SESSION 2026-06-22 — EV1 predicates · reactive expert · multi-robot bus (suite 13/13)
 - **EV1 composable success predicates** (RoboLab-style): `Evaluation/Predicates.cs` (NearXZ, Near,
   EeReaches, BelowHeight, AboveAligned, AtRest, Grasping + And/Or/Not/ForAll combinators, each with a
   signed `Margin()` for shaped reward) + `Evaluation/TaskEvaluator.cs` mapping all 7 scenarios to a

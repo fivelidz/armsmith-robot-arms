@@ -50,6 +50,7 @@ namespace ArmSmith
         BuilderPanel builderPanel;
         ControlBar controlBar;
         CommandConsole commandConsole;
+        ArmSmith.UI.UiManager uiManager;
         DemoRecorder demoRec;
         SequenceEditor sequence;
         SaveSystem saveSystem;
@@ -456,6 +457,20 @@ namespace ArmSmith
             // Live TEXT COMMAND console: type robot commands (AgentCommands grammar) -> execute.
             commandConsole = canvasGo.AddComponent<CommandConsole>();
             commandConsole.Build(canvasGo.transform, agent);
+
+            // ── UNIFIED UI TOOLKIT INTERFACE (F1) ─────────────────────────────────────────────────────
+            // The incorporated, designed interface (robotics-console look from design/ui_html/): a single
+            // overlay with top nav + live status bar + switchable views (Menu/Dashboard/Training/Options/
+            // Help). Runtime UIDocument (PanelSettings built in code by UiTheme — no asset authoring).
+            // Additive: legacy panels above keep working; press F1 to toggle this overlay.
+            var uiGo = new GameObject("ArmSmithInterface");
+            var uiDoc = uiGo.AddComponent<UnityEngine.UIElements.UIDocument>();
+            uiDoc.panelSettings = ArmSmith.UI.UiTheme.GetPanelSettings();
+            uiDoc.sortingOrder = 20;   // above the uGUI canvas
+            uiManager = uiGo.AddComponent<ArmSmith.UI.UiManager>();
+            uiManager.Bind(arm, controller, scenarios, trainer, sensorHub, recorder);
+            uiManager.legacyHud = canvasGo;   // hidden while the new interface overlay is up (F1 to swap)
+            uiManager.visible = false;   // start hidden; legacy HUD is the default, F1 reveals the new UI
         }
 
         RawImage MakePanel(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor)

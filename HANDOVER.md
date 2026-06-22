@@ -11,7 +11,7 @@ ARMSMITH is a Unity game/sim where you design, control, evolve, train, and (even
 **Seeed SO-101 / SO-ARM100** 6-DOF robot arm to solve manipulation tasks. Engine: **Unity 6000.4.2f1**, URP,
 **ArticulationBody** physics, units = metres. Driven via the **MCP-for-Unity bridge** (TCP port 6990).
 
-**The pick-and-place task WORKS** (reach → grasp → lift, verified). A **13/13 headless regression suite**
+**The pick-and-place task WORKS** (reach → grasp → lift, verified). A **14/14 headless regression suite**
 guards physics, the task, visualization, training, and the diffusion pipeline. A full **training regimen +
 UI** is built (backends, curriculum, reward shaping, conditions, multi-generation viz). Diffusion (planner +
 trainable policy + inference server) and in-world path visualization are functional.
@@ -143,6 +143,10 @@ scenarios → cameras → sensors → trainer → HUD → IgnoreArmVsEnvironment
 ---
 
 ## 4. In-sim controls (when the GUI is running)
+- **F1** = the NEW unified UI Toolkit interface overlay (Menu/Dashboard/Training/Options/Help via top nav;
+  live status bar). Built in code by `UI/UiManager` (PanelSettings + theme + USS from Resources/UI, via
+  `UI/UiTheme`). Additive — F1 swaps it with the legacy uGUI HUD. Headless gate: `UiToolkitCheck`.
+- Legacy panels (still available when the overlay is off):
 - **F3** Training panel (backend selector, curves, start/stop/+1gen). **F4** Conditions panel (difficulty,
   randomization, reward weights, sensor toggles, GA params).
 - Path/training viz keys: **3** generations · **4** diffusion-policy · **5** follow-plan · **6** MPD planner

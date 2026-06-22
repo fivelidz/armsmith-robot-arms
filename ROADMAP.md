@@ -174,8 +174,10 @@ UI:
 - [ ] Sensor-modules panel: per-module enable + view-toggle BUTTONS; better layout.
 - [ ] On-arm servo +/- buttons visible (callouts) + reliable.
 - [ ] Colour the SERVO REGIONS on the 3D arm model (tint each link/servo body).
-- [ ] Camera-controls help shown on-screen.
-- [ ] HTML windows (menu/options/training) as real in-game Unity windows.
+- [x] Camera-controls help shown on-screen — Help view in the new UI Toolkit interface (F1).
+- [x] HTML windows (menu/options/training) as real in-game Unity windows — UI Toolkit interface system
+      (UI/UiManager + UiTheme): Menu/Dashboard/Training/Options/Help views, runtime PanelSettings, F1
+      toggle, live-bound; headless UiToolkitCheck (26 assertions) + live screenshots. (2026-06-22b)
 Control:
 - [ ] Alt+LMB drag = camera orbit (keep RMB too).
 - [ ] Click in world to set next IK target / transition location.

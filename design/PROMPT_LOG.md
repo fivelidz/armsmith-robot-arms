@@ -346,3 +346,32 @@ DELIVERED: MotorPhysicsCheck (physics verified); TrainingConfig + reward shaping
 selection; TrainingPanel (F3) + ConditionsPanel (F4); scrambled-world randomization; multi-generation viz;
 TrainingSmokeCheck (proves learning); 7/7 headless suite; NVlabs research reports + ROADMAP CV/spatial
 directions; HANDOVER.md.
+
+## P-UI (2026-06-22): "build the utml and interface systems, incorporate, review and test"
+USER ASK: continue all components; brainstorm + plan; review issues; consider all elements that should be
+easy to convey to a user; build all; test all; build the UI (UXML) and interface systems, incorporate,
+review and test.
+
+REVIEW FINDINGS:
+- A full HTML mockup set exists (design/ui_html/: dashboard, designer, driver, cameras, evolution, export,
+  options window, training window, main menu) defining a dark robotics-console design language.
+- A UI Toolkit HUD (Assets/UI/ArmSmithUI.uxml 238L + .uss 694L + UI/ArmSmithHud.cs 738L) implementing the
+  DASHBOARD layout EXISTS but is ORPHANED — GameBootstrap never instantiates it; no PanelSettings; assets
+  not in Resources. The live UI is scattered IMGUI+uGUI panels with NO unified navigation.
+- ISSUE: UIDocument renders nothing without a PanelSettings asset; assets not in Resources -> can't load by
+  code. Stale help text; "send to robot" placeholder; no Help/Controls screen; no in-game menu/options/
+  training WINDOWS (only HTML mockups).
+
+PLAN (build, incorporate, test — all headless-gated):
+1. Make the UI Toolkit HUD LOAD AT RUNTIME: move UXML/USS into Resources/UI; create PanelSettings in code
+   (runtime ScriptableObject) so no manual asset authoring; wire ArmSmithHud in GameBootstrap behind a key.
+2. Build the INTERFACE SYSTEM as proper UI Toolkit windows mirroring the mockups:
+   - Unified top NAV + STATUS BAR (live sim/arm/task/IK/gen/fps/real-rig match).
+   - OPTIONS window (Simulation/Control/Sensors/Display/Randomisation tabs) bound to TrainingConfig+Scenario.
+   - TRAINING window (intelligence pipeline, mode, generative loop, live dashboard, observation composition).
+   - HELP/Controls overlay (the key reference, conveyed cleanly to the user).
+   - MAIN MENU (scenario select + workspace slots) as the entry surface.
+3. INCORPORATE: a UiManager owns the windows + nav + hotkeys; keep legacy panels working (additive).
+4. CONVEY-TO-USER focus: every element labelled, tooltipped, with live readouts + an onboarding/help path.
+5. TEST: headless UiToolkitCheck (UXML loads, PanelSettings builds, all named elements resolve, binder runs
+   without exceptions, windows toggle). Extend run_checks.sh. Keep suite green.

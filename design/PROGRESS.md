@@ -508,3 +508,18 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
   MultiRobot/MultiRobotManager.cs spawns N real SO-101 arms on one shared blackboard. MultiRobotCheck —
   16 assertions (state/events/claims/2-arm spawn).
 - Headless suite 7/7 -> 13/13 (added 3e Predicate, 3f Reactive expert, 3g Multi-robot).
+
+## Session 2026-06-22b — Unified UI Toolkit interface (built, incorporated, live-verified; suite 14/14)
+- Reviewed the HTML mockups (design/ui_html/) + the existing scattered IMGUI/uGUI panels + the ORPHANED
+  UI Toolkit HUD (ArmSmithUI.uxml/uss + UI/ArmSmithHud.cs, never wired in). Decided to build a clean,
+  code-driven UI Toolkit interface system that conveys EVERYTHING to the user, reusing the mockup design.
+- UI/UiTheme.cs: palette + widget factory (panel/header/btn/slider/toggle/statrow/progress) + a runtime
+  PanelSettings (loads theme + shared USS from Resources/UI) so a UIDocument renders with NO asset authoring.
+- UI/UiManager.cs (+ .Views.cs partial): top nav + live status bar + 5 views (Menu, Dashboard, Training,
+  Options, Help), per-frame refreshers, F1 toggle. Bound to arm/controller/scenarios/trainer/sensorHub.
+- Incorporated in GameBootstrap.BuildHud behind F1; hides the legacy HUD while the overlay is up.
+- Copied UnityDefaultRuntimeTheme + ArmSmithUI.uss into Resources/UI; fixed the unsupported :last-child USS.
+- Editor/UiToolkitCheck.cs: 26 headless assertions (theme/panelsettings/USS + nav + all 5 views build +
+  refreshers run + legacy UXML named elements). Added as run_checks.sh step 3h. Suite 13/13 -> 14/14.
+- LIVE-verified in the GUI (wayland launch): screenshotted Menu/Dashboard/Training/Options/Help all
+  rendering correctly; confirmed F1 legacy<->new swap leaves a clean console interface.
