@@ -88,15 +88,40 @@ namespace ArmSmith.EditorTools
                 var depthParts = at.placed.FindAll(p => p.defId == "cam_wrist");
                 foreach (var p in new List<PlacedPart>(depthParts)) at.Remove(p);
                 Check("removing camera disabled DepthCamera", hub.Get("DepthCamera") == null || !hub.Get("DepthCamera").Enabled);
+
+                // MountNodeViz: builds collider-free markers when shown, clears when hidden
+                var mmGo = new GameObject("MM"); spawned.Add(mmGo);
+                var mm = mmGo.AddComponent<ModuleMount>(); mm.Setup(arm);
+                var mvGo = new GameObject("MV"); spawned.Add(mvGo);
+                var mv = mvGo.AddComponent<MountNodeViz>(); mv.Bind(arm, mm, mat);
+                mv.SetShown(true);
+                int markers = 0; foreach (Transform t in EnumerateChildren(arm)) if (t.name.StartsWith("MountNode_")) markers++;
+                Check("mount-node markers shown", markers > 0);
+                bool markerNoCollider = true; foreach (Transform t in EnumerateChildren(arm)) if (t.name.StartsWith("MountNode_") && t.GetComponent<Collider>() != null) markerNoCollider = false;
+                Check("markers have no collider", markerNoCollider);
+                mv.SetShown(false);
+                int after = 0; foreach (Transform t in EnumerateChildren(arm)) if (t.name.StartsWith("MountNode_")) after++;
+                Check("markers cleared on hide", after == 0);
             }
             catch (System.Exception e) { Debug.LogError("[AttachmentCheck] " + e); fail++; }
             finally { for (int i = spawned.Count - 1; i >= 0; i--) if (spawned[i] != null) Object.DestroyImmediate(spawned[i]); }
 
             bool ok2 = fail == 0;
             Debug.Log(ok2
-                ? $"[AttachmentCheck] PASSED — {pass} assertions (parts build + place/parent/sensor + move + json round-trip + remove)."
+                ? $"[AttachmentCheck] PASSED — {pass} assertions (parts build + place/parent/sensor + move + json round-trip + remove + mount-nodes)."
                 : $"[AttachmentCheck] FAILED — {fail} of {pass + fail} assertions failed.");
             return ok2;
+        }
+
+        static IEnumerable<Transform> EnumerateChildren(ProceduralArm arm)
+        {
+            if (arm == null) yield break;
+            var roots = new List<Transform>();
+            if (arm.baseBody != null) roots.Add(arm.baseBody.transform);
+            foreach (var jb in arm.jointBodies) if (jb != null) roots.Add(jb.transform);
+            foreach (var r in roots)
+                foreach (Transform t in r.GetComponentsInChildren<Transform>())
+                    yield return t;
         }
     }
 }

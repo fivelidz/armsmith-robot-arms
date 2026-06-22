@@ -194,8 +194,32 @@ namespace ArmSmith.UI
 
         // ════════════════════════════ DASHBOARD VIEW ════════════════════════════
         Label _dbObjective, _dbReward, _dbSuccess, _dbEE, _dbGrip, _dbExportStatus;
-        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost, _dbTrainBanner, _kbHost;
+        VisualElement _dbJointHost, _dbRewardBar, _dbContactHost, _dbTrainBanner, _kbHost, _dbCamFeeds;
         Button _dbModeBtn, _dbGripBtn, _dbMouseBtn;
+        int _dbCamCount = -1;
+
+        void RebuildCamFeeds()
+        {
+            if (_dbCamFeeds == null) return;
+            _dbCamFeeds.Clear();
+            int cams = 0;
+            if (attachments != null)
+            {
+                var row = UiTheme.Row(); row.style.flexWrap = Wrap.Wrap;
+                foreach (var pp in attachments.placed)
+                {
+                    if (pp.def == null || pp.def.kind != ArmSmith.Modules.PartKind.Camera || pp.rt == null) continue;
+                    var col = UiTheme.Col(); col.style.marginRight = 8; col.style.marginBottom = 6;
+                    var img = new Image { image = pp.rt }; img.style.width = 120; img.style.height = 120;
+                    UiTheme.SetBorder(img, UiTheme.BorderHi, 1); UiTheme.SetRadius(img, 4);
+                    col.Add(img); col.Add(UiTheme.Caption(pp.def.name));
+                    row.Add(col); cams++;
+                }
+                _dbCamFeeds.Add(row);
+            }
+            if (cams == 0) _dbCamFeeds.Add(UiTheme.Caption("No cameras mounted — add one in Build / Modules (⊕ 3D Part)."));
+            _dbCamCount = cams;
+        }
 
         // key-rebind capture state: when set, the next key pressed becomes this action's binding
         KeyBindings.Action? _kbCapturing;
@@ -315,6 +339,11 @@ namespace ArmSmith.UI
             _dbExportStatus = UiTheme.Lbl("", UiTheme.Green, 10); _dbExportStatus.style.whiteSpace = WhiteSpace.Normal; taskBody.Add(_dbExportStatus);
             taskBody.Add(UiTheme.Caption("Safety: joint-limits ✓ · torque ✓ · self-collision ✓"));
 
+            // live camera feeds from mounted camera parts (see what the robot sees while driving)
+            taskBody.Add(UiTheme.SectionHead("Camera Feeds"));
+            _dbCamFeeds = new VisualElement(); taskBody.Add(_dbCamFeeds);
+            RebuildCamFeeds();
+
             var cols = Columns(driver, joints, task);
             cols.style.flexGrow = 1;
             _content.Add(cols);
@@ -423,6 +452,12 @@ namespace ArmSmith.UI
                 if (_dbSuccess != null) { _dbSuccess.text = scenarios.SuccessNow ? "ACHIEVED ✓" : (scenarios.Succeeded ? "done" : "in progress"); _dbSuccess.style.color = scenarios.SuccessNow ? UiTheme.Green : UiTheme.Muted; }
                 if (_dbRewardBar != null) UiTheme.SetProgress(_dbRewardBar, Mathf.InverseLerp(-2f, 14f, scenarios.LastReward));
             }
+            // rebuild camera-feed thumbnails only when the mounted-camera count changes
+            if (_dbCamFeeds != null && attachments != null)
+            {
+                int cams = 0; foreach (var pp in attachments.placed) if (pp.def != null && pp.def.kind == ArmSmith.Modules.PartKind.Camera && pp.rt != null) cams++;
+                if (cams != _dbCamCount) RebuildCamFeeds();
+            }
         }
 
         void ToggleMode()
@@ -513,6 +548,15 @@ namespace ArmSmith.UI
                     if (sensorHub != null) { sensorHub.SetEnabled(md.type, false); SyncMaskFromHub(); }
                     SwitchTo(View.Modules);
                 }, UiTheme.Red));
+                // KSP-style: also place a real 3D part on the arm for this sensor (cameras/range/lidar/imu/tactile)
+                string partId = SensorToPartId(md.type);
+                if (partId != null && attachments != null)
+                    act.Add(UiTheme.Btn("⊕ 3D Part", () => {
+                        int wrist = arm != null ? Mathf.Max(0, arm.jointSpecs.Count - 2) : 0;
+                        attachments.Place(partId, wrist, new Vector3(0f, 0.04f, 0.03f), Vector3.zero, 1.2f);
+                        if (saveSystem != null) saveSystem.AutoSaveConditions();
+                        SwitchTo(View.Build);   // jump to the build bench to adjust it
+                    }, UiTheme.Teal));
                 card.Add(act);
                 body.Add(card);
             }
@@ -521,6 +565,20 @@ namespace ArmSmith.UI
         }
 
         VisualElement _modBudgetBars;
+
+        // map a SensorHub module type to its KSP attachment part id (null = no 3D part for this one)
+        static string SensorToPartId(string sensorType)
+        {
+            switch (sensorType)
+            {
+                case "DepthCamera":   return "cam_wrist";
+                case "RangeFinder":   return "range";
+                case "Lidar2D":       return "lidar";
+                case "IMU":           return "imu";
+                case "EFleshTactile": return "tactile";
+                default:              return null;   // MotorEncoders/TaskState are intrinsic, no physical part
+            }
+        }
 
         static float ModuleBenefit(string type)
         {

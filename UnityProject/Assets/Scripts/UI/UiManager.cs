@@ -29,6 +29,7 @@ namespace ArmSmith.UI
         public ModuleMount moduleMount;      // mount sockets + mounted modules (Modules view)
         public SaveSystem saveSystem;        // persist/restore all conditions + settings (Save/Load buttons)
         public ArmSmith.Modules.AttachmentSystem attachments;   // KSP-style 3D part attachment (Build/Modules)
+        public ArmSmith.Modules.MountNodeViz mountNodes;        // in-scene attach-node markers
 
         /// <summary>The legacy uGUI HUD canvas. When the new interface overlay is shown we HIDE this so the
         /// two don't overlap; restored when the overlay is hidden. Optional (null = ignore).</summary>
@@ -58,8 +59,9 @@ namespace ArmSmith.UI
 
         public void Bind(ProceduralArm a, ArmController c, ScenarioManager s, EvolutionTrainer t,
                          SensorHub hub, BehaviourRecorder rec, AgentCommands ag = null, ModuleMount mm = null,
-                         SaveSystem ss = null, ArmSmith.Modules.AttachmentSystem at = null)
-        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; saveSystem = ss; attachments = at; }
+                         SaveSystem ss = null, ArmSmith.Modules.AttachmentSystem at = null,
+                         ArmSmith.Modules.MountNodeViz mn = null)
+        { arm = a; controller = c; scenarios = s; trainer = t; sensorHub = hub; recorder = rec; agent = ag; moduleMount = mm; saveSystem = ss; attachments = at; mountNodes = mn; }
 
         void Start()
         {
@@ -98,6 +100,7 @@ namespace ArmSmith.UI
             // Hide the legacy uGUI HUD while the new interface is up, so they don't overlap. The legacy
             // panels are still reachable (toggle the overlay off with F1 to get them back).
             if (legacyHud != null) legacyHud.SetActive(!v);
+            if (mountNodes != null) mountNodes.SetShown(v && (current == View.Build || current == View.Modules));
         }
 
         // ── ROOT: nav + content + status ───────────────────────────────────────────────────────────────
@@ -181,6 +184,9 @@ namespace ArmSmith.UI
                 kv.Value.style.borderBottomColor = on ? UiTheme.Teal : new Color(0, 0, 0, 0);
                 kv.Value.style.backgroundColor = on ? new Color(UiTheme.Teal.r, UiTheme.Teal.g, UiTheme.Teal.b, 0.10f) : new Color(0, 0, 0, 0);
             }
+            // show the KSP-style in-scene attach-node markers only while building/adding modules
+            if (mountNodes != null) mountNodes.SetShown(visible && (view == View.Build || view == View.Modules));
+
             _content.Clear();
             _refresh = null;
             switch (view)

@@ -591,3 +591,10 @@ In-sim keys: F3 training, F4 conditions; 3 generations, 4 diffusion-policy, 5 fo
 - Build menu: parts bin + Mount-Target picker + per-part adjust sliders + camera-feed thumbnail + Remove.
 - Editor/AttachmentCheck.cs: 33 assertions (build/place/parent/sensor/move/json/remove). run_checks 16->17/17.
 - Live-verified placement (camera+rangefinder visible on the wrist), move/scale, and loadout round-trip.
+
+## Session 2026-06-22i — attachment polish: attach-nodes + camera feeds + Modules 3D-part (suite 17/17)
+- Modules/MountNodeViz.cs: KSP-style glowing attach-node discs at mount sockets, shown in Build/Modules only.
+- Control view Camera Feeds: live RenderTexture thumbnails of mounted camera parts (see what robot sees).
+- Modules view "+ 3D Part" button: places the matching part (SensorToPartId) + jumps to Build bench.
+- AttachmentCheck extended 33->36 (mount-node build/no-collider/clear-on-hide). run_checks 17/17.
+- Live-verified: attach-node discs on the arm; wrist-camera feed in Control.

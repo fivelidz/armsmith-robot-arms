@@ -6,7 +6,17 @@
 > **NEW SESSION? Read `HANDOVER.md` first** — full state, architecture, how-to-run, what works/pending,
 > gotchas, and next steps. (Headless suite: `./scripts/run_checks.sh` — currently 16/16.)
 
-## SESSION 2026-06-22h (latest) — KSP-STYLE 3D ATTACHMENTS + training-solves-task verified
+## SESSION 2026-06-22i (latest) — attachment polish: in-scene attach-nodes, camera feeds, Modules 3D-part
+- **In-scene attach-node markers** (`Modules/MountNodeViz.cs`): KSP-style glowing teal discs at every mount
+  socket on the arm, shown only while in Build/Modules (and hidden when the overlay is off). Tracks the arm.
+- **Camera Feeds panel** in the Control view: live RenderTexture thumbnails of every mounted camera part
+  ("WRIST CAMERA" etc.) — see what the robot sees while you drive. Rebuilds when the camera count changes.
+- **Modules view "⊕ 3D Part"** button: places the matching KSP part (camera/range/lidar/imu/tactile) on the
+  arm and jumps to the Build bench to adjust it (SensorToPartId map).
+- **Tested**: AttachmentCheck extended to 36 assertions (adds mount-node build/no-collider/clear). Suite 17/17.
+  LIVE-verified: attach-node discs visible on the arm in Build; a placed wrist camera shows its feed in Control.
+
+## SESSION 2026-06-22h — KSP-STYLE 3D ATTACHMENTS + training-solves-task verified
 - **Training actually solves the task** (verified LIVE): fresh GA on TrayToTray reaches **100% success by
   gen 1** (best 13.7, pop-mean climbs 5.2→10.4 as it breeds). The sim does its job.
 - **KSP-style modular ATTACHMENT system** (new `Modules/AttachmentSystem.cs` + `Modules/ModuleParts.cs`):
